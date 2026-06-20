@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import * as Google from 'expo-auth-session/providers/google';
+import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import mobileAds, { BannerAd, BannerAdSize, TestIds, RewardedAd, RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
 
@@ -63,6 +64,17 @@ const C = {
 
 // Canlı backend (Render). Yerel geliştirme için: 'http://192.168.1.100:3000'
 const API_URL = 'https://gymbody.onrender.com';
+
+// Ağ hatalarını yakala — sunucuya ulaşılamazsa net mesaj
+axios.interceptors.response.use(
+  res => res,
+  err => {
+    if (!err.response) {
+      err.userMessage = 'İnternet bağlantını kontrol et ve tekrar dene.';
+    }
+    return Promise.reject(err);
+  }
+);
 
 // ⚠️ Google Cloud Console > Credentials'tan al, buraya yapıştır
 const GOOGLE_CLIENT_IDS = {
@@ -348,7 +360,7 @@ const fetchWeeklyPlan = async (silent = false) => {
     if (res.data.trainingDaysPerWeek) setGymTrainingDays(res.data.trainingDaysPerWeek);
     setGymFeedback('');
   } catch (error: any) {
-    const msg = error.response?.data?.error || 'Plan oluşturulamadı.';
+    const msg = error.userMessage || error.response?.data?.error || 'Plan oluşturulamadı.';
     if (!silent) Alert.alert('Hata', msg);
   } finally {
     if (!silent) setGymLoading(false);
@@ -363,7 +375,7 @@ const startProgram = async () => {
     });
     setWeeklyPlan(res.data);
   } catch (error: any) {
-    Alert.alert('Hata', error.response?.data?.error || 'Program başlatılamadı.');
+    Alert.alert('Hata', error.userMessage || error.response?.data?.error || 'Program başlatılamadı.');
   } finally {
     setGymLoading(false);
   }
@@ -506,6 +518,7 @@ const captureAndShare = async () => {
 
 const handleCompleteDay = async (feedback?: string) => {
   try {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const res = await axios.post(`${API_URL}/complete-day`, { dailyFeedback: feedback || '' }, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -519,7 +532,7 @@ const handleCompleteDay = async (feedback?: string) => {
       setNewBadgeVisible(true);
     }
   } catch (error: any) {
-    const msg = error.response?.data?.error || 'Gün tamamlanamadı.';
+    const msg = error.userMessage || error.response?.data?.error || 'Gün tamamlanamadı.';
     setDayFeedbackVisible(false);
     Alert.alert(error.response?.status === 429 ? 'Bilgi' : 'Hata', msg);
   }
@@ -739,6 +752,7 @@ const askAndPickImage = async (type: 'progress' | 'meal') => {
 };
 
 const showImageSourceOptions = (type: 'progress' | 'meal') => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   Alert.alert(
     "Fotoğraf Kaynağı 📸",
     "Fotoğrafı nasıl ekleyelim kanka?",
@@ -1095,8 +1109,8 @@ const sendMealToAI = async (uri: string) => {
       if (Math.abs(g.dx) < 40) return;
       const tabKeys = TABS.map(t => t.key);
       const idx = tabKeys.indexOf(currentTab);
-      if (g.dx < 0 && idx < TABS.length - 1) setCurrentTab(tabKeys[idx + 1]); // sola kaydır → sonraki
-      if (g.dx > 0 && idx > 0) setCurrentTab(tabKeys[idx - 1]);               // sağa kaydır → önceki
+      if (g.dx < 0 && idx < TABS.length - 1) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx + 1]); }
+      if (g.dx > 0 && idx > 0) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx - 1]); }
     },
   });
 
@@ -1440,7 +1454,14 @@ const sendMealToAI = async (uri: string) => {
     )}
   </ScrollView>
       )} 
-      {currentTab === 'gallery' && (
+      {currentTab === 'gallery' && loading && gallery.length === 0 && (
+        <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
+          {[1,2,3].map(i => (
+            <View key={i} style={{ backgroundColor: C.surface, borderRadius: 16, height: 120, opacity: 0.5 + i * 0.1 }} />
+          ))}
+        </View>
+      )}
+      {currentTab === 'gallery' && !(loading && gallery.length === 0) && (
         <FlatList
           data={gallery}
           keyExtractor={(item) => item._id}
@@ -1490,9 +1511,16 @@ const sendMealToAI = async (uri: string) => {
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="images-outline" size={44} color={C.textMuted} />
+              <Ionicons name="camera-outline" size={52} color={C.orange} />
               <Text style={styles.emptyTitle}>Henüz fotoğraf yok</Text>
-              <Text style={styles.emptyText}>İlk gelişim fotoğrafını ekle, değişimini takip etmeye başla.</Text>
+              <Text style={styles.emptyText}>İlk gelişim fotoğrafını ekle, AI yağ oranını hesaplasın ve değişimini takip etmeye başla.</Text>
+              <TouchableOpacity
+                onPress={() => showImageSourceOptions('progress')}
+                style={{ marginTop: 18, backgroundColor: C.orange, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#0B0D12" />
+                <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 14 }}>İlk Fotoğrafı Ekle</Text>
+              </TouchableOpacity>
             </View>
           }
       renderItem={({ item }) => (
