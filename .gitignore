@@ -1,0 +1,29 @@
+# Secrets — ASLA commit'lenmez
+.env
+.env.*
+*.pem
+*.key
+
+# Bağımlılıklar
+node_modules/
+backend/node_modules/
+mobile/node_modules/
+
+# Expo / RN build çıktıları
+mobile/.expo/
+mobile/ios/
+mobile/android/
+mobile/dist/
+mobile/web-build/
+*.log
+
+# Sistem
+.DS_Store
+Thumbs.db
+
+# Editör
+.vscode/
+.idea/
+
+# Claude Code yerel ayarları (repoya gitmez)
+.claude/

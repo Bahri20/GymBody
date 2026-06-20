@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GymBodyAI – Admin Paneli</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #f0f0f0; min-height: 100vh; }
+
+    .header { display: flex; align-items: center; justify-content: space-between; padding: 18px 32px; border-bottom: 1px solid #1e1e1e; }
+    .logo { font-size: 18px; font-weight: 800; }
+    .logo span { color: #f97316; }
+    .logo em { font-style: normal; font-size: 12px; background: #f97316; color: white; padding: 2px 7px; border-radius: 4px; margin-left: 8px; vertical-align: middle; }
+    .logout-btn { background: none; border: 1px solid #333; color: #aaa; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+    .logout-btn:hover { border-color: #f97316; color: #f97316; }
+
+    /* GİRİŞ */
+    #loginScreen { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 57px); }
+    .login-card { background: #161616; border: 1px solid #222; border-radius: 20px; padding: 40px; width: 100%; max-width: 380px; }
+    .login-card h2 { font-size: 20px; margin-bottom: 6px; }
+    .login-card p { color: #666; font-size: 13px; margin-bottom: 28px; }
+    label { display: block; font-size: 12px; color: #777; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input, select { width: 100%; background: #111; border: 1px solid #222; border-radius: 10px; padding: 11px 14px; color: #f0f0f0; font-size: 14px; margin-bottom: 14px; outline: none; }
+    input:focus, select:focus { border-color: #f97316; }
+    .btn-primary { width: 100%; background: #f97316; color: white; border: none; border-radius: 10px; padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    .btn-primary:hover { opacity: 0.9; }
+    .err { color: #f87171; font-size: 12px; margin-top: -10px; margin-bottom: 12px; }
+
+    /* PANEL */
+    #panel { display: none; padding: 32px; max-width: 1200px; margin: 0 auto; }
+
+    /* HOCA EKLE KARTI */
+    .add-card { background: #161616; border: 1px solid #222; border-radius: 16px; padding: 28px; margin-bottom: 32px; }
+    .add-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group input, .form-group select { margin-bottom: 0; }
+    .btn-add { background: #f97316; color: white; border: none; border-radius: 10px; padding: 11px 24px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; align-self: flex-end; }
+    .btn-add:hover { opacity: 0.9; }
+
+    /* HOCA LİSTESİ */
+    .coaches-card { background: #161616; border: 1px solid #222; border-radius: 16px; overflow: hidden; }
+    .coaches-card-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid #1e1e1e; }
+    .coaches-card-header h3 { font-size: 16px; font-weight: 700; }
+    .count-badge { background: #1e1e1e; border: 1px solid #2a2a2a; color: #aaa; font-size: 12px; padding: 4px 10px; border-radius: 20px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #111; font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; padding: 11px 20px; text-align: left; }
+    td { padding: 14px 20px; font-size: 14px; border-top: 1px solid #1a1a1a; vertical-align: middle; }
+    tr:hover td { background: #161616; }
+
+    .code-chip { display: inline-block; background: #1e1e1e; border: 1px solid #2a2a2a; color: #f97316; font-weight: 700; font-size: 12px; padding: 3px 10px; border-radius: 6px; letter-spacing: 0.5px; }
+    .active-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4ade80; margin-right: 6px; }
+    .inactive-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #555; margin-right: 6px; }
+
+    .action-row { display: flex; gap: 8px; }
+    .btn-edit { background: none; border: 1px solid #333; color: #aaa; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-size: 12px; }
+    .btn-edit:hover { border-color: #f97316; color: #f97316; }
+    .btn-delete { background: none; border: 1px solid #333; color: #aaa; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-size: 12px; }
+    .btn-delete:hover { border-color: #f87171; color: #f87171; }
+
+    .empty-state { text-align: center; padding: 48px; color: #444; font-size: 14px; }
+
+    /* MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #161616; border: 1px solid #2a2a2a; border-radius: 16px; padding: 28px; width: 100%; max-width: 440px; }
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-cancel { flex: 1; background: none; border: 1px solid #333; color: #aaa; border-radius: 10px; padding: 11px; cursor: pointer; font-size: 14px; }
+    .btn-save { flex: 2; background: #f97316; color: white; border: none; border-radius: 10px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
+
+    /* TOAST */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 12px 18px; font-size: 14px; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; z-index: 999; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { border-color: #4ade80; color: #4ade80; }
+    .toast.error { border-color: #f87171; color: #f87171; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">GymBody<span>AI</span><em>ADMIN</em></div>
+  <button class="logout-btn" id="logoutBtn" style="display:none" onclick="logout()">Çıkış Yap</button>
+</div>
+
+<!-- GİRİŞ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h2>🔐 Admin Girişi</h2>
+    <p>Sadece yetkili kişiler girebilir.</p>
+    <label>E-posta</label>
+    <input type="email" id="adminEmail" placeholder="admin@email.com" />
+    <label>Şifre</label>
+    <input type="password" id="adminPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" />
+    <div class="err" id="loginErr"></div>
+    <button class="btn-primary" onclick="doLogin()">Giriş Yap</button>
+  </div>
+</div>
+
+<!-- PANEL -->
+<div id="panel">
+
+  <!-- HOCA EKLE -->
+  <div class="add-card">
+    <h3>➕ Yeni Hoca Ekle</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Ad Soyad</label>
+        <input type="text" id="newName" placeholder="Arda Kaya" />
+      </div>
+      <div class="form-group">
+        <label>E-posta</label>
+        <input type="email" id="newEmail" placeholder="arda@email.com" />
+      </div>
+      <div class="form-group">
+        <label>Şifre</label>
+        <input type="text" id="newPassword" placeholder="Geçici şifre" />
+      </div>
+      <div class="form-group">
+        <label>Telefon (opsiyonel)</label>
+        <input type="text" id="newPhone" placeholder="05xx xxx xx xx" />
+      </div>
+      <div class="form-group">
+        <label>Referral Kodu</label>
+        <input type="text" id="newCode" placeholder="arda10" />
+      </div>
+      <div class="form-group">
+        <label>Kullanıcı İndirimi %</label>
+        <input type="number" id="newDiscount" value="10" min="0" max="100" />
+      </div>
+      <div class="form-group">
+        <label>Komisyon Oranı %</label>
+        <input type="number" id="newCommission" value="15" min="0" max="100" />
+      </div>
+      <div class="form-group">
+        <label>Not (opsiyonel)</label>
+        <input type="text" id="newNotes" placeholder="ör: Spor salonu ortağı" />
+      </div>
+      <div class="form-group" style="justify-content:flex-end">
+        <label>&nbsp;</label>
+        <button class="btn-add" onclick="addCoach()">Hoca Ekle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOCA LİSTESİ -->
+  <div class="coaches-card">
+    <div class="coaches-card-header">
+      <h3>Kayıtlı Hocalar</h3>
+      <span class="count-badge" id="coachCount">0 hoca</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Ad Soyad</th>
+          <th>Referral Kodu</th>
+          <th>İndirim</th>
+          <th>Komisyon</th>
+          <th>Bakiye</th>
+          <th>Üye</th>
+          <th>Durum</th>
+          <th>İşlem</th>
+        </tr>
+      </thead>
+      <tbody id="coachesBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none">Henüz hoca eklenmedi.</div>
+  </div>
+
+  <!-- PROMO KOD -->
+  <div class="add-card" style="margin-top:32px">
+    <h3>🎁 VIP Promo Kodları</h3>
+    <div class="form-grid" style="margin-bottom:20px">
+      <div class="form-group">
+        <label>Kod</label>
+        <input type="text" id="promoCode" placeholder="bahri1" />
+      </div>
+      <div class="form-group">
+        <label>VIP Süresi (gün)</label>
+        <input type="number" id="promoDays" value="30" min="1" />
+      </div>
+      <div class="form-group" style="justify-content:flex-end">
+        <label>&nbsp;</label>
+        <button class="btn-add" onclick="addPromo()">Kod Oluştur</button>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Kod</th>
+          <th>VIP Süresi</th>
+          <th>Kullanan</th>
+          <th>Durum</th>
+          <th>İşlem</th>
+        </tr>
+      </thead>
+      <tbody id="promosBody"></tbody>
+    </table>
+    <div class="empty-state" id="promosEmpty" style="display:none">Henüz promo kod oluşturulmadı.</div>
+  </div>
+</div>
+
+<!-- DÜZENLE MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>✏️ Hoca Düzenle</h3>
+    <input type="hidden" id="editId" />
+    <label>İndirim %</label>
+    <input type="number" id="editDiscount" min="0" max="100" />
+    <label>Komisyon %</label>
+    <input type="number" id="editCommission" min="0" max="100" />
+    <label>Durum</label>
+    <select id="editActive">
+      <option value="true">Aktif</option>
+      <option value="false">Pasif</option>
+    </select>
+    <label>Not</label>
+    <input type="text" id="editNotes" placeholder="Admin notu" />
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">İptal</button>
+      <button class="btn-save" onclick="saveEdit()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API = window.location.origin;
+  let token = localStorage.getItem('adminToken');
+  if (token) loadPanel();
+
+  async function doLogin() {
+    const email = document.getElementById('adminEmail').value.trim();
+    const password = document.getElementById('adminPassword').value;
+    document.getElementById('loginErr').textContent = '';
+    try {
+      const r = await fetch(`${API}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await r.json();
+      if (!r.ok) { document.getElementById('loginErr').textContent = data.error; return; }
+      token = data.token;
+      localStorage.setItem('adminToken', token);
+      loadPanel();
+    } catch { document.getElementById('loginErr').textContent = 'Sunucuya bağlanılamadı.'; }
+  }
+
+  async function loadPanel() {
+    const [coachRes, promoRes] = await Promise.all([
+      fetch(`${API}/admin/coaches`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${API}/admin/promos`, { headers: { Authorization: `Bearer ${token}` } })
+    ]);
+    if (coachRes.status === 401) { logout(); return; }
+    const coaches = await coachRes.json();
+    const promos = await promoRes.json();
+
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('panel').style.display = 'block';
+    document.getElementById('logoutBtn').style.display = 'block';
+    document.getElementById('coachCount').textContent = `${coaches.length} hoca`;
+
+    const tbody = document.getElementById('coachesBody');
+    tbody.innerHTML = '';
+
+    // Promo kodları render et
+    const promosBody = document.getElementById('promosBody');
+    promosBody.innerHTML = '';
+    if (!promos.length) {
+      document.getElementById('promosEmpty').style.display = 'block';
+    } else {
+      document.getElementById('promosEmpty').style.display = 'none';
+      promos.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="code-chip">${p.code}</span></td>
+          <td>${p.vipDays} gün</td>
+          <td>${(p.usedBy || []).length} kişi</td>
+          <td><span class="${p.isActive ? 'active-dot' : 'inactive-dot'}"></span>${p.isActive ? 'Aktif' : 'Pasif'}</td>
+          <td>
+            <button class="btn-delete promo-del-btn">Sil</button>
+          </td>
+        `;
+        const btn = tr.querySelector('.promo-del-btn');
+        btn.addEventListener('click', () => deletePromo(p._id, p.code));
+        promosBody.appendChild(tr);
+      });
+    }
+
+    if (!coaches.length) {
+      document.getElementById('emptyState').style.display = 'block';
+    } else {
+      document.getElementById('emptyState').style.display = 'none';
+      coaches.forEach(c => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <div style="font-weight:600">${c.name}</div>
+            <div style="font-size:12px;color:#555">${c.email}</div>
+          </td>
+          <td><span class="code-chip">${c.referralCode}</span></td>
+          <td>%${c.discountRate}</td>
+          <td>%${c.commissionRate}</td>
+          <td style="color:#4ade80;font-weight:700">${c.balance.toFixed(2)} ₺</td>
+          <td>${(c.referredUsers || []).length}</td>
+          <td><span class="${c.isActive ? 'active-dot' : 'inactive-dot'}"></span>${c.isActive ? 'Aktif' : 'Pasif'}</td>
+          <td>
+            <div class="action-row">
+              <button class="btn-edit" onclick="openEdit('${c._id}', ${c.discountRate}, ${c.commissionRate}, ${c.isActive}, \`${c.notes || ''}\`)">Düzenle</button>
+              <button class="btn-delete" onclick="deleteCoach('${c._id}', '${c.name}')">Sil</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+  }
+
+  async function addCoach() {
+    const body = {
+      name: document.getElementById('newName').value.trim(),
+      email: document.getElementById('newEmail').value.trim(),
+      password: document.getElementById('newPassword').value,
+      phone: document.getElementById('newPhone').value.trim(),
+      referralCode: document.getElementById('newCode').value.trim(),
+      discountRate: parseInt(document.getElementById('newDiscount').value),
+      commissionRate: parseInt(document.getElementById('newCommission').value),
+      notes: document.getElementById('newNotes').value.trim()
+    };
+    if (!body.name || !body.email || !body.password || !body.referralCode) {
+      showToast('Ad, email, şifre ve referral kodu zorunlu.', 'error'); return;
+    }
+    const r = await fetch(`${API}/admin/coach`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!r.ok) { showToast(data.error, 'error'); return; }
+    showToast(`${body.name} eklendi! Kodu: ${data.referralCode}`, 'success');
+    ['newName','newEmail','newPassword','newPhone','newCode','newNotes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('newDiscount').value = 10;
+    document.getElementById('newCommission').value = 15;
+    loadPanel();
+  }
+
+  async function addPromo() {
+    const code = document.getElementById('promoCode').value.trim();
+    const vipDays = parseInt(document.getElementById('promoDays').value);
+    if (!code || !vipDays) { showToast('Kod ve gün sayısı zorunlu.', 'error'); return; }
+    const r = await fetch(`${API}/admin/promo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ code, vipDays })
+    });
+    const data = await r.json();
+    if (!r.ok) { showToast(data.error, 'error'); return; }
+    showToast(`"${code}" kodu oluşturuldu! (${vipDays} gün VIP)`, 'success');
+    document.getElementById('promoCode').value = '';
+    document.getElementById('promoDays').value = 30;
+    loadPanel();
+  }
+
+  async function deletePromo(id, code) {
+    if (!confirm(`"${code}" kodu silinecek. Emin misin?`)) return;
+    const r = await fetch(`${API}/admin/promo/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    if (r.ok) { showToast(`"${code}" silindi.`, 'success'); loadPanel(); }
+    else showToast('Silinemedi.', 'error');
+  }
+
+  async function deleteCoach(id, name) {
+    if (!confirm(`"${name}" silinecek. Emin misin?`)) return;
+    const r = await fetch(`${API}/admin/coach/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    if (r.ok) { showToast(`${name} silindi.`, 'success'); loadPanel(); }
+    else showToast('Silme başarısız.', 'error');
+  }
+
+  function openEdit(id, discount, commission, isActive, notes) {
+    document.getElementById('editId').value = id;
+    document.getElementById('editDiscount').value = discount;
+    document.getElementById('editCommission').value = commission;
+    document.getElementById('editActive').value = String(isActive);
+    document.getElementById('editNotes').value = notes;
+    document.getElementById('editModal').classList.add('show');
+  }
+
+  function closeModal() { document.getElementById('editModal').classList.remove('show'); }
+
+  async function saveEdit() {
+    const id = document.getElementById('editId').value;
+    const body = {
+      discountRate: parseInt(document.getElementById('editDiscount').value),
+      commissionRate: parseInt(document.getElementById('editCommission').value),
+      isActive: document.getElementById('editActive').value === 'true',
+      notes: document.getElementById('editNotes').value.trim()
+    };
+    const r = await fetch(`${API}/admin/coach/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+    if (r.ok) { showToast('Güncellendi!', 'success'); closeModal(); loadPanel(); }
+    else showToast('Güncelleme başarısız.', 'error');
+  }
+
+  function logout() {
+    localStorage.removeItem('adminToken');
+    token = null;
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('panel').style.display = 'none';
+    document.getElementById('logoutBtn').style.display = 'none';
+  }
+
+  function showToast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast show ${type}`;
+    setTimeout(() => t.className = 'toast', 3000);
+  }
+</script>
+</body>
+</html>
