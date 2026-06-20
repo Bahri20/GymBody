@@ -92,6 +92,7 @@ export default function App() {
   const [referralCode, setReferralCode] = useState('');
   const [referralBonus, setReferralBonus] = useState<{ coachName: string; discountRate: number } | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [privacyModal, setPrivacyModal] = useState<'privacy' | 'terms' | null>(null);
   const [editName, setEditName] = useState('');
   const [editHeight, setEditHeight] = useState('');
   const [editWeight, setEditWeight] = useState('');
@@ -2127,6 +2128,16 @@ const sendMealToAI = async (uri: string) => {
       </View>
     )}
 
+    {/* GİZLİLİK LİNKLERİ */}
+    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 12, marginTop: 8 }}>
+      <TouchableOpacity onPress={() => setPrivacyModal('privacy')}>
+        <Text style={{ color: C.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>Gizlilik Politikası</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => setPrivacyModal('terms')}>
+        <Text style={{ color: C.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>Kullanım Koşulları</Text>
+      </TouchableOpacity>
+    </View>
+
     <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await SecureStore.deleteItemAsync('userToken'); setUser(null); setToken(null); }}>
       <Ionicons name="log-out-outline" size={18} color={C.red} />
       <Text style={styles.logoutText}>ÇIKIŞ YAP</Text>
@@ -2134,6 +2145,62 @@ const sendMealToAI = async (uri: string) => {
   </ScrollView>
       )}
       </Animated.View>
+
+      {/* GİZLİLİK / KULLANIM KOŞULLARI MODAL */}
+      <Modal visible={!!privacyModal} transparent animationType="slide" onRequestClose={() => setPrivacyModal(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#13161E', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#262C3A' }}>
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>
+                {privacyModal === 'privacy' ? 'Gizlilik Politikası' : 'Kullanım Koşulları'}
+              </Text>
+              <TouchableOpacity onPress={() => setPrivacyModal(null)}>
+                <Ionicons name="close" size={24} color="#8A93A8" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+              {privacyModal === 'privacy' ? (
+                <Text style={{ color: '#C8CDD8', fontSize: 14, lineHeight: 22 }}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>GymBody AI — Gizlilik Politikası{'\n'}</Text>
+                  {'\n'}Son güncelleme: Haziran 2025{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>1. Topladığımız Veriler{'\n'}</Text>
+                  GymBody AI uygulaması; ad, e-posta adresi, boy, kilo, beden yağ oranı ve yüklediğiniz fotoğraflar gibi kişisel verileri toplar. Bu veriler yalnızca uygulama özelliklerini sunmak amacıyla kullanılır.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>2. Verilerin Kullanımı{'\n'}</Text>
+                  Toplanan veriler; ilerlemenizi takip etmek, yapay zeka destekli öneriler sunmak ve uygulama deneyimini kişiselleştirmek için kullanılır. Verileriniz üçüncü taraflarla satılmaz veya paylaşılmaz.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>3. Reklam{'\n'}</Text>
+                  VIP üye olmayan kullanıcılara Google AdMob aracılığıyla reklam gösterilir. AdMob, cihaz bilgilerine ve reklam tercihlerinize göre kişiselleştirilmiş reklamlar sunabilir.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>4. Fotoğraflar{'\n'}</Text>
+                  Yüklediğiniz fotoğraflar Cloudinary altyapısında güvenli şekilde saklanır ve yalnızca sizin hesabınızda görüntülenir.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>5. Haklarınız{'\n'}</Text>
+                  KVKK kapsamında verilerinize erişme, düzeltme ve silme hakkına sahipsiniz. Talepleriniz için: destek@gymbody.ai{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>6. İletişim{'\n'}</Text>
+                  Sorularınız için: destek@gymbody.ai
+                </Text>
+              ) : (
+                <Text style={{ color: '#C8CDD8', fontSize: 14, lineHeight: 22 }}>
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>GymBody AI — Kullanım Koşulları{'\n'}</Text>
+                  {'\n'}Son güncelleme: Haziran 2025{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>1. Kabul{'\n'}</Text>
+                  Uygulamayı kullanarak bu koşulları kabul etmiş sayılırsınız. Kabul etmiyorsanız uygulamayı kullanmayınız.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>2. Hizmet{'\n'}</Text>
+                  GymBody AI, fitness takibi ve yapay zeka destekli beslenme önerileri sunan bir mobil uygulamadır. Sağlık tavsiyeleri için doktora danışınız.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>3. Hesap{'\n'}</Text>
+                  Hesap güvenliğinden kullanıcı sorumludur. Şifrenizi kimseyle paylaşmayınız.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>4. Token ve VIP{'\n'}</Text>
+                  Tokenlar uygulama içi sanal birimdir, para değeri taşımaz ve iade edilemez. VIP üyelik aktif dönem boyunca geçerlidir.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>5. Yasaklı Kullanım{'\n'}</Text>
+                  Uygulamayı kötüye kullanmak, sistemi manipüle etmek veya başkalarının hesaplarına erişmeye çalışmak yasaktır.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>6. Değişiklikler{'\n'}</Text>
+                  Koşulları önceden bildirmeksizin değiştirme hakkımız saklıdır.{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>7. İletişim{'\n'}</Text>
+                  Sorularınız için: destek@gymbody.ai
+                </Text>
+              )}
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* ALT BANNER REKLAM — sadece non-VIP */}
       {!userStats.isVip && (
