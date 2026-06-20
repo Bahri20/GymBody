@@ -1174,11 +1174,11 @@ const sendMealToAI = async (uri: string) => {
           onPress={() => setCurrentTab(t.key)}
         >
           <LinearGradient
-            colors={active ? [C.lime, C.limeDark] : ['#2A1F60', '#1A1235']}
+            colors={active ? ['#FFFFFF', '#F0F0F0'] : ['#232323', '#1A1A1A']}
             style={styles.gymTabInner}
           >
             <Ionicons name={t.icon} size={22} color={active ? '#0B0D12' : '#FF9F1C'} />
-            <Text style={[styles.gymTabText, active && { color: '#0B0D12' }]}>{t.label}</Text>
+            <Text style={[styles.gymTabText, active && { color: '#111' }]}>{t.label}</Text>
           </LinearGradient>
         </TouchableOpacity>
       );
@@ -1998,6 +1998,7 @@ const sendMealToAI = async (uri: string) => {
           <View style={styles.statsCard}>
             <Text style={styles.statsTitle}>✏️ Yeni Ölçü Ekle</Text>
             <Text style={styles.statsSubtitle}>Ölçülerini güncel tut — hepsi opsiyonel.</Text>
+            <Text style={{ color: C.textMuted, fontSize: 11, marginBottom: 8 }}>💡 Sabah aç karnına, aynı saatte ölç — tutarlı ölçüm daha doğru analiz sağlar.</Text>
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TextInput style={[styles.input, { flex: 1 }]} placeholder="Kilo (kg)" placeholderTextColor={C.textMuted} value={statWeight} onChangeText={setStatWeight} keyboardType="numeric" />
@@ -2721,7 +2722,7 @@ const styles = StyleSheet.create({
   // ---- TABS ----
   tabContainer: { flexDirection: 'row', marginBottom: 16, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border },
   tab: { flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  activeTab: { backgroundColor: C.lime },
+  activeTab: { backgroundColor: 'rgba(255,255,255,0.92)' },
   tabText: { fontWeight: '700', color: C.textSec, fontSize: 10 },
   activeTabText: { color: '#0B0D12' },
   gymTab: { flex: 1.4, alignItems: 'center', justifyContent: 'center', marginVertical: -4 },
