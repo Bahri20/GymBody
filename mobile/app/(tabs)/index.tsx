@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ViewShot from 'react-native-view-shot';
-import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image as ExpoImage } from 'expo-image';
@@ -456,6 +456,7 @@ const sendChatMessage = async () => {
 const [sharePhotoUrl, setSharePhotoUrl] = useState<string | null>(null);
 const [sharePhotoFat, setSharePhotoFat] = useState<number | null>(null);
 const [shareCardReady, setShareCardReady] = useState(false);
+const [sharePickerVisible, setSharePickerVisible] = useState(false);
 const [shareImgLoaded, setShareImgLoaded] = useState(false);
 const [shareLoading, setShareLoading] = useState(false);
 
@@ -465,11 +466,14 @@ const shareProgress = async () => {
     Alert.alert('Fotoğraf Yok', 'Paylaşmak için en az bir vücut analizi fotoğrafı gerekiyor.');
     return;
   }
-  const latest = withFat[0];
-  setShareImgLoaded(false);
-  setSharePhotoUrl(latest.url);
-  setSharePhotoFat(latest.bodyFatPercentage);
-  setShareCardReady(true);
+  if (withFat.length === 1) {
+    setShareImgLoaded(false);
+    setSharePhotoUrl(withFat[0].url);
+    setSharePhotoFat(withFat[0].bodyFatPercentage);
+    setShareCardReady(true);
+    return;
+  }
+  setSharePickerVisible(true);
 };
 
 const captureAndShare = async () => {
@@ -1085,8 +1089,19 @@ const sendMealToAI = async (uri: string) => {
   { key: 'profile', label: 'Profil', icon: 'person-outline' as const, gym: false },
 ];
 
+  const swipePanResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 20 && Math.abs(g.dy) < 60,
+    onPanResponderRelease: (_, g) => {
+      if (Math.abs(g.dx) < 40) return;
+      const tabKeys = TABS.map(t => t.key);
+      const idx = tabKeys.indexOf(currentTab);
+      if (g.dx < 0 && idx < TABS.length - 1) setCurrentTab(tabKeys[idx + 1]); // sola kaydır → sonraki
+      if (g.dx > 0 && idx > 0) setCurrentTab(tabKeys[idx - 1]);               // sağa kaydır → önceki
+    },
+  });
+
   return (
-  <View style={[styles.container, { paddingTop: insets.top + 10 }]}>
+  <View style={[styles.container, { paddingTop: insets.top + 10 }]} {...swipePanResponder.panHandlers}>
       <StatusBar style="light" />
 
       {/* ÜST BAŞLIK */}
@@ -1118,7 +1133,7 @@ const sendMealToAI = async (uri: string) => {
             colors={active ? [C.lime, C.limeDark] : ['#2A1F60', '#1A1235']}
             style={styles.gymTabInner}
           >
-            <Ionicons name={t.icon} size={22} color={active ? '#0B0D12' : '#B79CFF'} />
+            <Ionicons name={t.icon} size={22} color={active ? '#0B0D12' : '#FF9F1C'} />
             <Text style={[styles.gymTabText, active && { color: '#0B0D12' }]}>{t.label}</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -1146,7 +1161,7 @@ const sendMealToAI = async (uri: string) => {
       /* KİLİTLİ EKRAN */
       <View style={{ flex: 1, alignItems: 'center', paddingTop: 40 }}>
         <LinearGradient colors={['#2A1F60', '#1A1235']} style={styles.gymLockCard}>
-          <Ionicons name="barbell" size={48} color="#B79CFF" style={{ marginBottom: 16 }} />
+          <Ionicons name="barbell" size={48} color="#FF9F1C" style={{ marginBottom: 16 }} />
           <Text style={styles.gymLockTitle}>GymBody VIP</Text>
           <Text style={styles.gymLockSubtitle}>
             İsteklerine göre eğitilen kişisel AI antrenörün seni bekliyor. Her hafta sana özel antrenman ve beslenme programı, sınırsız kalori, yağ oranı analizi ve kıyaslaması, alternatif öğün seçenekleri.
@@ -1164,7 +1179,7 @@ const sendMealToAI = async (uri: string) => {
           </View>
 
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.min(100, (userStats.tokens / 200) * 100)}%`, backgroundColor: '#B79CFF' }]} />
+            <View style={[styles.progressFill, { width: `${Math.min(100, (userStats.tokens / 200) * 100)}%`, backgroundColor: '#FF9F1C' }]} />
           </View>
           <Text style={[styles.statsSubtitle, { color: C.textSec, textAlign: 'center' }]}>
             {userStats.tokens >= 200 ? 'Profil sekmesinden VIP aç!' : `VIP için ${200 - userStats.tokens} token daha kazan`}
@@ -1219,7 +1234,7 @@ const sendMealToAI = async (uri: string) => {
             <LinearGradient colors={['#1A1235', '#0B0D12']} style={styles.restDayCard}>
               {/* Ay ikonu */}
               <View style={styles.restMoonCircle}>
-                <Ionicons name="moon" size={36} color="#B79CFF" />
+                <Ionicons name="moon" size={36} color="#FF9F1C" />
               </View>
 
               <Text style={styles.restDayTitle}>Mola Günü 🌙</Text>
@@ -1230,7 +1245,7 @@ const sendMealToAI = async (uri: string) => {
                 <View style={styles.restNextCard}>
                   <Text style={styles.restNextLabel}>YARIN</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                    <Ionicons name="barbell-outline" size={18} color="#B79CFF" />
+                    <Ionicons name="barbell-outline" size={18} color="#FF9F1C" />
                     <Text style={styles.restNextFocus}>{nextDay.focus}</Text>
                   </View>
                   <Text style={styles.restNextCount}>{nextDay.exercises?.length || 0} egzersiz seni bekliyor</Text>
@@ -1242,7 +1257,7 @@ const sendMealToAI = async (uri: string) => {
                 onPress={() => setIsRestDay(false)}
                 style={styles.restBackBtn}
               >
-                <Ionicons name="barbell-outline" size={16} color="#B79CFF" />
+                <Ionicons name="barbell-outline" size={16} color="#FF9F1C" />
                 <Text style={styles.restBackBtnText}>Antrenmana dön</Text>
               </TouchableOpacity>
             </LinearGradient>
@@ -1267,12 +1282,12 @@ const sendMealToAI = async (uri: string) => {
                   onPress={() => setGymGoal(opt.key)}
                   style={{
                     flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center',
-                    backgroundColor: gymGoal === opt.key ? '#B79CFF22' : C.surface2,
+                    backgroundColor: gymGoal === opt.key ? '#FF9F1C22' : C.surface2,
                     borderWidth: 1.5,
-                    borderColor: gymGoal === opt.key ? '#B79CFF' : C.border,
+                    borderColor: gymGoal === opt.key ? '#FF9F1C' : C.border,
                   }}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: gymGoal === opt.key ? '#B79CFF' : C.text }}>{opt.label}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: gymGoal === opt.key ? '#FF9F1C' : C.text }}>{opt.label}</Text>
                   <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{opt.desc}</Text>
                 </TouchableOpacity>
               ))}
@@ -1291,12 +1306,12 @@ const sendMealToAI = async (uri: string) => {
 
             {gymLoading ? (
               <View style={{ alignItems: 'center', marginTop: 20 }}>
-                <ActivityIndicator size="large" color="#B79CFF" />
+                <ActivityIndicator size="large" color="#FF9F1C" />
                 <Text style={[styles.loaderText, { marginTop: 12 }]}>AI programını hazırlıyor, bu biraz sürebilir...</Text>
               </View>
             ) : (
               <TouchableOpacity activeOpacity={0.85} onPress={() => fetchWeeklyPlan()} style={{ marginTop: 8 }}>
-                <LinearGradient colors={['#B79CFF', '#8A6FE0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+                <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
                   <Ionicons name="sparkles" size={18} color="#1A1235" />
                   <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>PROGRAMIMI OLUŞTUR</Text>
                 </LinearGradient>
@@ -1307,7 +1322,7 @@ const sendMealToAI = async (uri: string) => {
 
         {/* PROGRAM HAZIR — İNTRO / "Programa Başla" */}
         {weeklyPlan && !weeklyPlan.completedFully && !weeklyPlan.started && weeklyPlan.currentDay === 1 && !weeklyPlan.lastDayCompletedAt && (
-          <View style={[styles.statsCard, { alignItems: 'center', borderColor: '#B79CFF', borderWidth: 1 }]}>
+          <View style={[styles.statsCard, { alignItems: 'center', borderColor: '#FF9F1C', borderWidth: 1 }]}>
             <Text style={{ fontSize: 40, marginBottom: 4 }}>🎯</Text>
             <Text style={[styles.statsTitle, { textAlign: 'center' }]}>Programın Hazır!</Text>
             <Text style={[styles.statsSubtitle, { textAlign: 'center', marginTop: 6, marginBottom: 18 }]}>
@@ -1315,10 +1330,10 @@ const sendMealToAI = async (uri: string) => {
             </Text>
 
             {gymLoading ? (
-              <ActivityIndicator size="large" color="#B79CFF" />
+              <ActivityIndicator size="large" color="#FF9F1C" />
             ) : (
               <TouchableOpacity activeOpacity={0.85} onPress={startProgram} style={{ width: '100%' }}>
-                <LinearGradient colors={['#B79CFF', '#8A6FE0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+                <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
                   <Ionicons name="play" size={18} color="#1A1235" />
                   <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>PROGRAMA BAŞLA</Text>
                 </LinearGradient>
@@ -1354,7 +1369,7 @@ const sendMealToAI = async (uri: string) => {
           {currentWorkoutDay.exercises?.map((ex: any, j: number) => (
             <View key={j} style={styles.gymExerciseRow}>
               {/* En soldaki standart tik */}
-              <Ionicons name="checkmark-circle-outline" size={18} color="#B79CFF" />
+              <Ionicons name="checkmark-circle-outline" size={18} color="#FF9F1C" />
               
               {ex.gifUrl && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ marginLeft: 8 }}>
@@ -1390,7 +1405,7 @@ const sendMealToAI = async (uri: string) => {
       ))}
 
       <TouchableOpacity activeOpacity={0.85} onPress={() => setDayFeedbackVisible(true)} style={{ marginTop: 8 }}>
-        <LinearGradient colors={['#B79CFF', '#8A6FE0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+        <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
           <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
           <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{weeklyPlan.currentDay}. GÜNÜ TAMAMLADIM</Text>
         </LinearGradient>
@@ -1413,7 +1428,7 @@ const sendMealToAI = async (uri: string) => {
       multiline
     />
     <TouchableOpacity activeOpacity={0.85} onPress={() => setWeeklyPlan(null)} style={{ marginTop: 8 }}>
-      <LinearGradient colors={['#B79CFF', '#8A6FE0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+      <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
         <Ionicons name="refresh-outline" size={18} color="#1A1235" />
         <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>YENİ PROGRAM AYARLA</Text>
       </LinearGradient>
@@ -1513,10 +1528,24 @@ const sendMealToAI = async (uri: string) => {
         </View>
       )}
 
-      <TouchableOpacity style={styles.deleteBtn} onPress={() => deletePhoto(item._id)}>
-        <Ionicons name="trash-outline" size={15} color={C.red} />
-        <Text style={styles.deleteBtnText}>Sil</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <TouchableOpacity style={[styles.deleteBtn, { flex: 1 }]} onPress={() => deletePhoto(item._id)}>
+          <Ionicons name="trash-outline" size={15} color={C.red} />
+          <Text style={styles.deleteBtnText}>Sil</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.deleteBtn, { flex: 1, borderColor: C.orange }]}
+          onPress={() => {
+            setShareImgLoaded(false);
+            setSharePhotoUrl(item.url);
+            setSharePhotoFat(item.bodyFatPercentage);
+            setShareCardReady(true);
+          }}
+        >
+          <Ionicons name="share-social-outline" size={15} color={C.orange} />
+          <Text style={[styles.deleteBtnText, { color: C.orange }]}>Paylaş</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   </View>
       )}
@@ -1525,8 +1554,8 @@ const sendMealToAI = async (uri: string) => {
             {/* FOTOĞRAF KARŞILAŞTIRMA */}
             {!userStats.isVip ? (
               <View style={[styles.statsCard, { marginHorizontal: 16, marginTop: 8, alignItems: 'center', gap: 10 }]}>
-                <Ionicons name="lock-closed" size={26} color="#B79CFF" />
-                <Text style={[styles.statsTitle, { color: '#B79CFF', textAlign: 'center' }]}>Gelişim Karşılaştırması</Text>
+                <Ionicons name="lock-closed" size={26} color="#FF9F1C" />
+                <Text style={[styles.statsTitle, { color: '#FF9F1C', textAlign: 'center' }]}>Gelişim Karşılaştırması</Text>
                 <Text style={[styles.statsEmptyText, { textAlign: 'center' }]}>İlk ve son fotoğraflarını kıyasla, yağ oranı farkını gör. VIP üyelere özel.</Text>
               </View>
             ) : (() => {
@@ -1786,8 +1815,8 @@ const sendMealToAI = async (uri: string) => {
             <View style={{ width: Dimensions.get('window').width, paddingHorizontal: 16 }}>
               {!userStats.isVip ? (
                 <View style={[styles.statsCard, { alignItems: 'center', gap: 10 }]}>
-                  <Ionicons name="lock-closed" size={28} color="#B79CFF" />
-                  <Text style={[styles.statsTitle, { color: '#B79CFF', textAlign: 'center' }]}>Yağ Oranı Grafiği</Text>
+                  <Ionicons name="lock-closed" size={28} color="#FF9F1C" />
+                  <Text style={[styles.statsTitle, { color: '#FF9F1C', textAlign: 'center' }]}>Yağ Oranı Grafiği</Text>
                   <Text style={[styles.statsEmptyText, { textAlign: 'center' }]}>Bu özellik VIP üyelere özel. Gelişimini grafikle takip etmek için VIP'e geç.</Text>
                 </View>
               ) : bodyStats.filter(s => s.bodyFatPercentage != null).length >= 2 ? (
@@ -1965,7 +1994,7 @@ const sendMealToAI = async (uri: string) => {
 {/* VIP KARTI */}
 {userStats.isVip ? (
   <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66', alignItems: 'center' }]}>
-    <Ionicons name="star" size={24} color="#B79CFF" />
+    <Ionicons name="star" size={24} color="#FF9F1C" />
     <Text style={[styles.statsTitle, { color: '#fff', marginTop: 8 }]}>VIP Üyesin! 👑</Text>
     {userStats.vipExpiresAt && (
       <Text style={[styles.statsSubtitle, { color: C.textSec, textAlign: 'center', marginBottom: 0 }]}>
@@ -1976,7 +2005,7 @@ const sendMealToAI = async (uri: string) => {
 ) : (
   <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66' }]}>
     <View style={styles.vipHeader}>
-      <Ionicons name="lock-closed" size={16} color="#B79CFF" />
+      <Ionicons name="lock-closed" size={16} color="#FF9F1C" />
       <Text style={[styles.statsTitle, { color: '#fff', marginBottom: 0 }]}>VIP'e Geç</Text>
     </View>
     <Text style={[styles.statsSubtitle, { color: C.textSec, marginTop: 8 }]}>
@@ -1986,7 +2015,7 @@ const sendMealToAI = async (uri: string) => {
       <>
         <TouchableOpacity activeOpacity={0.85} onPress={redeemVip} disabled={userStats.tokens < 200}>
           <LinearGradient
-            colors={userStats.tokens >= 200 ? ['#B79CFF', '#8A6FE0'] : [C.border, C.border]}
+            colors={userStats.tokens >= 200 ? ['#FF9F1C', '#E8890A'] : [C.border, C.border]}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={styles.primaryBtn}
           >
@@ -1996,7 +2025,7 @@ const sendMealToAI = async (uri: string) => {
           </LinearGradient>
         </TouchableOpacity>
         <TouchableOpacity activeOpacity={0.8} onPress={redeemPromo} style={{ marginTop: 10, alignItems: 'center' }}>
-          <Text style={{ color: '#B79CFF', fontSize: 13, fontWeight: '600' }}>🎁 Promosyon kodum var</Text>
+          <Text style={{ color: '#FF9F1C', fontSize: 13, fontWeight: '600' }}>🎁 Promosyon kodum var</Text>
         </TouchableOpacity>
         {!user?.referredBy && (
           <TouchableOpacity activeOpacity={0.8} onPress={() => askReferralCode()} style={{ marginTop: 8, alignItems: 'center' }}>
@@ -2256,7 +2285,7 @@ const sendMealToAI = async (uri: string) => {
               onSubmitEditing={Keyboard.dismiss}
             />
             <TouchableOpacity activeOpacity={0.85} onPress={() => { Keyboard.dismiss(); handleCompleteDay(dayFeedbackText); }}>
-              <LinearGradient colors={['#B79CFF', '#8A6FE0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+              <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
                 <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
                 <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>GÜNÜ TAMAMLA</Text>
               </LinearGradient>
@@ -2266,6 +2295,42 @@ const sendMealToAI = async (uri: string) => {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* FOTOĞRAF SEÇİM MODAL */}
+      <Modal visible={sharePickerVisible} transparent animationType="slide" onRequestClose={() => setSharePickerVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#13161E', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#262C3A' }}>
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>Hangi fotoğrafı paylaşmak istiyorsun?</Text>
+              <TouchableOpacity onPress={() => setSharePickerVisible(false)}>
+                <Ionicons name="close" size={24} color="#8A93A8" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {gallery.filter(p => p.bodyFatPercentage != null).map((photo, idx) => (
+                <TouchableOpacity
+                  key={photo._id || idx}
+                  onPress={() => {
+                    setSharePickerVisible(false);
+                    setShareImgLoaded(false);
+                    setSharePhotoUrl(photo.url);
+                    setSharePhotoFat(photo.bodyFatPercentage);
+                    setShareCardReady(true);
+                  }}
+                  style={{ width: '30%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', borderWidth: 2, borderColor: C.border }}
+                >
+                  <ExpoImage source={{ uri: photo.url }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                  {photo.bodyFatPercentage != null && (
+                    <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: 4, alignItems: 'center' }}>
+                      <Text style={{ color: C.orange, fontSize: 11, fontWeight: '700' }}>%{photo.bodyFatPercentage}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* PAYLAŞIM KARTI MODAL */}
@@ -2594,8 +2659,8 @@ const styles = StyleSheet.create({
   tabText: { fontWeight: '700', color: C.textSec, fontSize: 10 },
   activeTabText: { color: '#0B0D12' },
   gymTab: { flex: 1.4, alignItems: 'center', justifyContent: 'center', marginVertical: -4 },
-  gymTabInner: { width: '100%', paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 3, shadowColor: '#B79CFF', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
-  gymTabText: { color: '#B79CFF', fontWeight: '800', fontSize: 11 }, 
+  gymTabInner: { width: '100%', paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 3, shadowColor: '#FF9F1C', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
+  gymTabText: { color: '#FF9F1C', fontWeight: '800', fontSize: 11 }, 
 
   // ---- UPLOAD ----
   uploadCard: { marginBottom: 16 },
@@ -2638,7 +2703,7 @@ const styles = StyleSheet.create({
   gymDayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   gymDayTitle: { fontSize: 16, fontWeight: '800', color: C.text },
   gymFocusBadge: { backgroundColor: 'rgba(183,156,255,0.15)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: '#3A2E66' },
-  gymFocusText: { color: '#B79CFF', fontSize: 12, fontWeight: '700' },
+  gymFocusText: { color: '#FF9F1C', fontSize: 12, fontWeight: '700' },
   restDayCard: {
     borderRadius: 24, padding: 28, marginBottom: 16,
     alignItems: 'center', borderWidth: 1, borderColor: '#2A1F60',
@@ -2657,7 +2722,7 @@ const styles = StyleSheet.create({
     width: '100%', backgroundColor: 'rgba(183,156,255,0.08)',
     borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#3A2E66', marginBottom: 24,
   },
-  restNextLabel: { fontSize: 10, fontWeight: '800', color: '#B79CFF', letterSpacing: 1.5 },
+  restNextLabel: { fontSize: 10, fontWeight: '800', color: '#FF9F1C', letterSpacing: 1.5 },
   restNextFocus: { fontSize: 16, fontWeight: '800', color: C.text },
   restNextCount: { fontSize: 12, color: C.textMuted, marginTop: 4 },
   restBackBtn: {
@@ -2666,7 +2731,7 @@ const styles = StyleSheet.create({
     borderRadius: 14, borderWidth: 1, borderColor: 'rgba(183,156,255,0.3)',
     backgroundColor: 'rgba(183,156,255,0.07)',
   },
-  restBackBtnText: { color: '#B79CFF', fontWeight: '700', fontSize: 14 },
+  restBackBtnText: { color: '#FF9F1C', fontWeight: '700', fontSize: 14 },
   restPromptCard: {
     backgroundColor: C.surface, borderRadius: 22, padding: 20, marginBottom: 16,
     borderWidth: 1, borderColor: '#3A2E66', alignItems: 'center',
@@ -2682,18 +2747,18 @@ const styles = StyleSheet.create({
   restPromptYesText: { color: C.textSec, fontWeight: '700', fontSize: 13 },
   restPromptNo: {
     flex: 1.4, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 14, borderRadius: 14, backgroundColor: '#B79CFF',
+    paddingVertical: 14, borderRadius: 14, backgroundColor: '#FF9F1C',
   },
   restPromptNoText: { color: '#1A1235', fontWeight: '800', fontSize: 13 },
   gymExerciseRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
   gymExerciseName: { fontSize: 14, fontWeight: '700', color: C.text },
   gymExerciseSets: { fontSize: 12, color: C.textMuted, marginTop: 2 },
   gymMealRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-  gymMealName: { fontSize: 13, fontWeight: '800', color: '#B79CFF' },
+  gymMealName: { fontSize: 13, fontWeight: '800', color: '#FF9F1C' },
   gymMealItems: { fontSize: 13, color: C.text, marginTop: 3, lineHeight: 19 },
   gymMealCal: { fontSize: 12, color: C.textMuted, marginTop: 3 },
   dayBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center', backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border },
-  dayBtnActive: { backgroundColor: '#B79CFF', borderColor: '#B79CFF' },
+  dayBtnActive: { backgroundColor: '#FF9F1C', borderColor: '#FF9F1C' },
   dayBtnText: { fontSize: 18, fontWeight: '800', color: C.text },
   dayBtnTextActive: { color: '#1A1235' },
   dayBtnLabel: { fontSize: 10, color: C.textMuted, marginTop: 2 },
