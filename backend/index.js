@@ -697,7 +697,7 @@ app.post('/redeem-vip', authMiddleware, async (req, res) => {
     await user.save();
 
     // Referral komisyon hesapla
-    const VIP_PRICE_TL = 99; // VIP'in TL fiyatı
+    const VIP_PRICE_TL = 149; // VIP'in TL fiyatı
     if (user.referredBy) {
       const coach = await Coach.findById(user.referredBy);
       if (coach && coach.isActive) {
