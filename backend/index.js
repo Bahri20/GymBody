@@ -844,7 +844,13 @@ app.get('/get-body-stats', authMiddleware, async (req, res) => {
 });
 app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
   try {
-    const { allergy, feedback } = req.body;
+    const { allergy, feedback, goal } = req.body;
+    const goalLabels = {
+      definition: 'Definasyon (yağ yakma, kalori açığı)',
+      bulk: 'Bulk (kas kazanımı, kalori fazlası)',
+      maintain: 'Koruma (mevcut formu koruma)',
+    };
+    const goalText = goalLabels[goal] || 'Definasyon (yağ yakma)';
     const programDays = 3;
     const trainingDaysPerWeek = null;
     const user = await User.findById(req.userId);
@@ -951,6 +957,7 @@ Sen bir kişisel antrenör ve diyetisyensin. Aşağıdaki bilgilere göre ${prog
 - Hedef kilo: ${user.targetWeight || 'belirtilmemiş'}
 - Günlük kalori hedefi: ${dailyCalorieTarget} kcal
 - Döngü uzunluğu: ${programDays} gün — sabit 3 günlük döngü (bittikten sonra baştan başlar)
+- Beslenme hedefi: ${goalText}
 - Alerji/kısıtlama: ${allergy || 'yok'}
 - Önceki programa genel kullanıcı yorumu: ${feedback || 'yok'}
 ${dayFeedbacksText ? `- Önceki programın günlük geri bildirimleri (mutlaka dikkate al):\n${dayFeedbacksText}` : ''}

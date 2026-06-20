@@ -108,6 +108,7 @@ export default function App() {
   const [gymTrainingDays, setGymTrainingDays] = useState(4);
   const [gymAllergy, setGymAllergy] = useState('');
   const [gymFeedback, setGymFeedback] = useState('');
+  const [gymGoal, setGymGoal] = useState<'definition' | 'bulk' | 'maintain'>('definition');
   const [weeklyPlan, setWeeklyPlan] = useState<any>(null);
   const [gymLoading, setGymLoading] = useState(false);
   const [gymPlanTab, setGymPlanTab] = useState<'workout' | 'nutrition'>('workout');
@@ -338,7 +339,8 @@ const fetchWeeklyPlan = async (silent = false) => {
     const res = await axios.post(`${API_URL}/get-weekly-plan`, {
       trainingDaysPerWeek: gymTrainingDays,
       allergy: gymAllergy,
-      feedback: gymFeedback
+      feedback: gymFeedback,
+      goal: gymGoal
     }, {
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -1251,6 +1253,30 @@ const sendMealToAI = async (uri: string) => {
         {!weeklyPlan && (
           <View style={styles.statsCard}>
             <Text style={styles.statsTitle}>💪 Programını Oluştur</Text>
+
+            {/* BESLENME HEDEFİ */}
+            <Text style={[styles.statsSubtitle, { marginBottom: 10 }]}>Beslenme hedefin nedir?</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 18 }}>
+              {([
+                { key: 'definition', label: '🔥 Definasyon', desc: 'Yağ yak' },
+                { key: 'bulk',       label: '💪 Bulk',       desc: 'Kas kazan' },
+                { key: 'maintain',   label: '⚖️ Koruma',     desc: 'Formu koru' },
+              ] as const).map(opt => (
+                <TouchableOpacity
+                  key={opt.key}
+                  onPress={() => setGymGoal(opt.key)}
+                  style={{
+                    flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center',
+                    backgroundColor: gymGoal === opt.key ? '#B79CFF22' : C.surface2,
+                    borderWidth: 1.5,
+                    borderColor: gymGoal === opt.key ? '#B79CFF' : C.border,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: gymGoal === opt.key ? '#B79CFF' : C.text }}>{opt.label}</Text>
+                  <Text style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{opt.desc}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             {/* ALERJİ */}
             <Text style={[styles.statsSubtitle, { marginBottom: 8 }]}>Alerji veya tüketmediğin yiyecekler var mı? (opsiyonel)</Text>
