@@ -383,8 +383,9 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
     shoulder: latestStat?.shoulder || null,
     neck: latestStat?.neck || null
 };
-      // 🔒 HAFTALIK ANALİZ LİMİTİ (ücretsiz kullanıcılar için)
+      // 🔒 ANALİZ LİMİTİ — ücretsiz: haftada 1, VIP: günde max 3 (abuse/maliyet koruması)
     let canAnalyze = true;
+    let limitReason = 'free'; // 'free' (haftalık) | 'vipDaily' (günlük VIP)
     const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
 
     if (!isVipActive) {
@@ -398,6 +399,19 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
         if (daysSince < 7) {
           canAnalyze = false;
         }
+      }
+    } else {
+      // VIP: günde en fazla 3 vücut analizi
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const todayAnalyzed = await ProgressPhoto.countDocuments({
+        userId,
+        bodyFatPercentage: { $ne: null },
+        date: { $gte: startOfDay }
+      });
+      if (todayAnalyzed >= 3) {
+        canAnalyze = false;
+        limitReason = 'vipDaily';
       }
     }
     console.log("📸 Gelişim fotoğrafı geldi, AI analizi başlıyor...");
@@ -456,7 +470,10 @@ const result = await generateWithRetry(model, prompt, imagePart);
     } catch (aiErr) {
       console.error("🔥 AI Analiz Hatası (foto yine kaydedilecek):", aiErr);
       aiAnalysis = "Analiz yapılamadı, farklı fotoğrafla deneyin.";
-    }} else {
+    }} else if (limitReason === 'vipDaily') {
+      aiAnalysis = `Bugün için günlük vücut analizi limitine ulaştın (3). Yarın devam edebilirsin! 💪`;
+      bodyFatPercentage = null;
+    } else {
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + 7);
       aiAnalysis = `Ücretsiz analiz hakkın bu hafta kullanıldı. Sınırsız analiz için VIP'e geçebilirsin! Bir dahaki ücretsiz analiz: ${nextDate.toLocaleDateString('tr-TR')}`;
@@ -726,6 +743,10 @@ app.post('/analyze-meal', authMiddleware, upload.single('photo'), async (req, re
 
 if (!isVipActive && todayCount >= 2) {
   return res.status(429).json({ error: "Bugünlük tarama hakkın doldu kanka! Yarın tekrar dene veya VIP'e geç. 😉" });
+}
+// VIP'te de günlük üst sınır (abuse/maliyet koruması)
+if (isVipActive && todayCount >= 5) {
+  return res.status(429).json({ error: "Bugün için günlük yemek analizi limitine ulaştın (5). Yarın devam edebilirsin! 💪" });
 }
 
     const { note } = req.body;
