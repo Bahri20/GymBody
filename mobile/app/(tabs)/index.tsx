@@ -68,7 +68,7 @@ const API_URL = 'https://gymbody.onrender.com';
 const GOOGLE_CLIENT_IDS = {
   webClientId: '715798761426-marncqp4mh3jkrd2346h74o1cfikgf92.apps.googleusercontent.com',
   iosClientId: '715798761426-vpka1e4obfhgut4uo1d9ibf1h8qe51qk.apps.googleusercontent.com',
-  androidClientId: 'BURAYA_ANDROID_CLIENT_ID.apps.googleusercontent.com',
+  androidClientId: '715798761426-sg8b01jtn26djnkno3acce1dcmbbl6kj.apps.googleusercontent.com',
 };
 
 export default function App() {
