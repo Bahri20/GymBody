@@ -60,8 +60,8 @@ const C = {
   green: '#34D399',
 };
 
-// ⚠️ MAC IP ADRESİNİ BURAYA YAZ KANKA!
-const API_URL = 'http://192.168.1.100:3000';
+// Canlı backend (Render). Yerel geliştirme için: 'http://192.168.1.100:3000'
+const API_URL = 'https://gymbody.onrender.com';
 
 // ⚠️ Google Cloud Console > Credentials'tan al, buraya yapıştır
 const GOOGLE_CLIENT_IDS = {

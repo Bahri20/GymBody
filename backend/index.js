@@ -52,6 +52,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:8081',   // Expo dev
   'exp://',                  // Expo Go
+  'https://gymbody.onrender.com', // canlı (admin/PT panelleri)
 ];
 app.use(cors({
   origin: (origin, cb) => {
