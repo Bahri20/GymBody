@@ -23,6 +23,8 @@ const userSchema = new mongoose.Schema({
   pushToken: { type: String },
   badges: [{ type: String }],
   onboarded: { type: Boolean, default: false }, // ilk giriş karşılama modalı gösterildi mi
+  adRewardsToday: { type: Number, default: 0 }, // bugün izlenen ödüllü reklam sayısı
+  adRewardDate: { type: String }, // YYYY-MM-DD (gün değişince sıfırlanır)
   weeklyPlan: {
     generatedAt: { type: Date },
     weekStart: { type: Date },

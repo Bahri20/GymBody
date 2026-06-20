@@ -23,6 +23,10 @@ const { OAuth2Client } = require('google-auth-library');
 const googleClient = new OAuth2Client();
 const axios = require('axios');
 
+// Ödüllü reklam: VIP hariç, günde max 3, her izleme 5 token (200'lük VIP'e reklamla kolay ulaşılamaz)
+const AD_DAILY_CAP = 3;
+const AD_REWARD = 5;
+
 const mongoose = require('mongoose');
 
 mongoose.connect(process.env.MONGO_URI)
@@ -596,6 +600,30 @@ app.get('/me', authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Kullanıcı getirilemedi." });
   }
 });
+// Ödüllü reklam izlendi → token ver (sunucu tarafı günlük sınır, VIP hariç)
+app.post('/reward-ad-token', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+    const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
+    if (isVipActive) return res.status(403).json({ error: "VIP üyeler reklamla token kazanmaz." });
+
+    const today = new Date().toISOString().split('T')[0];
+    if (user.adRewardDate !== today) { user.adRewardDate = today; user.adRewardsToday = 0; }
+    if ((user.adRewardsToday || 0) >= AD_DAILY_CAP) {
+      return res.status(429).json({ error: "Bugünlük reklam hakkın doldu kanka.", remaining: 0 });
+    }
+
+    user.adRewardsToday = (user.adRewardsToday || 0) + 1;
+    user.tokens = (user.tokens || 0) + AD_REWARD;
+    await user.save();
+    res.json({ tokens: user.tokens, reward: AD_REWARD, remaining: AD_DAILY_CAP - user.adRewardsToday });
+  } catch (err) {
+    console.error("🔥 Reward Ad Hatası:", err);
+    res.status(500).json({ error: "Ödül verilemedi." });
+  }
+});
 // İlk giriş karşılama modalı gösterildi → bir daha gösterme
 app.post('/complete-onboarding', authMiddleware, async (req, res) => {
   try {
@@ -612,11 +640,14 @@ app.get('/get-user-stats', authMiddleware, async (req, res) => {
 
     const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
 
+    const today = new Date().toISOString().split('T')[0];
+    const usedToday = user.adRewardDate === today ? (user.adRewardsToday || 0) : 0;
     res.json({
       tokens: user.tokens || 0,
       streak: user.streak || 0,
       isVip: isVipActive,
-      vipExpiresAt: user.vipExpiresAt || null
+      vipExpiresAt: user.vipExpiresAt || null,
+      adRewardsRemaining: isVipActive ? 0 : Math.max(0, AD_DAILY_CAP - usedToday)
     });
   } catch (err) {
     console.error("🔥 User Stats Hatası:", err);
