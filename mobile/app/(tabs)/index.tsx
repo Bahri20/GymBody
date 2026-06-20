@@ -1486,14 +1486,6 @@ const sendMealToAI = async (uri: string) => {
                 </View>
               )}
             </View>
-            {/* GELİŞİMİ PAYLAŞ BUTONU */}
-            {gallery.some(p => p.bodyFatPercentage != null) && (
-              <TouchableOpacity activeOpacity={0.85} onPress={shareProgress}
-                style={{ marginHorizontal: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface2, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border }}>
-                <Ionicons name="share-social-outline" size={20} color={C.lime} />
-                <Text style={{ color: C.text, fontWeight: '700', fontSize: 14 }}>Gelişimimi Paylaş</Text>
-              </TouchableOpacity>
-            )}
             </View>
           }
           ListEmptyComponent={
