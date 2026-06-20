@@ -290,7 +290,7 @@ app.post('/google-login', async (req, res) => {
       return res.status(500).json({ error: "Google girişi yapılandırılmamış." });
     }
 
-    let email, googleId, name, emailVerified;
+    let email, googleId, name, emailVerified, googlePhoto;
 
     if (idToken) {
       // Tercih edilen yol: ID token'ı Google'ın kendisine doğrulat (client'a güvenme)
@@ -300,6 +300,7 @@ app.post('/google-login', async (req, res) => {
       googleId = payload?.sub;
       name = payload?.name;
       emailVerified = payload?.email_verified;
+      googlePhoto = payload?.picture;
     } else {
       // Yedek yol: access token ile Google userinfo'dan kimlik çek
       const { data } = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -309,6 +310,7 @@ app.post('/google-login', async (req, res) => {
       googleId = data?.sub;
       name = data?.name;
       emailVerified = data?.email_verified;
+      googlePhoto = data?.picture;
     }
 
     if (!email) return res.status(400).json({ error: "Google hesabından e-posta alınamadı." });
@@ -326,6 +328,7 @@ app.post('/google-login', async (req, res) => {
       vipExpiresAt.setDate(vipExpiresAt.getDate() + 1);
       user = await User.create({
         email, name, googleId, authProvider: 'google',
+        googlePhoto: googlePhoto || null,
         isVip: true, vipExpiresAt,
       });
       isNew = true;
@@ -333,8 +336,15 @@ app.post('/google-login', async (req, res) => {
     } else if (!user.googleId) {
       // Mevcut e-posta hesabını Google'a bağla
       user.googleId = googleId;
+      if (googlePhoto) user.googlePhoto = googlePhoto;
       await user.save();
       console.log("🔗 Mevcut hesap Google'a bağlandı:", name);
+    }
+
+    // Her girişte Google fotoğrafını güncelle
+    if (googlePhoto && user.googlePhoto !== googlePhoto) {
+      user.googlePhoto = googlePhoto;
+      await user.save();
     }
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '90d' });
@@ -365,6 +375,37 @@ app.put('/update-profile', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("🔥 Profil Güncelleme Hatası:", err);
     res.status(500).json({ error: "Profil güncellenemedi." });
+  }
+});
+
+// ---- PROFİL FOTOĞRAFI YÜKLEME ----
+app.post('/upload-profile-photo', authMiddleware, upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "Fotoğraf gelmedi." });
+
+    const resizedBuffer = await sharp(req.file.buffer)
+      .resize({ width: 400, height: 400, fit: 'cover' })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    const uploadResult = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: 'profile_photos', public_id: `user_${req.userId}`, overwrite: true },
+        (err, result) => err ? reject(err) : resolve(result)
+      ).end(resizedBuffer);
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.userId,
+      { profilePhoto: uploadResult.secure_url },
+      { new: true }
+    );
+
+    const { password: _, ...safeUser } = user.toObject();
+    res.json({ message: "Profil fotoğrafı güncellendi!", user: safeUser });
+  } catch (err) {
+    console.error("🔥 Profil Foto Hatası:", err);
+    res.status(500).json({ error: "Fotoğraf yüklenemedi." });
   }
 });
 // ================= 3. KAPISI: GELİŞİM FOTOĞRAFI YÜKLEME (Eski Çalışan Orijinal Stream Yöntemi) =================

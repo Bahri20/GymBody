@@ -123,6 +123,7 @@ export default function App() {
   const [gymGoal, setGymGoal] = useState<'definition' | 'bulk' | 'maintain'>('definition');
   const [weeklyPlan, setWeeklyPlan] = useState<any>(null);
   const [gymLoading, setGymLoading] = useState(false);
+  const [profilePhotoLoading, setProfilePhotoLoading] = useState(false);
   const [gymPlanTab, setGymPlanTab] = useState<'workout' | 'nutrition'>('workout');
   const [gifModalUrl, setGifModalUrl] = useState<string | null>(null);
   const [dayFeedbackVisible, setDayFeedbackVisible] = useState(false);
@@ -461,6 +462,31 @@ const sendChatMessage = async () => {
     setChatMessages(prev => [...prev, { role: 'model', text: `⚠️ ${msg}` }]);
   } finally {
     setChatLoading(false);
+  }
+};
+
+// Profil fotoğrafı yükle
+const uploadProfilePhoto = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 0.8,
+  });
+  if (result.canceled || !result.assets?.[0]) return;
+  setProfilePhotoLoading(true);
+  try {
+    const asset = result.assets[0];
+    const formData = new FormData();
+    formData.append('photo', { uri: asset.uri, type: 'image/jpeg', name: 'profile.jpg' } as any);
+    const res = await axios.post(`${API_URL}/upload-profile-photo`, formData, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+    });
+    setUser(res.data.user);
+  } catch (err: any) {
+    Alert.alert('Hata', err.userMessage || 'Fotoğraf yüklenemedi.');
+  } finally {
+    setProfilePhotoLoading(false);
   }
 };
 
@@ -1125,9 +1151,13 @@ const sendMealToAI = async (uri: string) => {
           <Text style={styles.topName}>{user.name}</Text>
         </View>
         <TouchableOpacity activeOpacity={0.8} onPress={() => setCurrentTab('profile')}>
-          <LinearGradient colors={[C.lime, C.limeDark]} style={styles.avatar}>
-            <Text style={styles.avatarText}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
-          </LinearGradient>
+          {(user.profilePhoto || user.googlePhoto) ? (
+            <ExpoImage source={{ uri: user.profilePhoto || user.googlePhoto }} style={[styles.avatar, { borderRadius: 16 }]} contentFit="cover" />
+          ) : (
+            <LinearGradient colors={[C.lime, C.limeDark]} style={styles.avatar}>
+              <Text style={styles.avatarText}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
+            </LinearGradient>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -1991,9 +2021,25 @@ const sendMealToAI = async (uri: string) => {
       {currentTab === 'profile' && (
   <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
     <View style={styles.profileHero}>
-      <LinearGradient colors={[C.lime, C.limeDark]} style={styles.profileAvatar}>
-        <Text style={styles.profileAvatarText}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
-      </LinearGradient>
+      <TouchableOpacity onPress={uploadProfilePhoto} activeOpacity={0.85} style={{ marginBottom: 14 }}>
+        {(user.profilePhoto || user.googlePhoto) ? (
+          <View style={{ width: 88, height: 88, borderRadius: 30, overflow: 'hidden', shadowColor: C.lime, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }}>
+            <ExpoImage source={{ uri: user.profilePhoto || user.googlePhoto }} style={{ width: 88, height: 88 }} contentFit="cover" />
+            {profilePhotoLoading && (
+              <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', borderRadius: 30 }}>
+                <ActivityIndicator color={C.lime} />
+              </View>
+            )}
+          </View>
+        ) : (
+          <LinearGradient colors={[C.lime, C.limeDark]} style={styles.profileAvatar}>
+            {profilePhotoLoading ? <ActivityIndicator color="#0B0D12" /> : <Text style={styles.profileAvatarText}>{(user.name?.[0] || 'S').toUpperCase()}</Text>}
+          </LinearGradient>
+        )}
+        <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: C.orange, borderRadius: 10, padding: 5 }}>
+          <Ionicons name="camera" size={13} color="#0B0D12" />
+        </View>
+      </TouchableOpacity>
       <Text style={styles.profileName}>{user.name}</Text>
       {!!user.email && <Text style={styles.profileEmail}>{user.email}</Text>}
     </View>
