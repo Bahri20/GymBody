@@ -43,6 +43,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],   // admin panel inline script kullanıyor
+      scriptSrcAttr: ["'unsafe-inline'"],         // panel inline onclick/onkeydown handler'ları
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'"]
