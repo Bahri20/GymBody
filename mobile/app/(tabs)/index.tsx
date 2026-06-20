@@ -10,6 +10,7 @@ import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import mobileAds, { BannerAd, BannerAdSize, TestIds, RewardedAd, RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
 
 WebBrowser.maybeCompleteAuthSession(); // Google girişi sonrası tarayıcı sekmesini kapat
 import axios from 'axios';
@@ -133,6 +134,7 @@ export default function App() {
   const [restoring, setRestoring] = useState(true); // açılışta otomatik giriş kontrolü
   const [googleLoading, setGoogleLoading] = useState(false);
   const [welcomeVisible, setWelcomeVisible] = useState(false); // ilk giriş karşılama modalı
+  const [adLoading, setAdLoading] = useState(false); // ödüllü reklam yükleniyor
   const onboardingDoneRef = useRef(false); // completeOnboarding çift çağrısını engelle
 
   // Google ile giriş isteği
@@ -183,6 +185,38 @@ export default function App() {
      }
    })();
  }, []);
+
+ // AdMob'u bir kez başlat
+ useEffect(() => { mobileAds().initialize(); }, []);
+
+ // Ödüllü reklam göster → izlenince backend'den token al (VIP hariç, sunucu günlük sınırı uygular)
+ const showRewardedAd = () => {
+   if (userStats.isVip || adLoading) return;
+   setAdLoading(true);
+   const rewarded = RewardedAd.createForAdRequest(TestIds.REWARDED);
+   let earned = false;
+   const subs: Array<() => void> = [];
+   const cleanup = () => subs.forEach((u) => u());
+   subs.push(rewarded.addAdEventListener(RewardedAdEventType.LOADED, () => { setAdLoading(false); rewarded.show(); }));
+   subs.push(rewarded.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => { earned = true; }));
+   subs.push(rewarded.addAdEventListener(AdEventType.CLOSED, async () => {
+     cleanup();
+     if (earned) {
+       try {
+         const res = await axios.post(`${API_URL}/reward-ad-token`, {}, { headers: { Authorization: `Bearer ${token}` } });
+         Alert.alert('Tebrikler! 🎉', `${res.data.reward} token kazandın! Bugün ${res.data.remaining} hakkın kaldı.`);
+         fetchUserStats();
+       } catch (e: any) {
+         Alert.alert('Hata', e.response?.data?.error || 'Token verilemedi.');
+       }
+     }
+   }));
+   subs.push(rewarded.addAdEventListener(AdEventType.ERROR, () => {
+     setAdLoading(false); cleanup();
+     Alert.alert('Reklam Hatası', 'Reklam şu an yüklenemedi, biraz sonra tekrar dene.');
+   }));
+   rewarded.load();
+ };
 
  // Google giriş sonucu döndüğünde backend'e gönder
  useEffect(() => {
@@ -1942,6 +1976,14 @@ const sendMealToAI = async (uri: string) => {
             <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: '600' }}>🎯 Referans kodu gir</Text>
           </TouchableOpacity>
         )}
+        {(userStats.adRewardsRemaining ?? 0) > 0 && (
+          <TouchableOpacity activeOpacity={0.85} onPress={showRewardedAd} disabled={adLoading} style={{ marginTop: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(198,255,61,0.12)', borderWidth: 1, borderColor: C.lime }}>
+              {adLoading ? <ActivityIndicator color={C.lime} /> : <Ionicons name="play-circle" size={18} color={C.lime} />}
+              <Text style={{ color: C.lime, fontWeight: '700', fontSize: 13 }}>🎬 Reklam izle, 5 token kazan ({userStats.adRewardsRemaining} hak)</Text>
+            </View>
+          </TouchableOpacity>
+        )}
       </>
     )}
   </LinearGradient>
@@ -2092,6 +2134,14 @@ const sendMealToAI = async (uri: string) => {
   </ScrollView>
       )}
       </Animated.View>
+
+      {/* ALT BANNER REKLAM — sadece non-VIP */}
+      {!userStats.isVip && (
+        <View style={{ alignItems: 'center', marginTop: 4 }}>
+          <BannerAd unitId={TestIds.BANNER} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
+        </View>
+      )}
+
       {/* GÜN TAMAMLAMA FEEDBACK MODAL */}
       <Modal visible={dayFeedbackVisible} transparent animationType="slide" onRequestClose={() => { Keyboard.dismiss(); setDayFeedbackVisible(false); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
