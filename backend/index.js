@@ -551,7 +551,7 @@ console.log(`🎯 Streak: ${user.streak}, Token kazanıldı: +${tokensEarned}, T
 app.get('/get-progress-photos/:userId', authMiddleware, async (req, res) => {
   try {
     // Güvenlik: URL'deki userId yerine token'daki userId kullan
-    const userPhotos = await ProgressPhoto.find({ userId: req.userId });
+    const userPhotos = await ProgressPhoto.find({ userId: req.userId }).sort({ date: -1 }); // en yeni üstte
     console.log(`📡 Kullanıcı (${req.userId}) için ${userPhotos.length} adet gelişim fotosu gönderiliyor.`);
     res.json(userPhotos);
   } catch (err) {

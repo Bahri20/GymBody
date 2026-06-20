@@ -1478,10 +1478,12 @@ const sendMealToAI = async (uri: string) => {
                   </View>
                 );
               }
-              const first = withFat[withFat.length - 1];
-              const last = withFat[0];
+              // Dizi sırasına değil TARİHE göre belirle (eski vs yeni) — yağ oranı yön bug'ı fix
+              const byDate = [...withFat].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+              const first = byDate[0];                    // en eski
+              const last = byDate[byDate.length - 1];      // en yeni
               const diff = parseFloat((first.bodyFatPercentage - last.bodyFatPercentage).toFixed(1));
-              const improved = diff > 0;
+              const improved = diff > 0;                   // eski > yeni → yağ azalmış
               const sameish = diff === 0;
               const praise = improved
                 ? diff >= 5 ? '🏆 İnanılmaz bir dönüşüm! Bu fark ciddi bir çalışmanın ürünü.' :
