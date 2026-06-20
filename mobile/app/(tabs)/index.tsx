@@ -483,19 +483,6 @@ const handleCompleteDay = async (feedback?: string) => {
     Alert.alert(error.response?.status === 429 ? 'Bilgi' : 'Hata', msg);
   }
 };
-const handleResetPlan = () => {
-  Alert.alert('Programı Sıfırla', 'Mevcut programın silinecek ve yeni program oluşturabileceksin. Emin misin?', [
-    { text: 'İptal', style: 'cancel' },
-    { text: 'Sıfırla', style: 'destructive', onPress: async () => {
-      try {
-        await axios.post(`${API_URL}/reset-plan`, {}, { headers: { Authorization: `Bearer ${token}` } });
-        setWeeklyPlan(null);
-      } catch {
-        Alert.alert('Hata', 'Program sıfırlanamadı.');
-      }
-    }}
-  ]);
-};
   // Auth İşlemleri (Loglu)
   const handleAuth = async () => {
     if (!email || !password) {
@@ -1346,12 +1333,6 @@ const sendMealToAI = async (uri: string) => {
           <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
           <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{weeklyPlan.currentDay}. GÜNÜ TAMAMLADIM</Text>
         </LinearGradient>
-      </TouchableOpacity>
-      <TouchableOpacity activeOpacity={0.85} onPress={handleResetPlan} style={{ marginTop: 8, marginBottom: 20 }}>
-        <View style={{ flexDirection: 'row', gap: 6, paddingVertical: 13, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,90,82,0.3)', backgroundColor: 'rgba(255,90,82,0.08)' }}>
-          <Ionicons name="refresh-outline" size={16} color={C.red} />
-          <Text style={{ color: C.red, fontWeight: '700', fontSize: 13 }}>Programı Sıfırla</Text>
-        </View>
       </TouchableOpacity>
     </View>
   );
