@@ -686,6 +686,63 @@ app.post('/update-lift', authMiddleware, async (req, res) => {
     res.status(500).json({ error: "PR kaydedilemedi." });
   }
 });
+// Güç sıralaması — siklet bazlı liderlik tablosu (5 kg siklet, mutlak kg, VIP'e özel)
+app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
+  try {
+    const { lift } = req.query;
+    const allowed = ['bench', 'squat', 'deadlift', 'ohp', 'latpull', 'curl', 'lateral'];
+    if (!allowed.includes(lift)) return res.status(400).json({ error: "Geçersiz hareket." });
+
+    const me = await User.findById(req.userId);
+    if (!me) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+    const now = new Date();
+    const meVip = me.isVip && (!me.vipExpiresAt || me.vipExpiresAt > now);
+    if (!meVip) return res.status(403).json({ error: "Bu özellik VIP'e özel kanka." });
+    if (!me.weight) return res.status(400).json({ error: "Önce profilden kilonu gir." });
+
+    // 5 kg siklet: 97 → 95-100
+    const bracketMin = Math.floor(me.weight / 5) * 5;
+    const bracketMax = bracketMin + 5;
+
+    // Aynı siklette kilosu olan herkesi çek, VIP + PR filtresini JS'te yap (lifts Mixed)
+    const users = await User.find({
+      weight: { $gte: bracketMin, $lt: bracketMax }
+    }).select('name lifts weight isVip vipExpiresAt');
+
+    const ranked = users
+      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now))
+      .map(u => ({ id: String(u._id), name: u.name || 'Anonim', best: u.lifts?.[lift]?.best || 0 }))
+      .filter(u => u.best > 0)
+      .sort((a, b) => b.best - a.best);
+
+    // İsim maskele: "Bahri İlhan" → "Bahri İ."
+    const mask = (n) => {
+      const parts = String(n).trim().split(/\s+/);
+      return parts.length > 1 ? `${parts[0]} ${parts[1][0].toUpperCase()}.` : parts[0];
+    };
+
+    const myId = String(me._id);
+    const myRank = ranked.findIndex(u => u.id === myId) + 1; // 0 = listede yok (PR girilmemiş)
+    const top10 = ranked.slice(0, 10).map((u, i) => ({
+      rank: i + 1,
+      name: mask(u.name),
+      best: u.best,
+      isMe: u.id === myId
+    }));
+
+    res.json({
+      bracket: `${bracketMin}-${bracketMax} kg`,
+      total: ranked.length,
+      myRank,
+      myBest: me.lifts?.[lift]?.best || 0,
+      top10
+    });
+  } catch (err) {
+    console.error("🔥 /lift-leaderboard Hatası:", err);
+    res.status(500).json({ error: "Sıralama getirilemedi." });
+  }
+});
 // Ödüllü reklam izlendi → token ver (sunucu tarafı günlük sınır, VIP hariç)
 app.post('/reward-ad-token', authMiddleware, async (req, res) => {
   try {
