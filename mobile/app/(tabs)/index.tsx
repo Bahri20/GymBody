@@ -62,6 +62,62 @@ const C = {
   green: '#34D399',
 };
 
+// ======================= GÜÇ SIRALAMASI (STRENGTH RANK) =======================
+// Her hareket için "max ağırlık ÷ vücut ağırlığı" oranına göre rank verilir.
+// Eşikler bir rank'a ULAŞMAK için gereken oran (cinsiyete göre ayrı).
+const LIFTS = [
+  { key: 'bench',    label: 'Bench Press',  icon: '🏋️', muscle: 'Göğüs' },
+  { key: 'squat',    label: 'Squat',        icon: '🦵', muscle: 'Bacak' },
+  { key: 'deadlift', label: 'Deadlift',     icon: '🔩', muscle: 'Sırt' },
+  { key: 'ohp',      label: 'Shoulder Press', icon: '💪', muscle: 'Omuz' },
+  { key: 'latpull',  label: 'Lat Pull Down',icon: '🦅', muscle: 'Kanat' },
+  { key: 'curl',     label: 'Barbell Curl', icon: '💥', muscle: 'Kol' },
+  { key: 'lateral',  label: 'Lateral Raise', icon: '🦾', muscle: 'Omuz Yan', hint: 'Tek dumbbell / cable ağırlığı' },
+] as const;
+
+const RANKS = [
+  { key: 'bronz',  label: 'Bronz',  emoji: '🥉', color: '#CD7F32' },
+  { key: 'gumus',  label: 'Gümüş',  emoji: '⚪', color: '#C0C0C0' },
+  { key: 'altin',  label: 'Altın',  emoji: '🥇', color: '#FFD700' },
+  { key: 'platin', label: 'Platin', emoji: '💠', color: '#5BC8E0' },
+  { key: 'elmas',  label: 'Elmas',  emoji: '💎', color: '#9B6BFF' },
+] as const;
+
+// oran eşikleri [bronz, gümüş, altın, platin, elmas]
+const STD: Record<string, { erkek: number[]; kadin: number[] }> = {
+  bench:    { erkek: [0.50, 0.75, 1.00, 1.25, 1.50], kadin: [0.30, 0.45, 0.60, 0.80, 1.00] },
+  squat:    { erkek: [0.75, 1.00, 1.50, 1.75, 2.25], kadin: [0.50, 0.75, 1.00, 1.25, 1.60] },
+  deadlift: { erkek: [1.00, 1.25, 1.75, 2.25, 2.75], kadin: [0.60, 0.90, 1.25, 1.60, 2.00] },
+  ohp:      { erkek: [0.35, 0.50, 0.65, 0.80, 1.00], kadin: [0.20, 0.30, 0.45, 0.55, 0.70] },
+  latpull:  { erkek: [0.60, 0.80, 1.00, 1.20, 1.40], kadin: [0.40, 0.55, 0.70, 0.85, 1.00] },
+  curl:     { erkek: [0.30, 0.40, 0.55, 0.70, 0.85], kadin: [0.20, 0.28, 0.38, 0.50, 0.60] },
+  // Lateral raise tek dumbbell/cable (tek kol) — izolasyon, vücut ağırlığıyla az ölçeklenir
+  lateral:  { erkek: [0.06, 0.09, 0.12, 0.16, 0.20], kadin: [0.04, 0.06, 0.09, 0.12, 0.15] },
+};
+
+// Bir hareketin rank durumunu hesapla. Döner: { rankIndex (-1=henüz bronz değil), ratio, nextWeight, progress }
+function computeRank(liftKey: string, best: number, bodyweight: number, gender?: string) {
+  const isMale = gender !== 'Kadın';
+  const thresholds = STD[liftKey][isMale ? 'erkek' : 'kadin'];
+  const bw = bodyweight && bodyweight > 0 ? bodyweight : 70;
+  const ratio = best / bw;
+  let rankIndex = -1;
+  for (let i = 0; i < thresholds.length; i++) {
+    if (ratio >= thresholds[i]) rankIndex = i;
+  }
+  // sonraki rank için gereken ağırlık ve ilerleme (%)
+  const nextIdx = rankIndex + 1;
+  let nextWeight: number | null = null;
+  let progress = 1;
+  if (nextIdx < thresholds.length) {
+    nextWeight = Math.ceil(thresholds[nextIdx] * bw);
+    const lowRatio = rankIndex >= 0 ? thresholds[rankIndex] : 0;
+    const span = thresholds[nextIdx] - lowRatio;
+    progress = Math.max(0, Math.min(1, (ratio - lowRatio) / span));
+  }
+  return { rankIndex, ratio, nextWeight, progress };
+}
+
 // Canlı backend (Render). Yerel geliştirme için: 'http://192.168.1.100:3000'
 const API_URL = 'https://gymbody.onrender.com';
 
@@ -123,18 +179,80 @@ export default function App() {
   const [gymGoal, setGymGoal] = useState<'definition' | 'bulk' | 'maintain'>('definition');
   const [weeklyPlan, setWeeklyPlan] = useState<any>(null);
   const [gymLoading, setGymLoading] = useState(false);
-  const [profilePhotoLoading, setProfilePhotoLoading] = useState(false);
   const [gymPlanTab, setGymPlanTab] = useState<'workout' | 'nutrition'>('workout');
+  const [mealTab, setMealTab] = useState<'plan' | 'analiz'>('plan');
+  const [gymTab, setGymTab] = useState<'program' | 'max'>('program');
   const [gifModalUrl, setGifModalUrl] = useState<string | null>(null);
   const [dayFeedbackVisible, setDayFeedbackVisible] = useState(false);
   const [dayFeedbackText, setDayFeedbackText] = useState('');
   const [showRestPrompt, setShowRestPrompt] = useState(false);
   const [isRestDay, setIsRestDay] = useState(false);
 
+  // Güç sıralaması — PR girişi modalı & paylaşım
+  const [liftModal, setLiftModal] = useState<string | null>(null); // hangi hareket düzenleniyor
+  const [liftInput, setLiftInput] = useState('');
+  const [liftSaving, setLiftSaving] = useState(false);
+  const [shareLiftKey, setShareLiftKey] = useState<string | null>(null); // paylaşım kartı için
+  // Siklet liderlik tablosu
+  const [leaderboardLift, setLeaderboardLift] = useState<string | null>(null);
+  const [leaderboardData, setLeaderboardData] = useState<any>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [myLiftRanks, setMyLiftRanks] = useState<Record<string, { rank: number; total: number }>>({});
+
   const [toast, setToast] = useState<{msg: string; type?: 'success'|'error'} | null>(null);
   const showToast = (msg: string, type: 'success'|'error' = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 2800);
+  };
+
+  // Güç sıralaması — PR kaydet
+  const saveLift = async () => {
+    const w = parseFloat(liftInput.replace(',', '.'));
+    if (!liftModal || !(w > 0)) { showToast('Geçerli bir ağırlık gir.', 'error'); return; }
+    setLiftSaving(true);
+    try {
+      const res = await axios.post(`${API_URL}/update-lift`, { lift: liftModal, weight: w }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUser((prev: any) => ({ ...prev, lifts: res.data.lifts }));
+      const prevBest = user?.lifts?.[liftModal]?.best || 0;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast(w > prevBest ? `Yeni rekor! ${w} kg 🔥` : 'Kayıt eklendi ✓');
+      setLiftModal(null);
+      setLiftInput('');
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Kaydedilemedi.', 'error');
+    } finally {
+      setLiftSaving(false);
+    }
+  };
+
+  // Siklet liderlik tablosunu aç
+  const openLeaderboard = async (liftKey: string) => {
+    setLeaderboardLift(liftKey);
+    setLeaderboardData(null);
+    setLeaderboardLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/lift-leaderboard`, {
+        params: { lift: liftKey },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setLeaderboardData(res.data);
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Sıralama getirilemedi.', 'error');
+      setLeaderboardLift(null);
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
+
+  // Tüm hareketlerdeki siklet sıramı çek (inline gösterim için)
+  const fetchMyLiftRanks = async () => {
+    if (!token || !userStats.isVip) return;
+    try {
+      const res = await axios.get(`${API_URL}/my-lift-ranks`, { headers: { Authorization: `Bearer ${token}` } });
+      setMyLiftRanks(res.data.ranks || {});
+    } catch {}
   };
 
   // YENİ ÖZELLİKLER
@@ -144,6 +262,7 @@ export default function App() {
   const [chatLoading, setChatLoading] = useState(false);
   const chatScrollRef = useRef<ScrollView>(null);
   const shareCardRef = useRef<ViewShot>(null);
+  const liftShareRef = useRef<ViewShot>(null);
 
   const [weeklySummaryVisible, setWeeklySummaryVisible] = useState(false);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
@@ -319,6 +438,9 @@ useEffect(() => {
     fetchWeeklyPlan(true); // silent=true, hata alert'i gösterme
   }
 }, [userStats.isVip]);
+useEffect(() => {
+  if (userStats.isVip && user?.lifts) fetchMyLiftRanks();
+}, [userStats.isVip, user?.lifts]);
   const fetchMealLogs = async () => {
     try {
       const response = await axios.get(`${API_URL}/get-meal-logs`, {
@@ -411,9 +533,10 @@ const saveBodyStat = async () => {
     if (statWeight) {
       setUser({ ...user, weight: parseFloat(statWeight) });
     }
-  } catch (error) {
-    console.log("🔥 BODYSTAT HATASI:", error);
-    showToast('Ölçüler kaydedilemedi.', 'error');
+  } catch (error: any) {
+    const detail = error.response?.data?.error || error.message || 'bilinmeyen';
+    console.log("🔥 BODYSTAT HATASI:", error.response?.status, detail);
+    showToast(`Hata: ${detail}`, 'error');
   } finally {
     setLoading(false);
   }
@@ -471,34 +594,6 @@ const sendChatMessage = async () => {
   }
 };
 
-// Profil fotoğrafı yükle
-const uploadProfilePhoto = async () => {
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    allowsEditing: true,
-    aspect: [1, 1],
-    quality: 0.8,
-  });
-  if (result.canceled || !result.assets?.[0]) return;
-  setProfilePhotoLoading(true);
-  try {
-    const asset = result.assets[0];
-    const formData = new FormData();
-    formData.append('photo', { uri: asset.uri, type: 'image/jpeg', name: 'profile.jpg' } as any);
-    const res = await axios.post(`${API_URL}/upload-profile-photo`, formData, {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
-    });
-    const u = res.data.user;
-    if (u?.profilePhoto) u.profilePhoto = u.profilePhoto + `?v=${Date.now()}`;
-    setUser(u);
-    showToast('Profil fotoğrafı güncellendi ✓');
-  } catch (err: any) {
-    showToast(err.response?.data?.error || 'Fotoğraf yüklenemedi.', 'error');
-  } finally {
-    setProfilePhotoLoading(false);
-  }
-};
-
 // Before/After paylaş — ViewShot ile görsel oluştur
 const [sharePhotoUrl, setSharePhotoUrl] = useState<string | null>(null);
 const [sharePhotoFat, setSharePhotoFat] = useState<number | null>(null);
@@ -522,6 +617,26 @@ const shareProgress = async () => {
     return;
   }
   setSharePickerVisible(true);
+};
+
+// Güç rozeti paylaş
+const captureLiftShare = async () => {
+  try {
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) { showToast('Paylaşım bu cihazda desteklenmiyor.', 'error'); return; }
+    await new Promise(r => setTimeout(r, 300)); // kartın render olmasını bekle
+    const uri = await (liftShareRef.current as any)?.capture();
+    if (!uri) { showToast('Görsel oluşturulamadı.', 'error'); return; }
+    const dest = FileSystem.documentDirectory + 'gymbodyai_rank.jpg';
+    const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
+    await FileSystem.deleteAsync(dest, { idempotent: true });
+    await FileSystem.copyAsync({ from: srcUri, to: dest });
+    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: 'GymBodyAI Güç Rozetim' });
+  } catch (err: any) {
+    showToast(err?.message || 'Paylaşım başarısız.', 'error');
+  } finally {
+    setShareLiftKey(null);
+  }
 };
 
 const captureAndShare = async () => {
@@ -650,11 +765,12 @@ const handleCompleteDay = async (feedback?: string) => {
   const updateProfile = async () => {
   setLoading(true);
   try {
-    const res = await axios.put(`${API_URL}/update-profile`, {
-      name: editName.trim() || user.name,
-      height: parseFloat(editHeight) || user.height,
-      weight: parseFloat(editWeight) || user.weight
-    }, {
+    const parsedHeight = editHeight ? parseFloat(editHeight) : null;
+    const parsedWeight = editWeight ? parseFloat(editWeight) : null;
+    const body: any = { name: editName.trim() || user.name };
+    if (parsedHeight && !isNaN(parsedHeight)) body.height = parsedHeight;
+    if (parsedWeight && !isNaN(parsedWeight)) body.weight = parsedWeight;
+    const res = await axios.put(`${API_URL}/update-profile`, body, {
       headers: { Authorization: `Bearer ${token}` }
     });
     setUser(res.data.user);
@@ -673,9 +789,10 @@ const handleCompleteDay = async (feedback?: string) => {
 
     setIsEditingProfile(false);
     showToast('Profil güncellendi ✓');
-  } catch (error) {
-    console.log("🔥 PROFİL GÜNCELLEME HATASI:", error);
-    showToast('Profil güncellenemedi.', 'error');
+  } catch (error: any) {
+    const detail = error.response?.data?.error || error.message || 'bilinmeyen hata';
+    console.log("🔥 PROFİL GÜNCELLEME HATASI:", error.response?.status, detail, error.response?.data);
+    showToast(`Hata: ${detail}`, 'error');
   } finally {
     setLoading(false);
   }
@@ -1161,13 +1278,9 @@ const sendMealToAI = async (uri: string) => {
           <Text style={styles.topName}>{user.name}</Text>
         </View>
         <TouchableOpacity activeOpacity={0.8} onPress={() => setCurrentTab('profile')}>
-          {(user.profilePhoto || user.googlePhoto) ? (
-            <ExpoImage source={{ uri: user.profilePhoto || user.googlePhoto }} style={[styles.avatar, { borderRadius: 16 }]} contentFit="cover" />
-          ) : (
-            <LinearGradient colors={[C.lime, C.limeDark]} style={styles.avatar}>
-              <Text style={styles.avatarText}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
-            </LinearGradient>
-          )}
+          <LinearGradient colors={[C.lime, C.limeDark]} style={styles.avatar}>
+            <Text style={styles.avatarText}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
@@ -1207,6 +1320,26 @@ const sendMealToAI = async (uri: string) => {
     ) : (
       /* VIP EKRANI */
       <View>
+
+        {/* PROGRAM / MAX SWITCHER */}
+        <View style={{ flexDirection: 'row', marginBottom: 12, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border }}>
+          <TouchableOpacity
+            style={[{ flex: 1, gap: 5, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
+              gymTab === 'program' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
+            onPress={() => setGymTab('program')}>
+            <Ionicons name="barbell-outline" size={16} color={gymTab === 'program' ? '#0B0D12' : C.textSec} />
+            <Text style={{ fontWeight: '700', color: gymTab === 'program' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Program</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[{ flex: 1, gap: 5, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
+              gymTab === 'max' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
+            onPress={() => setGymTab('max')}>
+            <Ionicons name="trophy-outline" size={16} color={gymTab === 'max' ? '#0B0D12' : C.textSec} />
+            <Text style={{ fontWeight: '700', color: gymTab === 'max' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Max</Text>
+          </TouchableOpacity>
+        </View>
+
+        {gymTab === 'program' && (<View>
 
         {/* MOLA PROMPT */}
         {showRestPrompt && weeklyPlan && !weeklyPlan.completedFully && (() => {
@@ -1367,18 +1500,7 @@ const sendMealToAI = async (uri: string) => {
 
   return (
     <View>
-      <View style={{ flexDirection: 'row', marginBottom: 12, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border }}>
-        <TouchableOpacity style={[{ flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' }, gymPlanTab === 'workout' && { backgroundColor: 'rgba(255,255,255,0.92)' }]} onPress={() => setGymPlanTab('workout')}>
-          <Ionicons name="barbell-outline" size={16} color={gymPlanTab === 'workout' ? '#0B0D12' : C.textSec} />
-          <Text style={{ fontWeight: '700', color: gymPlanTab === 'workout' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Antrenman</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[{ flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' }, gymPlanTab === 'nutrition' && { backgroundColor: 'rgba(255,255,255,0.92)' }]} onPress={() => setGymPlanTab('nutrition')}>
-          <Ionicons name="restaurant-outline" size={16} color={gymPlanTab === 'nutrition' ? '#0B0D12' : C.textSec} />
-          <Text style={{ fontWeight: '700', color: gymPlanTab === 'nutrition' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Beslenme</Text>
-        </TouchableOpacity>
-      </View>
-
-      {gymPlanTab === 'workout' && currentWorkoutDay && (
+      {currentWorkoutDay && (
         <View style={styles.gymDayCard}>
           <View style={styles.gymDayHeader}>
             <Text style={styles.gymDayTitle}>{currentWorkoutDay.dayNumber}. Gün</Text>
@@ -1404,23 +1526,6 @@ const sendMealToAI = async (uri: string) => {
         </View>
       )}
 
-      {gymPlanTab === 'nutrition' && weeklyPlan.nutritionPlan?.map((day: any, i: number) => (
-        <View key={i} style={styles.gymDayCard}>
-          <View style={styles.gymDayHeader}>
-            <Text style={styles.gymDayTitle}>{day.day || `${day.dayNumber}. Gün`}</Text>
-            <View style={styles.gymFocusBadge}>
-              <Text style={styles.gymFocusText}>{day.totalCalories} kcal</Text>
-            </View>
-          </View>
-          {day.meals?.map((meal: any, j: number) => (
-            <View key={j} style={styles.gymMealRow}>
-              <Text style={styles.gymMealName}>{meal.name}</Text>
-              <Text style={styles.gymMealItems}>{meal.items}</Text>
-              <Text style={styles.gymMealCal}>{meal.calories} kcal</Text>
-            </View>
-          ))}
-        </View>
-      ))}
 
       <TouchableOpacity activeOpacity={0.85} onPress={() => setDayFeedbackVisible(true)} style={{ marginTop: 8 }}>
         <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
@@ -1454,10 +1559,76 @@ const sendMealToAI = async (uri: string) => {
   </View>
 )}
 
+      </View>)}
+
+      {/* ===================== GÜÇ SIRALAMASI — MAX (PR) ===================== */}
+      {gymTab === 'max' && (
+      <View style={[styles.statsCard, { paddingBottom: 8 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <Text style={styles.statsTitle}>💪 Güç Sıralaması</Text>
+          {!user?.weight && <Text style={{ color: C.orange, fontSize: 11 }}>Profilde kilonu gir</Text>}
+        </View>
+        <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 12 }}>
+          Max ağırlığını gir, rozetini kazan. Vücut ağırlığına oranlı.
+        </Text>
+        {LIFTS.map((lift) => {
+          const best = user?.lifts?.[lift.key]?.best || 0;
+          const { rankIndex, nextWeight, progress } = computeRank(lift.key, best, user?.weight, user?.gender);
+          const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
+          return (
+            <TouchableOpacity key={lift.key} activeOpacity={0.7}
+              onPress={() => { setLiftModal(lift.key); setLiftInput(best ? String(best) : ''); }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.border }}>
+              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 22 }}>{rank ? rank.emoji : lift.icon}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ color: C.text, fontWeight: '700', fontSize: 14 }}>{lift.label}</Text>
+                  {rank && <Text style={{ color: rank.color, fontWeight: '800', fontSize: 12 }}>{rank.label}</Text>}
+                </View>
+                {best > 0 ? (
+                  <>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 }}>
+                      <Text style={{ color: C.textSec, fontSize: 12 }}>{best} kg</Text>
+                      {nextWeight
+                        ? <Text style={{ color: C.textMuted, fontSize: 11 }}>Sonraki: {nextWeight} kg</Text>
+                        : (
+                          <TouchableOpacity onPress={() => openLeaderboard(lift.key)} hitSlop={{top:6,bottom:6,left:6,right:6}}>
+                            <Text style={{ color: RANKS[4].color, fontSize: 11, fontWeight: '700' }}>
+                              MAX RANK 💎{myLiftRanks[lift.key] ? ` · #${myLiftRanks[lift.key].rank}` : ''} →
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                    </View>
+                    <View style={{ height: 5, borderRadius: 3, backgroundColor: C.surface2, marginTop: 5, overflow: 'hidden' }}>
+                      <View style={{ width: `${Math.round(progress * 100)}%`, height: '100%', borderRadius: 3, backgroundColor: rank ? rank.color : C.orange }} />
+                    </View>
+                  </>
+                ) : (
+                  <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 4 }}>Dokun, max ağırlığını gir →</Text>
+                )}
+              </View>
+              {best > 0 && rank && rankIndex === 4 && (
+                <TouchableOpacity onPress={() => openLeaderboard(lift.key)} hitSlop={{top:8,bottom:8,left:8,right:8}} style={{ padding: 4 }}>
+                  <Ionicons name="trophy" size={18} color={RANKS[4].color} />
+                </TouchableOpacity>
+              )}
+              {best > 0 && rank && (
+                <TouchableOpacity onPress={() => setShareLiftKey(lift.key)} hitSlop={{top:8,bottom:8,left:8,right:8}} style={{ padding: 4 }}>
+                  <Ionicons name="share-social-outline" size={18} color={C.textMuted} />
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      )}
+
       </View>
     )}
   </ScrollView>
-      )} 
+      )}
       {currentTab === 'gallery' && loading && gallery.length === 0 && (
         <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
           {[1,2,3].map(i => (
@@ -1692,6 +1863,76 @@ const sendMealToAI = async (uri: string) => {
       {/* ===== YEMEK SEKMESİ ===== */}
       {currentTab === 'meal' && (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100 }}>
+
+          {/* SWITCHER */}
+          <View style={{ flexDirection: 'row', marginBottom: 12, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border }}>
+            <TouchableOpacity
+              style={[{ flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
+                mealTab === 'plan' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
+              onPress={() => setMealTab('plan')}>
+              <Ionicons name="restaurant-outline" size={16} color={mealTab === 'plan' ? '#0B0D12' : C.textSec} />
+              <Text style={{ fontWeight: '700', color: mealTab === 'plan' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Beslenme Planı</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[{ flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
+                mealTab === 'analiz' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
+              onPress={() => setMealTab('analiz')}>
+              <Ionicons name="scan-outline" size={16} color={mealTab === 'analiz' ? '#0B0D12' : C.textSec} />
+              <Text style={{ fontWeight: '700', color: mealTab === 'analiz' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Kalori Analizi</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ===================== GÜNLÜK BESLENME PLANI (VIP) ===================== */}
+          {mealTab === 'plan' && userStats.isVip && weeklyPlan && !weeklyPlan.completedFully && (() => {
+            const currentDay = weeklyPlan.currentDay || 1;
+            const totalDays = weeklyPlan.nutritionPlan?.length || 7;
+            const todayNutrition = weeklyPlan.nutritionPlan?.find((d: any) => d.dayNumber === currentDay)
+              || weeklyPlan.nutritionPlan?.[currentDay - 1];
+            if (!todayNutrition) return null;
+            return (
+              <View style={[styles.statsCard, { marginBottom: 4 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <Text style={styles.statsTitle}>🍽️ Beslenme Planı</Text>
+                  <View style={{ backgroundColor: C.surface2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 }}>
+                    <Text style={{ color: C.orange, fontWeight: '800', fontSize: 13 }}>{todayNutrition.totalCalories} kcal</Text>
+                  </View>
+                </View>
+                <Text style={{ color: C.textMuted, fontSize: 11, marginBottom: 10 }}>
+                  {currentDay}. gün / {totalDays}
+                </Text>
+                {todayNutrition.meals?.map((meal: any, j: number) => (
+                  <View key={j} style={styles.gymMealRow}>
+                    <Text style={styles.gymMealName}>{meal.name}</Text>
+                    <Text style={styles.gymMealItems}>{meal.items}</Text>
+                    <Text style={styles.gymMealCal}>{meal.calories} kcal</Text>
+                  </View>
+                ))}
+                <TouchableOpacity activeOpacity={0.85} onPress={() => setDayFeedbackVisible(true)} style={{ marginTop: 12 }}>
+                  <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+                    <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
+                    <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{currentDay}. GÜNÜ TAMAMLADIM</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            );
+          })()}
+          {mealTab === 'plan' && userStats.isVip && !weeklyPlan && (
+            <View style={[styles.statsCard, { alignItems: 'center', gap: 8, marginBottom: 4 }]}>
+              <Ionicons name="restaurant-outline" size={32} color={C.textMuted} />
+              <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 15 }}>Beslenme Planın Hazır Değil</Text>
+              <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>GymBody sekmesinden haftalık program oluştur, beslenme planın burada görünsün.</Text>
+            </View>
+          )}
+          {mealTab === 'plan' && !userStats.isVip && (
+            <View style={[styles.statsCard, { alignItems: 'center', gap: 12, marginBottom: 4 }]}>
+              <Ionicons name="lock-closed" size={32} color={C.orange} />
+              <Text style={{ color: C.text, fontWeight: '800', fontSize: 16 }}>VIP Özelliği</Text>
+              <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>Kişisel haftalık beslenme planı VIP üyelere özeldir.</Text>
+            </View>
+          )}
+
+          {mealTab === 'analiz' && (
+          <View>
           {/* YAPAY ZEKA KALORİ ÖLÇER */}
           <LinearGradient
             colors={['#241A05', C.surface]}
@@ -1845,6 +2086,8 @@ const sendMealToAI = async (uri: string) => {
               ))
             )}
           </View>
+          </View>
+          )}
         </ScrollView>
       )}
 
@@ -2048,35 +2291,10 @@ const sendMealToAI = async (uri: string) => {
       {currentTab === 'profile' && (
   <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
     <View style={styles.profileHero}>
-      {/* Avatar */}
-      <View style={{ marginBottom: 16 }}>
-        <TouchableOpacity onPress={uploadProfilePhoto} activeOpacity={0.85}>
-          {(user.profilePhoto || user.googlePhoto) ? (
-            <View style={{ width: 110, height: 110, borderRadius: 36, overflow: 'hidden', borderWidth: 2, borderColor: C.orange }}>
-              <ExpoImage source={{ uri: user.profilePhoto || user.googlePhoto }} style={{ width: 110, height: 110 }} contentFit="cover" />
-              {profilePhotoLoading && (
-                <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
-                  <ActivityIndicator color={C.lime} />
-                </View>
-              )}
-            </View>
-          ) : (
-            <LinearGradient colors={[C.lime, C.limeDark]} style={{ width: 110, height: 110, borderRadius: 36, justifyContent: 'center', alignItems: 'center' }}>
-              {profilePhotoLoading ? <ActivityIndicator color="#0B0D12" /> : <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 42 }}>{(user.name?.[0] || 'S').toUpperCase()}</Text>}
-            </LinearGradient>
-          )}
-          <View style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: C.orange, borderRadius: 12, padding: 6, borderWidth: 2, borderColor: C.bg }}>
-            <Ionicons name="camera" size={14} color="#0B0D12" />
-          </View>
-        </TouchableOpacity>
-        {userStats.isVip && (
-          <View style={{ position: 'absolute', top: -8, right: -8, backgroundColor: '#FFD700', borderRadius: 12, padding: 4, borderWidth: 2, borderColor: C.bg }}>
-            <Text style={{ fontSize: 14 }}>👑</Text>
-          </View>
-        )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <Text style={styles.profileName}>{user.name}</Text>
+        {userStats.isVip && <Text style={{ fontSize: 22 }}>👑</Text>}
       </View>
-
-      <Text style={styles.profileName}>{user.name}</Text>
       {!!user.email && <Text style={styles.profileEmail}>{user.email}</Text>}
 
       {/* Streak + Token inline */}
@@ -2100,6 +2318,32 @@ const sendMealToAI = async (uri: string) => {
           </>
         )}
       </View>
+
+      {/* GÜÇ ROZETLERİ */}
+      {(() => {
+        const earnedLifts = LIFTS
+          .map(lift => {
+            const best = user?.lifts?.[lift.key]?.best || 0;
+            const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
+            return { lift, rankIndex, rank: rankIndex >= 0 ? RANKS[rankIndex] : null };
+          })
+          .filter(l => l.rank !== null)
+          .sort((a, b) => b.rankIndex - a.rankIndex)
+          .slice(0, 3);
+        if (earnedLifts.length === 0) return null;
+        return (
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+            {earnedLifts.map(({ lift, rank }) => (
+              <View key={lift.key} style={{ flex: 1, alignItems: 'center', backgroundColor: C.surface2,
+                borderRadius: 14, paddingVertical: 10, borderWidth: 1, borderColor: C.border }}>
+                <Text style={{ fontSize: 26 }}>{rank!.emoji}</Text>
+                <Text style={{ color: rank!.color, fontWeight: '800', fontSize: 11, marginTop: 4 }}>{rank!.label}</Text>
+                <Text style={{ color: C.textMuted, fontSize: 10, marginTop: 2 }}>{lift.label}</Text>
+              </View>
+            ))}
+          </View>
+        );
+      })()}
     </View>
 
 {/* VIP KARTI */}
@@ -2203,9 +2447,9 @@ const sendMealToAI = async (uri: string) => {
           activeOpacity={0.85}
           style={styles.editBtn}
           onPress={() => {
-            setEditName(user.name);
-            setEditHeight(String(user.height));
-            setEditWeight(String(user.weight));
+            setEditName(user.name || '');
+            setEditHeight(user.height ? String(user.height) : '');
+            setEditWeight(user.weight ? String(user.weight) : '');
             setIsEditingProfile(true);
           }}
         >
@@ -2704,6 +2948,164 @@ const sendMealToAI = async (uri: string) => {
           {lightboxUrl && (
             <Image source={{ uri: lightboxUrl }} style={{ width: Dimensions.get('window').width, height: Dimensions.get('window').height * 0.82 }} resizeMode="contain" />
           )}
+        </View>
+      </Modal>
+
+      {/* GÜÇ — PR GİRİŞİ MODALI */}
+      <Modal visible={!!liftModal} transparent animationType="fade" onRequestClose={() => setLiftModal(null)}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setLiftModal(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 28 }}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: C.bgAlt, borderRadius: 24, padding: 22, borderWidth: 1, borderColor: C.border }}>
+            {(() => {
+              const lift = LIFTS.find(l => l.key === liftModal);
+              if (!lift) return null;
+              const best = user?.lifts?.[liftModal!]?.best || 0;
+              return (
+                <>
+                  <Text style={{ fontSize: 34, textAlign: 'center', marginBottom: 6 }}>{lift.icon}</Text>
+                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 19, textAlign: 'center' }}>{lift.label}</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: (lift as any).hint ? 8 : 18 }}>
+                    {lift.muscle} • Şu anki rekor: {best ? `${best} kg` : '—'}
+                  </Text>
+                  {(lift as any).hint && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 16 }}>
+                      <Ionicons name="information-circle-outline" size={14} color={C.orange} />
+                      <Text style={{ color: C.orange, fontSize: 12 }}>{(lift as any).hint}</Text>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <TextInput
+                      value={liftInput}
+                      onChangeText={setLiftInput}
+                      keyboardType="numeric"
+                      placeholder="Kaç kg?"
+                      placeholderTextColor={C.textMuted}
+                      style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, color: C.text, fontSize: 18, fontWeight: '700' }}
+                    />
+                    <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>kg</Text>
+                  </View>
+                  <TouchableOpacity onPress={saveLift} disabled={liftSaving} activeOpacity={0.85}
+                    style={{ marginTop: 16, backgroundColor: C.orange, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}>
+                    {liftSaving ? <ActivityIndicator color="#0B0D12" /> : <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Kaydet</Text>}
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* SİKLET LİDERLİK TABLOSU MODALI */}
+      <Modal visible={!!leaderboardLift} transparent animationType="slide" onRequestClose={() => setLeaderboardLift(null)}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setLeaderboardLift(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: C.bgAlt, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: insets.bottom + 24, maxHeight: '82%' }}>
+            {(() => {
+              const lift = LIFTS.find(l => l.key === leaderboardLift);
+              return (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="trophy" size={22} color={RANKS[4].color} />
+                      <View>
+                        <Text style={{ color: C.text, fontWeight: '800', fontSize: 19 }}>{lift?.label}</Text>
+                        {leaderboardData?.bracket && (
+                          <Text style={{ color: C.orange, fontWeight: '700', fontSize: 13, marginTop: 1 }}>
+                            🏋️ {String(leaderboardData.bracket).replace(' kg', '')} sikleti
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <TouchableOpacity onPress={() => setLeaderboardLift(null)} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+                      <Ionicons name="close" size={24} color={C.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {leaderboardLoading ? (
+                    <ActivityIndicator size="large" color={C.orange} style={{ marginVertical: 40 }} />
+                  ) : leaderboardData ? (
+                    <>
+                      <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 8, marginBottom: 16 }}>
+                        {leaderboardData.total} kişi yarışıyor · Senin sıran: {leaderboardData.myRank > 0 ? `#${leaderboardData.myRank}` : '—'}
+                      </Text>
+                      <ScrollView showsVerticalScrollIndicator={false}>
+                        {leaderboardData.top10?.length > 0 ? leaderboardData.top10.map((row: any) => (
+                          <View key={row.rank} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11,
+                            paddingHorizontal: 12, borderRadius: 12, marginBottom: 6,
+                            backgroundColor: row.isMe ? 'rgba(255,159,28,0.14)' : C.surface,
+                            borderWidth: row.isMe ? 1 : 0, borderColor: C.orange }}>
+                            <Text style={{ width: 30, textAlign: 'center', fontSize: row.rank <= 3 ? 18 : 14, fontWeight: '800',
+                              color: row.rank === 1 ? '#FFD700' : row.rank === 2 ? '#C0C0C0' : row.rank === 3 ? '#CD7F32' : C.textSec }}>
+                              {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${row.rank}`}
+                            </Text>
+                            <Text style={{ flex: 1, color: row.isMe ? C.orange : C.text, fontWeight: row.isMe ? '800' : '600', fontSize: 14 }}>
+                              {row.name}{row.isMe ? ' (sen)' : ''}
+                            </Text>
+                            <Text style={{ color: row.isMe ? C.orange : C.textSec, fontWeight: '800', fontSize: 15 }}>{row.best} kg</Text>
+                          </View>
+                        )) : (
+                          <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginVertical: 30 }}>
+                            Bu siklette henüz kimse PR girmemiş. İlk sen ol! 💪
+                          </Text>
+                        )}
+                        {leaderboardData.myRank > 10 && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 12,
+                            borderRadius: 12, marginTop: 6, backgroundColor: 'rgba(255,159,28,0.14)', borderWidth: 1, borderColor: C.orange }}>
+                            <Text style={{ width: 30, textAlign: 'center', fontSize: 14, fontWeight: '800', color: C.orange }}>#{leaderboardData.myRank}</Text>
+                            <Text style={{ flex: 1, color: C.orange, fontWeight: '800', fontSize: 14 }}>Sen</Text>
+                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{leaderboardData.myBest} kg</Text>
+                          </View>
+                        )}
+                      </ScrollView>
+                    </>
+                  ) : null}
+                </>
+              );
+            })()}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* GÜÇ — PAYLAŞIM KARTI MODALI */}
+      <Modal visible={!!shareLiftKey} transparent animationType="fade" onRequestClose={() => setShareLiftKey(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <TouchableOpacity onPress={() => setShareLiftKey(null)} style={{ position: 'absolute', top: insets.top + 16, right: 20, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: 8 }}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+          {(() => {
+            if (!shareLiftKey) return null;
+            const lift = LIFTS.find(l => l.key === shareLiftKey);
+            if (!lift) return null;
+            const best = user?.lifts?.[shareLiftKey]?.best || 0;
+            const { rankIndex, nextWeight, ratio } = computeRank(shareLiftKey, best, user?.weight, user?.gender);
+            const rank = rankIndex >= 0 ? RANKS[rankIndex] : RANKS[0];
+            return (
+              <>
+                <ViewShot ref={liftShareRef} options={{ format: 'jpg', quality: 0.95 }}>
+                  <LinearGradient colors={['#12151C', '#0B0D12']} style={{ width: 300, borderRadius: 28, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: rank.color + '55' }}>
+                    <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 2 }}>GYMBODY</Text>
+                    <Text style={{ fontSize: 76, marginVertical: 10 }}>{rank.emoji}</Text>
+                    <Text style={{ color: rank.color, fontSize: 26, fontWeight: '900' }}>{rank.label}</Text>
+                    <View style={{ height: 1, backgroundColor: C.border, alignSelf: 'stretch', marginVertical: 16 }} />
+                    <Text style={{ fontSize: 30 }}>{lift.icon}</Text>
+                    <Text style={{ color: C.text, fontSize: 20, fontWeight: '800', marginTop: 6 }}>{lift.label}</Text>
+                    <Text style={{ color: C.orange, fontSize: 40, fontWeight: '900', marginTop: 8 }}>{best} kg</Text>
+                    <Text style={{ color: C.textSec, fontSize: 13, marginTop: 4 }}>
+                      Vücut ağırlığının {ratio.toFixed(2)}x katı
+                    </Text>
+                    {nextWeight ? (
+                      <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 12 }}>Sonraki rank'a {nextWeight - best} kg kaldı 🔥</Text>
+                    ) : (
+                      <Text style={{ color: RANKS[4].color, fontSize: 13, fontWeight: '700', marginTop: 12 }}>EN YÜKSEK RANK 💎</Text>
+                    )}
+                  </LinearGradient>
+                </ViewShot>
+                <TouchableOpacity onPress={captureLiftShare} activeOpacity={0.85}
+                  style={{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 32 }}>
+                  <Ionicons name="share-social" size={18} color="#0B0D12" />
+                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Paylaş</Text>
+                </TouchableOpacity>
+              </>
+            );
+          })()}
         </View>
       </Modal>
 
