@@ -131,6 +131,12 @@ export default function App() {
   const [showRestPrompt, setShowRestPrompt] = useState(false);
   const [isRestDay, setIsRestDay] = useState(false);
 
+  const [toast, setToast] = useState<{msg: string; type?: 'success'|'error'} | null>(null);
+  const showToast = (msg: string, type: 'success'|'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 2800);
+  };
+
   // YENİ ÖZELLİKLER
   const [chatVisible, setChatVisible] = useState(false);
   const [chatMessages, setChatMessages] = useState<{role: string; text: string}[]>([]);
@@ -1991,41 +1997,59 @@ const sendMealToAI = async (uri: string) => {
       {currentTab === 'profile' && (
   <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
     <View style={styles.profileHero}>
-      <TouchableOpacity onPress={uploadProfilePhoto} activeOpacity={0.85} style={{ marginBottom: 14 }}>
-        {(user.profilePhoto || user.googlePhoto) ? (
-          <View style={{ width: 88, height: 88, borderRadius: 30, overflow: 'hidden', shadowColor: C.lime, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }}>
-            <ExpoImage source={{ uri: user.profilePhoto || user.googlePhoto }} style={{ width: 88, height: 88 }} contentFit="cover" />
-            {profilePhotoLoading && (
-              <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', borderRadius: 30 }}>
-                <ActivityIndicator color={C.lime} />
-              </View>
-            )}
+      {/* Avatar */}
+      <View style={{ marginBottom: 16 }}>
+        <TouchableOpacity onPress={uploadProfilePhoto} activeOpacity={0.85}>
+          {(user.profilePhoto || user.googlePhoto) ? (
+            <View style={{ width: 110, height: 110, borderRadius: 36, overflow: 'hidden', borderWidth: 2, borderColor: C.orange }}>
+              <ExpoImage source={{ uri: user.profilePhoto || user.googlePhoto }} style={{ width: 110, height: 110 }} contentFit="cover" />
+              {profilePhotoLoading && (
+                <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+                  <ActivityIndicator color={C.lime} />
+                </View>
+              )}
+            </View>
+          ) : (
+            <LinearGradient colors={[C.lime, C.limeDark]} style={{ width: 110, height: 110, borderRadius: 36, justifyContent: 'center', alignItems: 'center' }}>
+              {profilePhotoLoading ? <ActivityIndicator color="#0B0D12" /> : <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 42 }}>{(user.name?.[0] || 'S').toUpperCase()}</Text>}
+            </LinearGradient>
+          )}
+          <View style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: C.orange, borderRadius: 12, padding: 6, borderWidth: 2, borderColor: C.bg }}>
+            <Ionicons name="camera" size={14} color="#0B0D12" />
           </View>
-        ) : (
-          <LinearGradient colors={[C.lime, C.limeDark]} style={styles.profileAvatar}>
-            {profilePhotoLoading ? <ActivityIndicator color="#0B0D12" /> : <Text style={styles.profileAvatarText}>{(user.name?.[0] || 'S').toUpperCase()}</Text>}
-          </LinearGradient>
+        </TouchableOpacity>
+        {userStats.isVip && (
+          <View style={{ position: 'absolute', top: -8, right: -8, backgroundColor: '#FFD700', borderRadius: 12, padding: 4, borderWidth: 2, borderColor: C.bg }}>
+            <Text style={{ fontSize: 14 }}>👑</Text>
+          </View>
         )}
-        <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: C.orange, borderRadius: 10, padding: 5 }}>
-          <Ionicons name="camera" size={13} color="#0B0D12" />
-        </View>
-      </TouchableOpacity>
+      </View>
+
       <Text style={styles.profileName}>{user.name}</Text>
       {!!user.email && <Text style={styles.profileEmail}>{user.email}</Text>}
+
+      {/* Streak + Token inline */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24, marginTop: 16 }}>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ color: C.orange, fontWeight: '900', fontSize: 24 }}>{userStats.streak}</Text>
+          <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>🔥 Seri</Text>
+        </View>
+        <View style={{ width: 1, height: 32, backgroundColor: C.border }} />
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ color: C.lime, fontWeight: '900', fontSize: 24 }}>{userStats.tokens}</Text>
+          <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>💎 Token</Text>
+        </View>
+        {userStats.isVip && (
+          <>
+            <View style={{ width: 1, height: 32, backgroundColor: C.border }} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#FFD700', fontWeight: '900', fontSize: 24 }}>VIP</Text>
+              <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>👑 Üye</Text>
+            </View>
+          </>
+        )}
+      </View>
     </View>
-{/* TOKEN & STREAK KARTI */}
-<View style={styles.tokenCardRow}>
-  <View style={styles.tokenCard}>
-    <Ionicons name="flame" size={18} color={C.orange} />
-    <Text style={styles.tokenValue}>{userStats.streak}</Text>
-    <Text style={styles.tokenLabel}>Günlük Seri</Text>
-  </View>
-  <View style={styles.tokenCard}>
-    <Ionicons name="diamond" size={18} color={C.lime} />
-    <Text style={styles.tokenValue}>{userStats.tokens}</Text>
-    <Text style={styles.tokenLabel}>Token</Text>
-  </View>
-</View>
 
 {/* VIP KARTI */}
 {userStats.isVip ? (
@@ -2104,24 +2128,23 @@ const sendMealToAI = async (uri: string) => {
 
     {!isEditingProfile ? (
       <>
-        {/* Özet kartları */}
-        <View style={styles.statCardsRow}>
-          <View style={styles.statMiniCard}>
-            <Ionicons name="resize-outline" size={18} color={C.lime} />
-            <Text style={styles.statMiniValue}>{user.height || '--'}</Text>
-            <Text style={styles.statMiniLabel}>Boy (cm)</Text>
+        {/* Özet — kutusuz flat row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 18, borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.border, marginBottom: 16 }}>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ color: C.text, fontWeight: '900', fontSize: 22 }}>{user.height || '--'}</Text>
+            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 3 }}>Boy (cm)</Text>
           </View>
-          <View style={styles.statMiniCard}>
-            <Ionicons name="scale-outline" size={18} color={C.lime} />
-            <Text style={styles.statMiniValue}>{user.weight || '--'}</Text>
-            <Text style={styles.statMiniLabel}>Kilo (kg)</Text>
+          <View style={{ width: 1, backgroundColor: C.border }} />
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ color: C.text, fontWeight: '900', fontSize: 22 }}>{user.weight || '--'}</Text>
+            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 3 }}>Kilo (kg)</Text>
           </View>
-          <View style={styles.statMiniCard}>
-            <Ionicons name="fitness-outline" size={18} color={C.lime} />
-            <Text style={styles.statMiniValue}>
+          <View style={{ width: 1, backgroundColor: C.border }} />
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ color: C.text, fontWeight: '900', fontSize: 22 }}>
               {user.height && user.weight ? (user.weight / ((user.height/100) * (user.height/100))).toFixed(1) : '--'}
             </Text>
-            <Text style={styles.statMiniLabel}>VKİ</Text>
+            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 3 }}>VKİ</Text>
           </View>
         </View>
 
@@ -2632,6 +2655,19 @@ const sendMealToAI = async (uri: string) => {
           )}
         </View>
       </Modal>
+
+      {/* TOAST */}
+      {toast && (
+        <View style={{ position: 'absolute', bottom: 90 + (insets.bottom || 0), left: 16, right: 16, zIndex: 999,
+          backgroundColor: toast.type === 'error' ? 'rgba(255,60,60,0.95)' : 'rgba(30,30,40,0.97)',
+          borderRadius: 16, paddingVertical: 13, paddingHorizontal: 18,
+          flexDirection: 'row', alignItems: 'center', gap: 10,
+          borderWidth: 1, borderColor: toast.type === 'error' ? 'rgba(255,80,80,0.4)' : 'rgba(255,159,28,0.3)',
+          shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 20 }}>
+          <Ionicons name={toast.type === 'error' ? 'alert-circle' : 'checkmark-circle'} size={20} color={toast.type === 'error' ? '#ff6b6b' : C.orange} />
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600', flex: 1 }}>{toast.msg}</Text>
+        </View>
+      )}
 
       {/* ALT TAB BAR */}
       <View style={[styles.tabBarOuter, { paddingBottom: (insets.bottom || 8) + 4 }]}>
