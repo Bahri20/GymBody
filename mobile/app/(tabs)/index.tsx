@@ -3130,28 +3130,31 @@ const sendMealToAI = async (uri: string) => {
           </TouchableOpacity>
           {rankShareData && (
             <>
-              <ViewShot ref={rankShareRef} options={{ format: 'jpg', quality: 0.95 }}>
-                <View style={{ width: 300, height: 400, borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: C.orange + '55' }}>
+              <ViewShot ref={rankShareRef} options={{ format: 'jpg', quality: 0.95 }} style={{ overflow: 'hidden' }}>
+                <View style={{ width: 320, height: 420, backgroundColor: '#0B0D12', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: C.orange + '55' }}>
                   {rankSharePhoto ? (
-                    <Image source={{ uri: rankSharePhoto }} style={{ position: 'absolute', width: 300, height: 400 }} resizeMode="cover" />
+                    <Image source={{ uri: rankSharePhoto }} style={{ position: 'absolute', width: 320, height: 420 }} resizeMode="cover" />
                   ) : (
-                    <LinearGradient colors={['#1A1205', '#0B0D12']} style={{ position: 'absolute', width: 300, height: 400 }} />
+                    <LinearGradient colors={['#241A05', '#0B0D12']} style={{ position: 'absolute', width: 320, height: 420, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 96, opacity: 0.9 }}>{rankShareData.icon}</Text>
+                    </LinearGradient>
                   )}
-                  {/* okunabilirlik için karartma */}
-                  <LinearGradient colors={['rgba(0,0,0,0.45)', 'rgba(0,0,0,0.82)']} style={{ position: 'absolute', width: 300, height: 400 }} />
-                  <View style={{ flex: 1, padding: 24, justifyContent: 'space-between' }}>
-                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 3 }}>GYMBODY</Text>
-                    <View style={{ alignItems: 'center' }}>
-                      <Text style={{ fontSize: 54 }}>{rankShareData.icon}</Text>
-                      <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 4 }}>{rankShareData.label}</Text>
-                      <Text style={{ color: C.orange, fontSize: 64, fontWeight: '900', marginTop: 6 }}>#{rankShareData.rank}</Text>
-                      <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{rankShareData.bracket} sikletinde</Text>
-                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 2 }}>{rankShareData.total} kişi arasında · {rankShareData.best} kg</Text>
+                  {/* üst marka */}
+                  <Text style={{ position: 'absolute', top: 16, left: 18, color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 3, textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 6 }}>GYMBODY</Text>
+                  {/* alt bilgi şeridi (yağ oranı kartı gibi) */}
+                  <LinearGradient
+                    colors={['transparent', 'rgba(11,13,18,0.92)', '#0B0D12']}
+                    style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 210, justifyContent: 'flex-end', padding: 20 }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 7 }}>
+                      <Text style={{ color: C.orange, fontSize: 46, fontWeight: '900' }}>#{rankShareData.rank}</Text>
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{rankShareData.bracket} sikletinde</Text>
                     </View>
-                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, textAlign: 'center', fontWeight: '600' }}>
-                      Sen de sıralamana bak → GymBody
-                    </Text>
-                  </View>
+                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginTop: 3 }}>{rankShareData.icon} {rankShareData.label} · {rankShareData.best} kg</Text>
+                    <Text style={{ color: '#A3ABBA', fontSize: 12, marginTop: 1 }}>{rankShareData.total} kişi arasında</Text>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginTop: 8 }}>💪 {user?.name || ''} · GymBodyAI</Text>
+                    <Text style={{ color: '#6B7384', fontSize: 12 }}>gymbodyai.app</Text>
+                  </LinearGradient>
                 </View>
               </ViewShot>
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 22 }}>
