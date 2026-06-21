@@ -5,6 +5,8 @@ const userSchema = new mongoose.Schema({
   password: { type: String }, // Google ile girenlerde şifre olmaz
   googleId: { type: String }, // Google hesap kimliği (sub)
   authProvider: { type: String, default: 'email' }, // 'email' | 'google'
+  googlePhoto: { type: String }, // Google hesabından gelen profil fotoğrafı URL
+  profilePhoto: { type: String }, // Kullanıcının kendi yüklediği profil fotoğrafı
   name: { type: String, required: true },
   height: { type: Number },
   weight: { type: Number },
@@ -22,6 +24,9 @@ const userSchema = new mongoose.Schema({
   discountRate: { type: Number, default: 0 },
   pushToken: { type: String },
   badges: [{ type: String }],
+  // Güç sıralaması — temel bileşik hareketlerde max ağırlık (PR) ve geçmiş
+  // lifts: { bench: { best: 80, history: [{ weight, date }] }, squat: {...}, ... }
+  lifts: { type: mongoose.Schema.Types.Mixed, default: {} },
   onboarded: { type: Boolean, default: false }, // ilk giriş karşılama modalı gösterildi mi
   adRewardsToday: { type: Number, default: 0 }, // bugün izlenen ödüllü reklam sayısı
   adRewardDate: { type: String }, // YYYY-MM-DD (gün değişince sıfırlanır)

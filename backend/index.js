@@ -659,6 +659,33 @@ app.get('/me', authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Kullanıcı getirilemedi." });
   }
 });
+// Güç sıralaması — bir hareketin PR'ını (max ağırlık) kaydet
+app.post('/update-lift', authMiddleware, async (req, res) => {
+  try {
+    const { lift, weight } = req.body;
+    const allowed = ['bench', 'squat', 'deadlift', 'ohp', 'latpull', 'curl', 'lateral'];
+    const w = parseFloat(weight);
+    if (!allowed.includes(lift) || !(w > 0) || w > 1000) {
+      return res.status(400).json({ error: "Geçersiz hareket veya ağırlık." });
+    }
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+    const lifts = user.lifts || {};
+    const entry = lifts[lift] || { best: 0, history: [] };
+    entry.history = [...(entry.history || []), { weight: w, date: new Date() }].slice(-60);
+    if (w > (entry.best || 0)) entry.best = w;
+    lifts[lift] = entry;
+    user.lifts = lifts;
+    user.markModified('lifts');
+    await user.save();
+
+    res.json({ message: "PR kaydedildi!", lifts: user.lifts });
+  } catch (err) {
+    console.error("🔥 /update-lift Hatası:", err);
+    res.status(500).json({ error: "PR kaydedilemedi." });
+  }
+});
 // Ödüllü reklam izlendi → token ver (sunucu tarafı günlük sınır, VIP hariç)
 app.post('/reward-ad-token', authMiddleware, async (req, res) => {
   try {
