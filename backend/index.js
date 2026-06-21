@@ -814,7 +814,7 @@ if (isVipActive && todayCount >= 5) {
       {"mealName": "Yemeğin Adı", "calories": 500, "protein": 30, "carbs": 50, "fat": 15, "description": "Tavsiye mesajı"}
     `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent([prompt, imagePart]);
     let responseText = result.response.text().trim();
     
@@ -832,10 +832,10 @@ if (isVipActive && todayCount >= 5) {
     const savedLog = await MealLog.create({
       userId: req.userId,
       mealName: mealData.mealName,
-      calories: mealData.calories,
-      protein: mealData.protein,
-      carbs: mealData.carbs,
-      fat: mealData.fat,
+      calories: mealData.calories ?? 0,
+      protein: mealData.protein ?? 0,
+      carbs: mealData.carbs ?? 0,
+      fat: mealData.fat ?? 0,
       description: mealData.description
     });
 
@@ -930,7 +930,7 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     // temperature yüksek → her üretimde farklı egzersiz varyasyonları (aynı program tekrarını önler)
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       generationConfig: { temperature: 1.0 },
     });
 
@@ -1309,7 +1309,7 @@ app.post('/ai-chat', authMiddleware, async (req, res) => {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const systemPrompt = `Sen GymBodyAI'ın kişisel fitness koçusun. Kullanıcı: ${user?.name || 'Sporcu'}, ${user?.weight || '?'}kg, ${user?.height || '?'}cm. Kısa, samimi, motive edici cevaplar ver. Türkçe konuş. Fitness, beslenme, antrenman dışındaki konularda kibar şekilde konuyu yönlendir.`;
 
