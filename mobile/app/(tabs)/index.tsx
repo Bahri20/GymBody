@@ -1638,7 +1638,11 @@ const sendMealToAI = async (uri: string) => {
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 }}>
                       <Text style={{ color: C.textSec, fontSize: 12 }}>{best} kg</Text>
                       {nextWeight
-                        ? <Text style={{ color: C.textMuted, fontSize: 11 }}>Sonraki: {nextWeight} kg</Text>
+                        ? (rankIndex >= 3 && myLiftRanks[lift.key]
+                            ? <TouchableOpacity onPress={() => openLeaderboard(lift.key)} hitSlop={{top:6,bottom:6,left:6,right:6}}>
+                                <Text style={{ color: C.orange, fontSize: 11, fontWeight: '700' }}>Sikletinde #{myLiftRanks[lift.key].rank} →</Text>
+                              </TouchableOpacity>
+                            : <Text style={{ color: C.textMuted, fontSize: 11 }}>Sonraki: {nextWeight} kg</Text>)
                         : (
                           <TouchableOpacity onPress={() => openLeaderboard(lift.key)} hitSlop={{top:6,bottom:6,left:6,right:6}}>
                             <Text style={{ color: RANKS[4].color, fontSize: 11, fontWeight: '700' }}>
@@ -1655,9 +1659,9 @@ const sendMealToAI = async (uri: string) => {
                   <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 4 }}>Dokun, max ağırlığını gir →</Text>
                 )}
               </View>
-              {best > 0 && rank && rankIndex === 4 && (
+              {best > 0 && rank && rankIndex >= 3 && (
                 <TouchableOpacity onPress={() => openLeaderboard(lift.key)} hitSlop={{top:8,bottom:8,left:8,right:8}} style={{ padding: 4 }}>
-                  <Ionicons name="trophy" size={18} color={RANKS[4].color} />
+                  <Ionicons name="trophy" size={18} color={rank.color} />
                 </TouchableOpacity>
               )}
               {best > 0 && rank && (
