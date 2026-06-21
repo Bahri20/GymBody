@@ -225,16 +225,16 @@ export default function App() {
      if (earned) {
        try {
          const res = await axios.post(`${API_URL}/reward-ad-token`, {}, { headers: { Authorization: `Bearer ${token}` } });
-         Alert.alert('Tebrikler! 🎉', `${res.data.reward} token kazandın! Bugün ${res.data.remaining} hakkın kaldı.`);
+         showToast(`${res.data.reward} token kazandın! Bugün ${res.data.remaining} hakkın kaldı.`);
          fetchUserStats();
        } catch (e: any) {
-         Alert.alert('Hata', e.response?.data?.error || 'Token verilemedi.');
+         showToast(e.response?.data?.error || 'Token verilemedi.', 'error');
        }
      }
    }));
    subs.push(rewarded.addAdEventListener(AdEventType.ERROR, () => {
      setAdLoading(false); cleanup();
-     Alert.alert('Reklam Hatası', 'Reklam şu an yüklenemedi, biraz sonra tekrar dene.');
+     showToast('Reklam şu an yüklenemedi, biraz sonra tekrar dene.', 'error');
    }));
    rewarded.load();
  };
@@ -382,14 +382,14 @@ const startProgram = async () => {
     });
     setWeeklyPlan(res.data);
   } catch (error: any) {
-    Alert.alert('Hata', error.userMessage || error.response?.data?.error || 'Program başlatılamadı.');
+    showToast(error.userMessage || error.response?.data?.error || 'Program başlatılamadı.', 'error');
   } finally {
     setGymLoading(false);
   }
 };
 const saveBodyStat = async () => {
   if (!statWeight && !statWaist && !statShoulder && !statNeck) {
-    return Alert.alert("Uyarı", "En az bir değer girmelisin kanka!");
+    return showToast('En az bir değer girmelisin!', 'error');
   }
 
   setLoading(true);
@@ -403,7 +403,7 @@ const saveBodyStat = async () => {
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    Alert.alert("Başarılı ✅", "Ölçülerin kaydedildi kanka!");
+    showToast('Ölçülerin kaydedildi ✓');
     setStatWeight(''); setStatWaist(''); setStatShoulder(''); setStatNeck('');
     fetchBodyStats();
 
@@ -413,7 +413,7 @@ const saveBodyStat = async () => {
     }
   } catch (error) {
     console.log("🔥 BODYSTAT HATASI:", error);
-    Alert.alert('Hata', 'Ölçüler kaydedilemedi.');
+    showToast('Ölçüler kaydedilemedi.', 'error');
   } finally {
     setLoading(false);
   }
@@ -444,7 +444,7 @@ const fetchWeeklySummary = async () => {
     });
     setWeeklySummary(res.data);
     setWeeklySummaryVisible(true);
-  } catch { Alert.alert('Hata', 'Özet alınamadı.'); }
+  } catch { showToast('Özet alınamadı.', 'error'); }
 };
 
 // AI Chat
@@ -490,7 +490,7 @@ const uploadProfilePhoto = async () => {
     });
     setUser(res.data.user);
   } catch (err: any) {
-    Alert.alert('Hata', err.userMessage || 'Fotoğraf yüklenemedi.');
+    showToast(err.userMessage || 'Fotoğraf yüklenemedi.', 'error');
   } finally {
     setProfilePhotoLoading(false);
   }
@@ -508,7 +508,7 @@ const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 const shareProgress = async () => {
   const withFat = gallery.filter(p => p.bodyFatPercentage != null);
   if (withFat.length < 1) {
-    Alert.alert('Fotoğraf Yok', 'Paylaşmak için en az bir vücut analizi fotoğrafı gerekiyor.');
+    showToast('Paylaşmak için vücut analizi fotoğrafı gerekiyor.', 'error');
     return;
   }
   if (withFat.length === 1) {
@@ -525,9 +525,9 @@ const captureAndShare = async () => {
   try {
     setShareLoading(true);
     const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) { Alert.alert('Hata', 'Paylaşım bu cihazda desteklenmiyor.'); return; }
+    if (!canShare) { showToast('Paylaşım bu cihazda desteklenmiyor.', 'error'); return; }
     const uri = await (shareCardRef.current as any)?.capture();
-    if (!uri) { Alert.alert('Hata', 'Görsel oluşturulamadı.'); return; }
+    if (!uri) { showToast('Görsel oluşturulamadı.', 'error'); return; }
     // tmp'den kalıcı dizine kopyala — WhatsApp/Instagram tmp'yi okuyamıyor
     const dest = FileSystem.documentDirectory + 'gymbodyai_share.jpg';
     const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
@@ -542,7 +542,7 @@ const captureAndShare = async () => {
       dialogTitle: 'GymBodyAI Gelişimim',
     });
   } catch (err: any) {
-    Alert.alert('Hata', err?.message || 'Paylaşım başarısız.');
+    showToast(err?.message || 'Paylaşım başarısız.', 'error');
   } finally {
     setShareLoading(false);
     setShareCardReady(false); // paylaşım menüsü kapandıktan sonra modal'ı kapat
@@ -567,13 +567,13 @@ const handleCompleteDay = async (feedback?: string) => {
   } catch (error: any) {
     const msg = error.userMessage || error.response?.data?.error || 'Gün tamamlanamadı.';
     setDayFeedbackVisible(false);
-    Alert.alert(error.response?.status === 429 ? 'Bilgi' : 'Hata', msg);
+    showToast(msg, 'error');
   }
 };
   // Auth İşlemleri (Loglu)
   const handleAuth = async () => {
     if (!email || !password) {
-      return Alert.alert("Hata", "E-posta ve şifre alanlarını doldur kanka");
+      return showToast('E-posta ve şifre alanlarını doldur', 'error');
     }
 
     setLoading(true);
@@ -592,7 +592,7 @@ const handleCompleteDay = async (feedback?: string) => {
         const msg = bonus
           ? `Kayıt başarılı! ${bonus.coachName} referansıyla %${bonus.discountRate} VIP indirimi kazandın! 🎉`
           : "Kayıt başarılı kanka, şimdi giriş yapabilirsin!";
-        Alert.alert("Başarılı 🏋️‍♂️", msg);
+        showToast(msg);
         setIsRegister(false);
         setReferralCode('');
         setReferralBonus(null);
@@ -609,7 +609,7 @@ const handleCompleteDay = async (feedback?: string) => {
     } catch (err: any) {
       console.log("🔥 AUTH HATASI:", err);
       const errorMsg = err.response?.data?.error || err.message || "Sunucuya bağlanılamadı kanka";
-      Alert.alert("Bağlantı Hatası", errorMsg);
+      showToast(errorMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -633,13 +633,13 @@ const handleCompleteDay = async (feedback?: string) => {
     Authorization: `Bearer ${token}`
   },
 });
-      Alert.alert('Başarılı! 🎉', 'Gelişim fotoğrafın buluta jilet gibi yüklendi kanka.');
+      showToast('Fotoğraf kaydedildi ✓');
       setImage(null);
       setNote('');
       fetchPhotos(); // Akışı yenilesin kanka
     } catch (error) {
       console.log("🔥 FOTO YÜKLEME HATASI:", error);
-      Alert.alert('Hata', 'Fotoğraf yüklenirken pürüz çıktı.');
+      showToast('Fotoğraf yüklenemedi.', 'error');
     } finally {
       setLoading(false);
     }
@@ -669,10 +669,10 @@ const handleCompleteDay = async (feedback?: string) => {
     }
 
     setIsEditingProfile(false);
-    Alert.alert("Başarılı ✅", "Profilin güncellendi kanka!");
+    showToast('Profil güncellendi ✓');
   } catch (error) {
     console.log("🔥 PROFİL GÜNCELLEME HATASI:", error);
-    Alert.alert('Hata', 'Profil güncellenemedi.');
+    showToast('Profil güncellenemedi.', 'error');
   } finally {
     setLoading(false);
   }
@@ -694,7 +694,7 @@ const handleCompleteDay = async (feedback?: string) => {
             fetchPhotos(); // listeyi yenile
           } catch (error) {
             console.log("🔥 SİLME HATASI:", error);
-            Alert.alert('Hata', 'Fotoğraf silinemedi.');
+            showToast('Fotoğraf silinemedi.', 'error');
           }
         }
       }
@@ -707,11 +707,11 @@ const redeemVip = async () => {
     const res = await axios.post(`${API_URL}/redeem-vip`, {}, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    Alert.alert("Tebrikler! 🎉", res.data.message);
+    showToast(res.data.message);
     fetchUserStats();
   } catch (error: any) {
     const msg = error.response?.data?.error || 'VIP aktifleştirilemedi.';
-    Alert.alert('Hata', msg);
+    showToast(msg, 'error');
   } finally {
     setLoading(false);
   }
@@ -727,11 +727,11 @@ const redeemPromo = () => {
         const res = await axios.post(`${API_URL}/redeem-promo`, { code: code.trim() }, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        Alert.alert('Tebrikler! 🎉', res.data.message);
+        showToast(res.data.message);
         fetchUserStats();
       } catch (error: any) {
         const msg = error.response?.data?.error || 'Geçersiz kod.';
-        Alert.alert('Hata', msg);
+        showToast(msg, 'error');
       }
     },
     'plain-text'
@@ -747,10 +747,10 @@ const applyReferral = async (code: string, authToken?: string) => {
     });
     // Yerel kullanıcıyı güncelle ki "referans kodu gir" butonu gizlensin
     setUser((prev: any) => prev ? { ...prev, referredBy: res.data.coachName, discountRate: res.data.discountRate } : prev);
-    Alert.alert('Tebrikler! 🎉', res.data.message);
+    showToast(res.data.message);
   } catch (error: any) {
     const msg = error.response?.data?.error || 'Geçersiz referans kodu.';
-    Alert.alert('Hata', msg);
+    showToast(msg, 'error');
   }
 };
 
@@ -859,7 +859,7 @@ const sendMealToAI = async (uri: string) => {
   } catch (error: any) {
     console.log("🔥 AI GÖNDERİM HATASI:", error);
     const msg = error.response?.data?.error || 'Yemek analiz edilemedi. Sunucu logunu veya API keyini kontrol et kanka.';
-    Alert.alert('Hata', msg);
+    showToast(msg, 'error');
   } finally {
     setLoading(false);
   }
@@ -1118,10 +1118,10 @@ const sendMealToAI = async (uri: string) => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(res.data.user);
-      Alert.alert("Başarılı ✅", "Hedeflerin kaydedildi kanka!");
+      showToast('Hedefler kaydedildi ✓');
     } catch (error) {
       console.log("🔥 HEDEF KAYIT HATASI:", error);
-      Alert.alert('Hata', 'Hedefler kaydedilemedi.');
+      showToast('Hedefler kaydedilemedi.', 'error');
     } finally {
       setLoading(false);
     }
