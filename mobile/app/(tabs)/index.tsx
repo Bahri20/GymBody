@@ -497,6 +497,7 @@ const [shareCardReady, setShareCardReady] = useState(false);
 const [sharePickerVisible, setSharePickerVisible] = useState(false);
 const [shareImgLoaded, setShareImgLoaded] = useState(false);
 const [shareLoading, setShareLoading] = useState(false);
+const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
 const shareProgress = async () => {
   const withFat = gallery.filter(p => p.bodyFatPercentage != null);
@@ -1161,45 +1162,9 @@ const sendMealToAI = async (uri: string) => {
         </TouchableOpacity>
       </View>
 
-      {/* ÜST TAB BAR SEÇİMİ */}
-     <View style={styles.tabContainer}>
-  {TABS.map((t) => {
-    const active = currentTab === t.key;
-    if (t.gym) {
-      return (
-        <TouchableOpacity
-          key={t.key}
-          activeOpacity={0.8}
-          style={styles.gymTab}
-          onPress={() => setCurrentTab(t.key)}
-        >
-          <LinearGradient
-            colors={active ? ['#FFFFFF', '#F0F0F0'] : ['#232323', '#1A1A1A']}
-            style={styles.gymTabInner}
-          >
-            <Ionicons name={t.icon} size={22} color={active ? '#0B0D12' : '#FF9F1C'} />
-            <Text style={[styles.gymTabText, active && { color: '#111' }]}>{t.label}</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      );
-    }
-    return (
-      <TouchableOpacity
-        key={t.key}
-        activeOpacity={0.8}
-        style={[styles.tab, active && styles.activeTab]}
-        onPress={() => setCurrentTab(t.key)}
-      >
-        <Ionicons name={t.icon} size={18} color={active ? '#0B0D12' : C.textSec} />
-        <Text style={[styles.tabText, active && styles.activeTabText]}>{t.label}</Text>
-      </TouchableOpacity>
-    );
-  })}
-</View>
-
       <Animated.View style={{ flex: 1 }} key={currentTab} entering={FadeIn.duration(300)}>
       {currentTab === 'gymBody' && (
-  <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+  <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
     {!userStats.isVip ? (
       /* KİLİTLİ EKRAN */
@@ -1393,14 +1358,14 @@ const sendMealToAI = async (uri: string) => {
 
   return (
     <View>
-      <View style={[styles.tabContainer, { marginBottom: 12 }]}>
-        <TouchableOpacity style={[styles.tab, gymPlanTab === 'workout' && styles.activeTab]} onPress={() => setGymPlanTab('workout')}>
+      <View style={{ flexDirection: 'row', marginBottom: 12, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border }}>
+        <TouchableOpacity style={[{ flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' }, gymPlanTab === 'workout' && { backgroundColor: 'rgba(255,255,255,0.92)' }]} onPress={() => setGymPlanTab('workout')}>
           <Ionicons name="barbell-outline" size={16} color={gymPlanTab === 'workout' ? '#0B0D12' : C.textSec} />
-          <Text style={[styles.tabText, gymPlanTab === 'workout' && styles.activeTabText]}>Antrenman</Text>
+          <Text style={{ fontWeight: '700', color: gymPlanTab === 'workout' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Antrenman</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, gymPlanTab === 'nutrition' && styles.activeTab]} onPress={() => setGymPlanTab('nutrition')}>
+        <TouchableOpacity style={[{ flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' }, gymPlanTab === 'nutrition' && { backgroundColor: 'rgba(255,255,255,0.92)' }]} onPress={() => setGymPlanTab('nutrition')}>
           <Ionicons name="restaurant-outline" size={16} color={gymPlanTab === 'nutrition' ? '#0B0D12' : C.textSec} />
-          <Text style={[styles.tabText, gymPlanTab === 'nutrition' && styles.activeTabText]}>Beslenme</Text>
+          <Text style={{ fontWeight: '700', color: gymPlanTab === 'nutrition' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Beslenme</Text>
         </TouchableOpacity>
       </View>
 
@@ -1496,7 +1461,7 @@ const sendMealToAI = async (uri: string) => {
           data={gallery}
           keyExtractor={(item) => item._id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 30 }}
+          contentContainerStyle={{ paddingBottom: 100 }}
           ListHeaderComponent={
             <View>
               {/* 📸 FOTOĞRAF EKLEME YERİ */}
@@ -1555,7 +1520,9 @@ const sendMealToAI = async (uri: string) => {
           }
       renderItem={({ item }) => (
   <View style={styles.galleryCard}>
-    <Image source={{ uri: item.url }} style={styles.galleryImg} />
+    <TouchableOpacity activeOpacity={0.92} onPress={() => setLightboxUrl(item.url)}>
+      <Image source={{ uri: item.url }} style={styles.galleryImg} />
+    </TouchableOpacity>
     <View style={styles.galleryInfo}>
       <View style={styles.dateRow}>
         <Ionicons name="calendar-outline" size={13} color={C.textMuted} />
@@ -1667,7 +1634,7 @@ const sendMealToAI = async (uri: string) => {
 
       {/* ===== YEMEK SEKMESİ ===== */}
       {currentTab === 'meal' && (
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 30 }}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100 }}>
           {/* YAPAY ZEKA KALORİ ÖLÇER */}
           <LinearGradient
             colors={['#241A05', C.surface]}
@@ -1823,7 +1790,7 @@ const sendMealToAI = async (uri: string) => {
       )}
 
       {currentTab === 'stats' && (
-         <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+         <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
           {/* KAYDIRMALI GRAFİK SAYFALARI */}
           <ScrollView
@@ -2020,7 +1987,7 @@ const sendMealToAI = async (uri: string) => {
     </ScrollView>
       )}
       {currentTab === 'profile' && (
-  <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+  <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
     <View style={styles.profileHero}>
       <TouchableOpacity onPress={uploadProfilePhoto} activeOpacity={0.85} style={{ marginBottom: 14 }}>
         {(user.profilePhoto || user.googlePhoto) ? (
@@ -2652,6 +2619,47 @@ const sendMealToAI = async (uri: string) => {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* LIGHTBOX */}
+      <Modal visible={!!lightboxUrl} transparent animationType="fade" onRequestClose={() => setLightboxUrl(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => setLightboxUrl(null)} style={{ position: 'absolute', top: insets.top + 16, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: 8 }}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+          {lightboxUrl && (
+            <Image source={{ uri: lightboxUrl }} style={{ width: Dimensions.get('window').width, height: Dimensions.get('window').height * 0.82 }} resizeMode="contain" />
+          )}
+        </View>
+      </Modal>
+
+      {/* ALT TAB BAR */}
+      <View style={[styles.tabBarOuter, { paddingBottom: (insets.bottom || 8) + 4 }]}>
+        {TABS.map((t) => {
+          const active = currentTab === t.key;
+          if (t.gym) {
+            return (
+              <TouchableOpacity key={t.key} activeOpacity={0.85} style={styles.gymTabBtn}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setCurrentTab(t.key); }}>
+                <LinearGradient
+                  colors={active ? [C.orange, '#E07800'] : ['#252525', '#1C1C1C']}
+                  style={styles.gymTabCircle}
+                >
+                  <Ionicons name={t.icon} size={26} color={active ? '#0B0D12' : C.orange} />
+                </LinearGradient>
+                <Text style={[styles.tabBtnText, { marginTop: 4 }, active && { color: C.orange, fontWeight: '700' }]}>{t.label}</Text>
+              </TouchableOpacity>
+            );
+          }
+          return (
+            <TouchableOpacity key={t.key} activeOpacity={0.85} style={styles.tabBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(t.key); }}>
+              {active && <View style={styles.tabActivePill} />}
+              <Ionicons name={t.icon} size={22} color={active ? C.orange : C.textSec} />
+              <Text style={[styles.tabBtnText, active && { color: C.orange, fontWeight: '700' }]}>{t.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
     </View>
   );
 }
@@ -2719,15 +2727,22 @@ const styles = StyleSheet.create({
   avatar: { width: 46, height: 46, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   avatarText: { color: '#0B0D12', fontWeight: '900', fontSize: 18 },
 
-  // ---- TABS ----
-  tabContainer: { flexDirection: 'row', marginBottom: 16, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border },
-  tab: { flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  activeTab: { backgroundColor: 'rgba(255,255,255,0.92)' },
-  tabText: { fontWeight: '700', color: C.textSec, fontSize: 10 },
-  activeTabText: { color: '#0B0D12' },
-  gymTab: { flex: 1.4, alignItems: 'center', justifyContent: 'center', marginVertical: -4 },
-  gymTabInner: { width: '100%', paddingVertical: 14, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 3, shadowColor: '#FF9F1C', shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
-  gymTabText: { color: '#FF9F1C', fontWeight: '800', fontSize: 11 }, 
+  // ---- BOTTOM TAB BAR ----
+  tabBarOuter: {
+    flexDirection: 'row', alignItems: 'flex-end',
+    marginHorizontal: -16, paddingHorizontal: 8, paddingTop: 8,
+    backgroundColor: '#0A0A12',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,159,28,0.18)',
+    shadowColor: '#FF9F1C', shadowOpacity: 0.12, shadowRadius: 24, shadowOffset: { width: 0, height: -6 }, elevation: 30,
+  },
+  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 6, gap: 3, minHeight: 56 },
+  tabActivePill: { position: 'absolute', top: 0, width: 28, height: 3, borderRadius: 2, backgroundColor: C.orange },
+  tabBtnText: { fontSize: 10, fontWeight: '600', color: C.textSec },
+  gymTabBtn: { flex: 1.3, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 6, gap: 3 },
+  gymTabCircle: {
+    width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', marginBottom: 2,
+    shadowColor: C.orange, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 12,
+  },
 
   // ---- UPLOAD ----
   uploadCard: { marginBottom: 16 },
