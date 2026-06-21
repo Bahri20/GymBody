@@ -743,6 +743,40 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Sıralama getirilemedi." });
   }
 });
+// Güç sıralaması — kullanıcının TÜM hareketlerdeki siklet sırası (tek çağrı, inline gösterim için)
+app.get('/my-lift-ranks', authMiddleware, async (req, res) => {
+  try {
+    const me = await User.findById(req.userId);
+    if (!me) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    const now = new Date();
+    const meVip = me.isVip && (!me.vipExpiresAt || me.vipExpiresAt > now);
+    if (!meVip || !me.weight) return res.json({ ranks: {}, bracket: null });
+
+    const bracketMin = Math.floor(me.weight / 5) * 5;
+    const bracketMax = bracketMin + 5;
+    const bracket = `${bracketMin}-${bracketMax}`;
+
+    const users = (await User.find({ weight: { $gte: bracketMin, $lt: bracketMax } })
+      .select('lifts isVip vipExpiresAt'))
+      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now));
+
+    const lifts = ['bench', 'squat', 'deadlift', 'ohp', 'latpull', 'curl', 'lateral'];
+    const myId = String(me._id);
+    const ranks = {};
+    for (const lift of lifts) {
+      const sorted = users
+        .map(u => ({ id: String(u._id), best: u.lifts?.[lift]?.best || 0 }))
+        .filter(u => u.best > 0)
+        .sort((a, b) => b.best - a.best);
+      const r = sorted.findIndex(u => u.id === myId) + 1;
+      if (r > 0) ranks[lift] = { rank: r, total: sorted.length };
+    }
+    res.json({ ranks, bracket });
+  } catch (err) {
+    console.error("🔥 /my-lift-ranks Hatası:", err);
+    res.status(500).json({ error: "Sıralar getirilemedi." });
+  }
+});
 // Ödüllü reklam izlendi → token ver (sunucu tarafı günlük sınır, VIP hariç)
 app.post('/reward-ad-token', authMiddleware, async (req, res) => {
   try {
