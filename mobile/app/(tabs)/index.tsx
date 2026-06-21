@@ -1596,43 +1596,91 @@ const sendMealToAI = async (uri: string) => {
               }
               // Dizi sırasına değil TARİHE göre belirle (eski vs yeni) — yağ oranı yön bug'ı fix
               const byDate = [...withFat].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-              const first = byDate[0];                    // en eski
-              const last = byDate[byDate.length - 1];      // en yeni
+              const first = byDate[0];
+              const last = byDate[byDate.length - 1];
               const diff = parseFloat((first.bodyFatPercentage - last.bodyFatPercentage).toFixed(1));
-              const improved = diff > 0;                   // eski > yeni → yağ azalmış
-              const sameish = diff === 0;
+              const improved = diff > 0;
+              const sameish = Math.abs(diff) < 0.1;
+
+              // Kaç gün geçti
+              const daysPassed = Math.max(1, Math.round((new Date(last.date).getTime() - new Date(first.date).getTime()) / (1000 * 60 * 60 * 24)));
+
+              // Kilo farkı (bodyStats varsa)
+              const firstStat = bodyStats.length ? bodyStats[bodyStats.length - 1] : null;
+              const lastStat = bodyStats.length ? bodyStats[0] : null;
+              const weightDiff = (firstStat?.weight && lastStat?.weight)
+                ? parseFloat((firstStat.weight - lastStat.weight).toFixed(1))
+                : null;
+
+              // Hedef yağ oranı tahmini (kullanıcının hedef kilosundan tahmini)
+              const targetFat = user.gender === 'Erkek' ? 12 : 18; // varsayılan hedef
+              const fatToGo = parseFloat((last.bodyFatPercentage - targetFat).toFixed(1));
+              const weeklyRate = diff / (daysPassed / 7); // haftada kaç % düşüyor
+              const weeksToGoal = (improved && weeklyRate > 0 && fatToGo > 0)
+                ? Math.ceil(fatToGo / weeklyRate)
+                : null;
+
               const praise = improved
-                ? diff >= 5 ? '🏆 İnanılmaz bir dönüşüm! Bu fark ciddi bir çalışmanın ürünü.' :
-                  diff >= 3 ? '💪 Harika ilerleme! Vücudun değişiyor, devam et.' :
-                  diff >= 1 ? '🔥 Doğru yoldasın, kayıplar birikmeye devam ediyor.' :
-                  '✨ Başlangıç iyi, tutarlı kal!'
-                : sameish ? '🎯 Yağ oranın koruyor — şimdi düşürme zamanı!'
-                : '📈 Bir miktar artış var ama bu sürecin parçası, bırakma!';
+                ? diff >= 5 ? '🏆 İnanılmaz bir dönüşüm!' : diff >= 3 ? '💪 Harika ilerleme!' : diff >= 1 ? '🔥 Doğru yoldasın!' : '✨ Başlangıç iyi, devam et!'
+                : sameish ? '🎯 Yağ oranın koruyor.' : '📈 Küçük artış var, bırakma!';
 
               return (
                 <View style={[styles.statsCard, { marginHorizontal: 16, marginTop: 8, gap: 14 }]}>
                   <Text style={styles.statsTitle}>📸 Gelişim Karşılaştırması</Text>
-                  <View style={{ flexDirection: 'row', gap: 12 }}>
-                    <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
+
+                  {/* Yan yana fotoğraf */}
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <View style={{ flex: 1, alignItems: 'center', gap: 5 }}>
                       <Image source={{ uri: first.url }} style={{ width: '100%', aspectRatio: 3/4, borderRadius: 12 }} />
                       <Text style={{ color: C.textMuted, fontSize: 11 }}>{new Date(first.date).toLocaleDateString('tr-TR')}</Text>
-                      <Text style={{ color: C.orange, fontWeight: '700', fontSize: 15 }}>%{first.bodyFatPercentage}</Text>
+                      <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>%{first.bodyFatPercentage}</Text>
                     </View>
-                    <View style={{ alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                      <Ionicons name="arrow-forward" size={20} color={improved ? C.lime : C.red} />
-                    </View>
-                    <View style={{ flex: 1, alignItems: 'center', gap: 6 }}>
+                    <View style={{ width: 1, backgroundColor: C.border, marginVertical: 8 }} />
+                    <View style={{ flex: 1, alignItems: 'center', gap: 5 }}>
                       <Image source={{ uri: last.url }} style={{ width: '100%', aspectRatio: 3/4, borderRadius: 12 }} />
                       <Text style={{ color: C.textMuted, fontSize: 11 }}>{new Date(last.date).toLocaleDateString('tr-TR')}</Text>
-                      <Text style={{ color: improved ? C.lime : C.red, fontWeight: '700', fontSize: 15 }}>%{last.bodyFatPercentage}</Text>
+                      <Text style={{ color: improved ? C.lime : C.red, fontWeight: '800', fontSize: 15 }}>%{last.bodyFatPercentage}</Text>
                     </View>
                   </View>
-                  <View style={{ backgroundColor: improved ? '#0f2a1a' : '#2a0f0f', borderRadius: 12, padding: 14, gap: 4 }}>
-                    <Text style={{ color: improved ? C.lime : C.red, fontWeight: '800', fontSize: 16, textAlign: 'center' }}>
+
+                  {/* ÖZET KARTI */}
+                  <View style={{ backgroundColor: '#0D1A10', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: improved ? 'rgba(198,255,61,0.2)' : 'rgba(255,90,82,0.2)', gap: 10 }}>
+                    <Text style={{ color: improved ? C.lime : C.red, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>
                       {improved ? `−${diff}% yağ oranı` : sameish ? 'Değişim yok' : `+${Math.abs(diff)}% artış`}
                     </Text>
-                    <Text style={{ color: C.textSec, fontSize: 13, textAlign: 'center', lineHeight: 18 }}>{praise}</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={{ color: C.text, fontWeight: '800', fontSize: 16 }}>{daysPassed}</Text>
+                        <Text style={{ color: C.textMuted, fontSize: 11 }}>gün</Text>
+                      </View>
+                      {weightDiff != null && (
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={{ color: weightDiff > 0 ? C.lime : C.red, fontWeight: '800', fontSize: 16 }}>
+                            {weightDiff > 0 ? `−${weightDiff}` : `+${Math.abs(weightDiff)}`} kg
+                          </Text>
+                          <Text style={{ color: C.textMuted, fontSize: 11 }}>kilo</Text>
+                        </View>
+                      )}
+                      <View style={{ alignItems: 'center' }}>
+                        <Text style={{ color: C.orange, fontWeight: '800', fontSize: 16 }}>{byDate.length}</Text>
+                        <Text style={{ color: C.textMuted, fontSize: 11 }}>analiz</Text>
+                      </View>
+                    </View>
+                    <Text style={{ color: C.textSec, fontSize: 13, textAlign: 'center' }}>{praise}</Text>
                   </View>
+
+                  {/* BU HIZLA GİDERSEN TAHMİNİ */}
+                  {weeksToGoal != null && (
+                    <View style={{ backgroundColor: '#1A1200', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: 'rgba(255,159,28,0.25)', gap: 6 }}>
+                      <Text style={{ color: C.orange, fontWeight: '800', fontSize: 14 }}>⚡ Bu hızla gidersen…</Text>
+                      <Text style={{ color: C.text, fontSize: 13, lineHeight: 20 }}>
+                        Haftada <Text style={{ color: C.lime, fontWeight: '700' }}>~{weeklyRate.toFixed(1)}%</Text> yağ yakıyorsun.{'\n'}
+                        Hedef yağ oranına (<Text style={{ color: C.lime, fontWeight: '700' }}>%{targetFat}</Text>) ulaşman yaklaşık{' '}
+                        <Text style={{ color: C.orange, fontWeight: '800' }}>{weeksToGoal} hafta</Text> sürer.
+                      </Text>
+                      <Text style={{ color: C.textMuted, fontSize: 11 }}>* Tutarlı antrenman ve beslenme varsayımıyla</Text>
+                    </View>
+                  )}
                 </View>
               );
             })()}
