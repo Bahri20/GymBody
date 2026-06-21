@@ -263,6 +263,10 @@ export default function App() {
   const chatScrollRef = useRef<ScrollView>(null);
   const shareCardRef = useRef<ViewShot>(null);
   const liftShareRef = useRef<ViewShot>(null);
+  const rankShareRef = useRef<ViewShot>(null);
+  // Siklet sırası paylaşımı
+  const [rankShareData, setRankShareData] = useState<any>(null);
+  const [rankSharePhoto, setRankSharePhoto] = useState<string | null>(null);
 
   const [weeklySummaryVisible, setWeeklySummaryVisible] = useState(false);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
@@ -636,6 +640,48 @@ const captureLiftShare = async () => {
     showToast(err?.message || 'Paylaşım başarısız.', 'error');
   } finally {
     setShareLiftKey(null);
+  }
+};
+
+// Siklet sırası paylaşım kartını aç
+const openRankShare = (liftKey: string) => {
+  const lift = LIFTS.find(l => l.key === liftKey);
+  if (!lift || !leaderboardData) return;
+  setRankSharePhoto(null);
+  setRankShareData({
+    liftKey, label: lift.label, icon: lift.icon,
+    rank: leaderboardData.myRank, total: leaderboardData.total,
+    bracket: String(leaderboardData.bracket).replace(' kg', ''),
+    best: leaderboardData.myBest,
+  });
+};
+
+// Paylaşım kartına galeriden foto seç
+const pickRankSharePhoto = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'], allowsEditing: true, aspect: [3, 4], quality: 0.8,
+  });
+  if (!result.canceled && result.assets?.[0]) setRankSharePhoto(result.assets[0].uri);
+};
+
+// Siklet sırası kartını yakala + paylaş
+const captureRankShare = async () => {
+  try {
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) { showToast('Paylaşım bu cihazda desteklenmiyor.', 'error'); return; }
+    await new Promise(r => setTimeout(r, 350));
+    const uri = await (rankShareRef.current as any)?.capture();
+    if (!uri) { showToast('Görsel oluşturulamadı.', 'error'); return; }
+    const dest = FileSystem.documentDirectory + 'gymbodyai_siklet.jpg';
+    const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
+    await FileSystem.deleteAsync(dest, { idempotent: true });
+    await FileSystem.copyAsync({ from: srcUri, to: dest });
+    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: 'GymBodyAI Siklet Sıram' });
+  } catch (err: any) {
+    showToast(err?.message || 'Paylaşım başarısız.', 'error');
+  } finally {
+    setRankShareData(null);
+    setRankSharePhoto(null);
   }
 };
 
@@ -3055,6 +3101,14 @@ const sendMealToAI = async (uri: string) => {
                           </View>
                         )}
                       </ScrollView>
+                      {leaderboardData.myRank > 0 && (
+                        <TouchableOpacity onPress={() => openRankShare(leaderboardLift!)} activeOpacity={0.85}
+                          style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14 }}>
+                          <Ionicons name="share-social" size={18} color="#0B0D12" />
+                          <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Sıranı Paylaş</Text>
+                        </TouchableOpacity>
+                      )}
                     </>
                   ) : null}
                 </>
@@ -3062,6 +3116,55 @@ const sendMealToAI = async (uri: string) => {
             })()}
           </TouchableOpacity>
         </TouchableOpacity>
+      </Modal>
+
+      {/* SİKLET SIRASI PAYLAŞIM KARTI MODALI */}
+      <Modal visible={!!rankShareData} transparent animationType="fade" onRequestClose={() => setRankShareData(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <TouchableOpacity onPress={() => { setRankShareData(null); setRankSharePhoto(null); }} style={{ position: 'absolute', top: insets.top + 16, right: 20, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: 8 }}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+          {rankShareData && (
+            <>
+              <ViewShot ref={rankShareRef} options={{ format: 'jpg', quality: 0.95 }}>
+                <View style={{ width: 300, height: 400, borderRadius: 28, overflow: 'hidden', borderWidth: 1, borderColor: C.orange + '55' }}>
+                  {rankSharePhoto ? (
+                    <Image source={{ uri: rankSharePhoto }} style={{ position: 'absolute', width: 300, height: 400 }} resizeMode="cover" />
+                  ) : (
+                    <LinearGradient colors={['#1A1205', '#0B0D12']} style={{ position: 'absolute', width: 300, height: 400 }} />
+                  )}
+                  {/* okunabilirlik için karartma */}
+                  <LinearGradient colors={['rgba(0,0,0,0.45)', 'rgba(0,0,0,0.82)']} style={{ position: 'absolute', width: 300, height: 400 }} />
+                  <View style={{ flex: 1, padding: 24, justifyContent: 'space-between' }}>
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', letterSpacing: 3 }}>GYMBODY</Text>
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ fontSize: 54 }}>{rankShareData.icon}</Text>
+                      <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 4 }}>{rankShareData.label}</Text>
+                      <Text style={{ color: C.orange, fontSize: 64, fontWeight: '900', marginTop: 6 }}>#{rankShareData.rank}</Text>
+                      <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{rankShareData.bracket} sikletinde</Text>
+                      <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 2 }}>{rankShareData.total} kişi arasında · {rankShareData.best} kg</Text>
+                    </View>
+                    <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, textAlign: 'center', fontWeight: '600' }}>
+                      Sen de sıralamana bak → GymBody
+                    </Text>
+                  </View>
+                </View>
+              </ViewShot>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 22 }}>
+                <TouchableOpacity onPress={pickRankSharePhoto} activeOpacity={0.85}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 16, paddingVertical: 13, paddingHorizontal: 18 }}>
+                  <Ionicons name="image" size={18} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{rankSharePhoto ? 'Değiştir' : 'Foto Seç'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={captureRankShare} activeOpacity={0.85}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 13 }}>
+                  <Ionicons name="share-social" size={18} color="#0B0D12" />
+                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Paylaş</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
       </Modal>
 
       {/* GÜÇ — PAYLAŞIM KARTI MODALI */}
