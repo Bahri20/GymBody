@@ -1648,10 +1648,12 @@ const sendMealToAI = async (uri: string) => {
             <Text style={styles.mealTitle}>Yapay Zeka Şefin</Text>
             <Text style={styles.mealSubtitle}>Tabağının net bir fotoğrafını yükle, içindeki makroları anında söylesin.</Text>
 
-            <View style={styles.rightsPill}>
-              <Ionicons name="ticket-outline" size={14} color={C.orange} />
-              <Text style={styles.rightsText}>Bugünkü ücretsiz hakkın: <Text style={{ fontWeight: '800', color: C.orange }}>{dailyMealRights}</Text></Text>
-            </View>
+            {!userStats.isVip && (
+              <View style={styles.rightsPill}>
+                <Ionicons name="ticket-outline" size={14} color={C.orange} />
+                <Text style={styles.rightsText}>Bugünkü ücretsiz hakkın: <Text style={{ fontWeight: '800', color: C.orange }}>{dailyMealRights}</Text></Text>
+              </View>
+            )}
 
             <TouchableOpacity activeOpacity={0.85} style={styles.scanBtn} onPress={() => askAndPickImage('meal')} disabled={loading}>
               <Ionicons name="scan" size={20} color="#0B0D12" />
