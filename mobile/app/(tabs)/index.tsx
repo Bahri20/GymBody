@@ -488,9 +488,12 @@ const uploadProfilePhoto = async () => {
     const res = await axios.post(`${API_URL}/upload-profile-photo`, formData, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
     });
-    setUser(res.data.user);
+    const u = res.data.user;
+    if (u?.profilePhoto) u.profilePhoto = u.profilePhoto + `?v=${Date.now()}`;
+    setUser(u);
+    showToast('Profil fotoğrafı güncellendi ✓');
   } catch (err: any) {
-    showToast(err.userMessage || 'Fotoğraf yüklenemedi.', 'error');
+    showToast(err.response?.data?.error || 'Fotoğraf yüklenemedi.', 'error');
   } finally {
     setProfilePhotoLoading(false);
   }
