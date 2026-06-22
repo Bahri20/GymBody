@@ -84,15 +84,15 @@ app.use((req, _res, next) => { sanitizeObj(req.body); next(); });
 
 // ─── RATE LİMİTLER ───────────────────────────────────────────────────────────
 
-// Genel API limiti
+// Genel API limiti — TÜM endpoint'lere uygulanır (IP başına)
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15 dakika
-  max: 200,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Çok fazla istek gönderdin, 15 dakika sonra tekrar dene.' }
 });
-app.use('/api', generalLimiter);
+app.use(generalLimiter);
 
 // Auth endpoint'leri için sıkı limit (brute force önlemi)
 const authLimiter = rateLimit({
@@ -106,14 +106,16 @@ app.use('/login', authLimiter);
 app.use('/coach/login', authLimiter);
 app.use('/admin/login', authLimiter);
 
-// AI endpoint'leri için limit (pahalı çağrılar)
+// AI endpoint'leri için limit (pahalı Gemini çağrıları — fatura koruması)
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000,  // 1 dakika
   max: 5,
   message: { error: 'AI isteği sınırına ulaştın, 1 dakika bekle.' }
 });
-app.use('/analyze-meal', aiLimiter);
-app.use('/generate-weekly-plan', aiLimiter);
+app.use('/analyze-meal', aiLimiter);     // yemek analizi
+app.use('/get-weekly-plan', aiLimiter);  // program üretimi
+app.use('/ai-chat', aiLimiter);          // AI koç sohbeti
+app.use('/upload-progress', aiLimiter);  // yağ oranı analizi
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -302,7 +304,14 @@ app.post('/google-login', async (req, res) => {
       emailVerified = payload?.email_verified;
       googlePhoto = payload?.picture;
     } else {
-      // Yedek yol: access token ile Google userinfo'dan kimlik çek
+      // Yedek yol: önce access token'ın audience'ını doğrula (token confusion / başka
+      // uygulamanın token'ıyla giriş önlemi), sonra userinfo çek
+      const { data: tokenInfo } = await axios.get(
+        `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`
+      );
+      if (!tokenInfo.aud || !allowedAudiences.includes(tokenInfo.aud)) {
+        return res.status(401).json({ error: "Google token bu uygulamaya ait değil." });
+      }
       const { data } = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -848,16 +857,19 @@ app.get('/get-user-stats', authMiddleware, async (req, res) => {
 });
 app.post('/redeem-vip', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı kanka!" });
-
     const VIP_COST = 200;
 
-    if ((user.tokens || 0) < VIP_COST) {
-      return res.status(400).json({ error: `Yetersiz token! ${VIP_COST} token gerekiyor, sende ${user.tokens || 0} token var.` });
+    // Atomik: yeterli token varsa tek işlemde düş — eşzamanlı istekte çift harcamayı önler
+    const user = await User.findOneAndUpdate(
+      { _id: req.userId, tokens: { $gte: VIP_COST } },
+      { $inc: { tokens: -VIP_COST } },
+      { new: true }
+    );
+    if (!user) {
+      const exists = await User.findById(req.userId);
+      if (!exists) return res.status(404).json({ error: "Kullanıcı bulunamadı kanka!" });
+      return res.status(400).json({ error: `Yetersiz token! ${VIP_COST} token gerekiyor, sende ${exists.tokens || 0} token var.` });
     }
-
-    user.tokens -= VIP_COST;
 
     // Eğer aktif VIP süresi varsa üzerine ekle, yoksa şimdiden başlat
     const now = new Date();
