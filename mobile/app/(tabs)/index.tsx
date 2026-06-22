@@ -97,8 +97,9 @@ const STD: Record<string, { erkek: number[]; kadin: number[] }> = {
 
 // Bir hareketin rank durumunu hesapla. Döner: { rankIndex (-1=henüz bronz değil), ratio, nextWeight, progress }
 function computeRank(liftKey: string, best: number, bodyweight: number, gender?: string) {
-  const isMale = gender !== 'Kadın';
-  const thresholds = STD[liftKey][isMale ? 'erkek' : 'kadin'];
+  const g = String(gender || '').toLowerCase();
+  const isFemale = g === 'female' || g === 'kadın' || g === 'kadin';
+  const thresholds = STD[liftKey][isFemale ? 'kadin' : 'erkek'];
   const bw = bodyweight && bodyweight > 0 ? bodyweight : 70;
   const ratio = best / bw;
   let rankIndex = -1;
@@ -652,6 +653,7 @@ const openRankShare = (liftKey: string) => {
     liftKey, label: lift.label, icon: lift.icon,
     rank: leaderboardData.myRank, total: leaderboardData.total,
     bracket: String(leaderboardData.bracket).replace(' kg', ''),
+    genderLabel: leaderboardData.genderLabel || '',
     best: leaderboardData.myBest,
   });
 };
@@ -2398,14 +2400,16 @@ const sendMealToAI = async (uri: string) => {
 
 {/* VIP KARTI */}
 {userStats.isVip ? (
-  <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66', alignItems: 'center' }]}>
-    <Ionicons name="star" size={24} color="#FF9F1C" />
-    <Text style={[styles.statsTitle, { color: '#fff', marginTop: 8 }]}>VIP Üyesin! 👑</Text>
-    {userStats.vipExpiresAt && (
-      <Text style={[styles.statsSubtitle, { color: C.textSec, textAlign: 'center', marginBottom: 0 }]}>
-        Bitiş: {new Date(userStats.vipExpiresAt).toLocaleDateString('tr-TR')}
-      </Text>
-    )}
+  <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66', flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 }]}>
+    <Ionicons name="star" size={22} color="#FF9F1C" />
+    <View style={{ flex: 1 }}>
+      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>VIP Üyesin! 👑</Text>
+      {userStats.vipExpiresAt && (
+        <Text style={{ color: C.textSec, fontSize: 12, marginTop: 2 }}>
+          Bitiş: {new Date(userStats.vipExpiresAt).toLocaleDateString('tr-TR')}
+        </Text>
+      )}
+    </View>
   </LinearGradient>
 ) : (
   <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66' }]}>
@@ -3059,7 +3063,7 @@ const sendMealToAI = async (uri: string) => {
                         <Text style={{ color: C.text, fontWeight: '800', fontSize: 19 }}>{lift?.label}</Text>
                         {leaderboardData?.bracket && (
                           <Text style={{ color: C.orange, fontWeight: '700', fontSize: 13, marginTop: 1 }}>
-                            🏋️ {String(leaderboardData.bracket).replace(' kg', '')} sikleti
+                            🏋️ {leaderboardData.genderLabel ? `${leaderboardData.genderLabel} · ` : ''}{String(leaderboardData.bracket).replace(' kg', '')} sikleti
                           </Text>
                         )}
                       </View>
@@ -3148,7 +3152,7 @@ const sendMealToAI = async (uri: string) => {
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 7 }}>
                       <Text style={{ color: C.orange, fontSize: 46, fontWeight: '900' }}>#{rankShareData.rank}</Text>
-                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{rankShareData.bracket} sikletinde</Text>
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{rankShareData.genderLabel ? `${rankShareData.genderLabel} · ` : ''}{rankShareData.bracket} sikletinde</Text>
                     </View>
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginTop: 3 }}>{rankShareData.icon} {rankShareData.label} · {rankShareData.best} kg</Text>
                     <Text style={{ color: '#A3ABBA', fontSize: 12, marginTop: 1 }}>{rankShareData.total} kişi arasında</Text>

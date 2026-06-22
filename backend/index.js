@@ -701,17 +701,24 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
     if (!meVip) return res.status(403).json({ error: "Bu özellik VIP'e özel kanka." });
     if (!me.weight) return res.status(400).json({ error: "Önce profilden kilonu gir." });
 
+    // Cinsiyet normalize: 'female'/'Kadın' → female, diğer her şey male
+    const normGender = (g) => {
+      const s = String(g || '').toLowerCase();
+      return (s === 'female' || s === 'kadın' || s === 'kadin') ? 'female' : 'male';
+    };
+    const myGender = normGender(me.gender);
+
     // 5 kg siklet: 97 → 95-100
     const bracketMin = Math.floor(me.weight / 5) * 5;
     const bracketMax = bracketMin + 5;
 
-    // Aynı siklette kilosu olan herkesi çek, VIP + PR filtresini JS'te yap (lifts Mixed)
+    // Aynı siklet + aynı cinsiyetteki herkesi çek, VIP + PR filtresini JS'te yap (lifts Mixed)
     const users = await User.find({
       weight: { $gte: bracketMin, $lt: bracketMax }
-    }).select('name lifts weight isVip vipExpiresAt');
+    }).select('name lifts weight isVip vipExpiresAt gender');
 
     const ranked = users
-      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now))
+      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && normGender(u.gender) === myGender)
       .map(u => ({ id: String(u._id), name: u.name || 'Anonim', best: u.lifts?.[lift]?.best || 0 }))
       .filter(u => u.best > 0)
       .sort((a, b) => b.best - a.best);
@@ -733,6 +740,8 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
 
     res.json({
       bracket: `${bracketMin}-${bracketMax} kg`,
+      gender: myGender,
+      genderLabel: myGender === 'female' ? 'Kadın' : 'Erkek',
       total: ranked.length,
       myRank,
       myBest: me.lifts?.[lift]?.best || 0,
@@ -752,13 +761,19 @@ app.get('/my-lift-ranks', authMiddleware, async (req, res) => {
     const meVip = me.isVip && (!me.vipExpiresAt || me.vipExpiresAt > now);
     if (!meVip || !me.weight) return res.json({ ranks: {}, bracket: null });
 
+    const normGender = (g) => {
+      const s = String(g || '').toLowerCase();
+      return (s === 'female' || s === 'kadın' || s === 'kadin') ? 'female' : 'male';
+    };
+    const myGender = normGender(me.gender);
+
     const bracketMin = Math.floor(me.weight / 5) * 5;
     const bracketMax = bracketMin + 5;
     const bracket = `${bracketMin}-${bracketMax}`;
 
     const users = (await User.find({ weight: { $gte: bracketMin, $lt: bracketMax } })
-      .select('lifts isVip vipExpiresAt'))
-      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now));
+      .select('lifts isVip vipExpiresAt gender'))
+      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && normGender(u.gender) === myGender);
 
     const lifts = ['bench', 'squat', 'deadlift', 'ohp', 'latpull', 'curl', 'lateral'];
     const myId = String(me._id);
