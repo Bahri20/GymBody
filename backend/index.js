@@ -680,6 +680,17 @@ app.post('/update-lift', authMiddleware, async (req, res) => {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
 
+    // Gerçekçilik tavanı: vücut ağırlığına oranlı abartı kontrolü.
+    // Katsayılar elit (elmas) eşiğinin ~1.7 katı — gerçek outlier'lara izin verir,
+    // 100 kg birinin 100 kg lateral girmesi gibi absürt değerleri reddeder.
+    // İLERİDE: aynı siklet + en üst rank kullanıcıların ortalamasına göre dinamikleştirilebilir.
+    const MAX_RATIO = { bench: 2.5, squat: 3.6, deadlift: 4.5, ohp: 1.7, latpull: 2.3, curl: 1.4, lateral: 0.35 };
+    const bw = (user.weight && user.weight > 0) ? user.weight : 70;
+    const cap = Math.round(bw * MAX_RATIO[lift]);
+    if (w > cap) {
+      return res.status(400).json({ error: `Bu ${w} kg, kilona göre gerçekçi sınırın (~${cap} kg) üstünde görünüyor. Doğru girdiysen yeni dünya rekorun olabilir 💪 — emin misen tekrar dene.` });
+    }
+
     const lifts = user.lifts || {};
     const entry = lifts[lift] || { best: 0, history: [] };
     entry.history = [...(entry.history || []), { weight: w, date: new Date() }].slice(-60);
