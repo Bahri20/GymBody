@@ -552,12 +552,18 @@ export default function App() {
       const res = await axios.post(`${API_URL}/update-lift`, { lift: liftModal, weight: w, forceUpdate: true }, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setUser((prev: any) => ({ ...prev, lifts: res.data.lifts }));
       const prevBest = user?.lifts?.[liftModal]?.best || 0;
+      setUser((prev: any) => ({ ...prev, lifts: res.data.lifts }));
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      showToast(w > prevBest ? `Yeni rekor! ${w} kg 🔥` : 'Kayıt eklendi ✓');
-      setLiftModal(null);
-      setLiftInput('');
+      if (w > prevBest) {
+        setLiftModal(null);
+        setLiftInput('');
+        setPrCelebration({ lift: liftModal!, weight: w, prevBest });
+      } else {
+        showToast('Kayıt eklendi ✓');
+        setLiftModal(null);
+        setLiftInput('');
+      }
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Kaydedilemedi.', 'error');
     } finally {
@@ -617,6 +623,20 @@ export default function App() {
   const [challengeTheirWeight, setChallengeTheirWeight] = useState('');
   const [challengeResult, setChallengeResult] = useState<{challengerName:string;challengerBest:number;respondentName:string;respondentBest:number;liftLabel:string;iWon:boolean}|null>(null);
   const [challengeSharePhoto, setChallengeSharePhoto] = useState<string|null>(null);
+
+  // PR Konfeti
+  const [prCelebration, setPrCelebration] = useState<{lift:string;weight:number;prevBest:number}|null>(null);
+
+  // Arkadaşlar + Sohbet
+  const [friendsVisible, setFriendsVisible] = useState(false);
+  const [friends, setFriends] = useState<{_id:string;name:string;unread:number}[]>([]);
+  const [friendRequests, setFriendRequests] = useState<{_id:string;name:string}[]>([]);
+  const [friendSearch, setFriendSearch] = useState('');
+  const [friendSearchResults, setFriendSearchResults] = useState<{_id:string;name:string;friendStatus:string}[]>([]);
+  const [chatFriend, setChatFriend] = useState<{_id:string;name:string}|null>(null);
+  const [chatMessages, setChatMessages] = useState<{_id:string;senderId:string;text:string;createdAt:string}[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const chatPollRef = useRef<any>(null);
 
   const [weeklySummaryVisible, setWeeklySummaryVisible] = useState(false);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
@@ -1024,6 +1044,74 @@ const openRankShare = (liftKey: string) => {
 };
 
 // Paylaşım kartına galeriden foto seç
+// ─── ARKADAŞLAR + SOHBET ─────────────────────────────────────────────────────
+const fetchFriends = async () => {
+  try {
+    const { data } = await axios.get(`${API_URL}/friends`, { headers: { Authorization: `Bearer ${token}` } });
+    setFriends(data.friends);
+    setFriendRequests(data.requests);
+  } catch {}
+};
+
+const searchFriends = async (q: string) => {
+  setFriendSearch(q);
+  if (q.trim().length < 2) { setFriendSearchResults([]); return; }
+  try {
+    const { data } = await axios.get(`${API_URL}/users/search?q=${encodeURIComponent(q)}`, { headers: { Authorization: `Bearer ${token}` } });
+    setFriendSearchResults(data);
+  } catch {}
+};
+
+const sendFriendRequest = async (userId: string) => {
+  try {
+    await axios.post(`${API_URL}/friends/request/${userId}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+    showToast('Arkadaşlık isteği gönderildi!');
+    searchFriends(friendSearch);
+  } catch (e: any) { showToast(e.response?.data?.error || 'Hata', 'error'); }
+};
+
+const acceptFriendRequest = async (userId: string) => {
+  try {
+    await axios.post(`${API_URL}/friends/accept/${userId}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+    showToast('Arkadaş eklendi!');
+    fetchFriends();
+  } catch (e: any) { showToast(e.response?.data?.error || 'Hata', 'error'); }
+};
+
+const openChat = async (friend: {_id:string;name:string}) => {
+  setChatFriend(friend);
+  setChatMessages([]);
+  setChatInput('');
+  loadMessages(friend._id);
+  // polling her 5 saniyede
+  if (chatPollRef.current) clearInterval(chatPollRef.current);
+  chatPollRef.current = setInterval(() => loadMessages(friend._id), 5000);
+};
+
+const loadMessages = async (friendId: string) => {
+  try {
+    const { data } = await axios.get(`${API_URL}/messages/${friendId}`, { headers: { Authorization: `Bearer ${token}` } });
+    setChatMessages(data);
+    // unread sıfırla
+    setFriends(prev => prev.map(f => f._id === friendId ? { ...f, unread: 0 } : f));
+  } catch {}
+};
+
+const sendMessage = async () => {
+  if (!chatFriend || !chatInput.trim()) return;
+  const text = chatInput.trim();
+  setChatInput('');
+  try {
+    const { data } = await axios.post(`${API_URL}/messages/${chatFriend._id}`, { text }, { headers: { Authorization: `Bearer ${token}` } });
+    setChatMessages(prev => [...prev, data]);
+  } catch { showToast('Gönderilemedi', 'error'); }
+};
+
+const closeChat = () => {
+  if (chatPollRef.current) clearInterval(chatPollRef.current);
+  setChatFriend(null);
+};
+
 // ─── ARKADAŞ MEYDAN OKUMASI ───────────────────────────────────────────────────
 const LIFT_LABELS_MAP: Record<string,string> = { bench:'Bench Press', squat:'Squat', deadlift:'Deadlift', ohp:'Shoulder Press', latpull:'Lat Pull Down', curl:'Barbell Curl', lateral:'Lateral Raise' };
 
@@ -3184,6 +3272,18 @@ const sendMealToAI = async (uri: string) => {
       </TouchableOpacity>
     </View>
 
+    <TouchableOpacity onPress={() => { fetchFriends(); setFriendsVisible(true); }} activeOpacity={0.85}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, marginBottom: 10, borderWidth: 1, borderColor: C.border }}>
+      <Ionicons name="people" size={20} color={C.orange} />
+      <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, flex: 1 }}>Arkadaşlar</Text>
+      {friends.reduce((acc, f) => acc + f.unread, 0) > 0 && (
+        <View style={{ backgroundColor: C.orange, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
+          <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 11 }}>{friends.reduce((acc, f) => acc + f.unread, 0)}</Text>
+        </View>
+      )}
+      <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+    </TouchableOpacity>
+
     <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await SecureStore.deleteItemAsync('userToken'); setUser(null); setToken(null); }}>
       <Ionicons name="log-out-outline" size={18} color={C.red} />
       <Text style={styles.logoutText}>ÇIKIŞ YAP</Text>
@@ -4256,6 +4356,206 @@ const sendMealToAI = async (uri: string) => {
               </>
             );
           })()}
+        </View>
+      </Modal>
+
+      {/* PR KUTLAMA */}
+      <Modal visible={!!prCelebration} transparent animationType="fade" onRequestClose={() => setPrCelebration(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          {/* Konfeti parçaları */}
+          {prCelebration && (() => {
+            const COLORS = [C.orange, '#FFD700', '#4CAF50', '#FF6B6B', '#9B6BFF', '#5BC8E0', '#fff'];
+            return Array.from({ length: 28 }).map((_, i) => {
+              const leftPct = (i * 37 + 7) % 100;
+              const delay = (i * 120) % 1800;
+              const color = COLORS[i % COLORS.length];
+              return (
+                <RNAnimated.View key={i} style={{
+                  position: 'absolute', top: -20, left: `${leftPct}%`,
+                  width: 8 + (i % 5), height: 8 + (i % 4),
+                  backgroundColor: color, borderRadius: i % 3 === 0 ? 4 : 2,
+                  opacity: 0.9,
+                  transform: [{ translateY: (() => {
+                    const a = new RNAnimated.Value(0);
+                    RNAnimated.loop(RNAnimated.timing(a, { toValue: 1, duration: 1800 + (i * 80) % 700, delay, useNativeDriver: true })).start();
+                    return a.interpolate({ inputRange: [0, 1], outputRange: [-20, 900] });
+                  })() }],
+                }} />
+              );
+            });
+          })()}
+
+          <TouchableOpacity onPress={() => setPrCelebration(null)}
+            style={{ position: 'absolute', top: (insets.top || 0) + 16, right: 20, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, padding: 8 }}>
+            <Ionicons name="close" size={22} color="#fff" />
+          </TouchableOpacity>
+
+          {prCelebration && (() => {
+            const lift = LIFTS.find(l => l.key === prCelebration.lift);
+            return (
+              <View style={{ alignItems: 'center', width: '100%' }}>
+                <Text style={{ fontSize: 56, marginBottom: 8 }}>🏆</Text>
+                <Text style={{ color: '#FFD700', fontSize: 32, fontWeight: '900', textAlign: 'center' }}>YENİ KİŞİSEL REKOR!</Text>
+                <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 6, marginBottom: 20 }}>{lift?.label}</Text>
+
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: 24, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: C.orange + '66' }}>
+                  <Text style={{ color: C.orange, fontSize: 60, fontWeight: '900' }}>{prCelebration.weight} <Text style={{ fontSize: 24, color: C.textSec }}>kg</Text></Text>
+                  {prCelebration.prevBest > 0 && (
+                    <Text style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>
+                      Önceki: {prCelebration.prevBest} kg → +{(prCelebration.weight - prCelebration.prevBest).toFixed(1)} kg
+                    </Text>
+                  )}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 28 }}>
+                  <TouchableOpacity onPress={() => { setPrCelebration(null); setShareLiftKey(prCelebration.lift); }}
+                    activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 24 }}>
+                    <Ionicons name="share-social" size={18} color="#0B0D12" />
+                    <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>Paylaş</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setPrCelebration(null)}
+                    activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 24 }}>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Tamam</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })()}
+        </View>
+      </Modal>
+
+      {/* ARKADAŞLAR MODALI */}
+      <Modal visible={friendsVisible} transparent animationType="slide" onRequestClose={() => { setFriendsVisible(false); closeChat(); }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' }}>
+            {/* CHAT ekranı */}
+            {chatFriend ? (
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 18, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border }}>
+                  <TouchableOpacity onPress={closeChat} style={{ marginRight: 12 }}>
+                    <Ionicons name="chevron-back" size={24} color={C.orange} />
+                  </TouchableOpacity>
+                  <Text style={{ color: C.text, fontWeight: '900', fontSize: 17, flex: 1 }}>{chatFriend.name}</Text>
+                  <TouchableOpacity onPress={() => { setFriendsVisible(false); closeChat(); }}>
+                    <Ionicons name="close" size={22} color={C.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 8 }}>
+                  {chatMessages.length === 0 && (
+                    <Text style={{ color: C.textMuted, textAlign: 'center', marginTop: 32, fontSize: 14 }}>Henüz mesaj yok. Merhaba de! 👋</Text>
+                  )}
+                  {chatMessages.map((msg, i) => {
+                    const isMe = msg.senderId === user?._id;
+                    return (
+                      <View key={msg._id || i} style={{ flexDirection: 'row', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+                        <View style={{ maxWidth: '75%', backgroundColor: isMe ? C.orange : C.surface2, borderRadius: 16, borderBottomRightRadius: isMe ? 4 : 16, borderBottomLeftRadius: isMe ? 16 : 4, paddingVertical: 10, paddingHorizontal: 14 }}>
+                          <Text style={{ color: isMe ? '#0B0D12' : C.text, fontSize: 15 }}>{msg.text}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, paddingBottom: Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: C.border, gap: 8 }}>
+                  <TextInput value={chatInput} onChangeText={setChatInput} placeholder="Mesaj yaz..." placeholderTextColor={C.textMuted}
+                    style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16, color: C.text, fontSize: 15, borderWidth: 1, borderColor: C.border }} />
+                  <TouchableOpacity onPress={sendMessage} disabled={!chatInput.trim()}
+                    style={{ backgroundColor: chatInput.trim() ? C.orange : C.surface2, borderRadius: 20, padding: 10 }}>
+                    <Ionicons name="send" size={20} color={chatInput.trim() ? '#0B0D12' : C.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              /* ARKADAŞ LİSTESİ ekranı */
+              <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, flex: 1 }}>Arkadaşlar</Text>
+                  <TouchableOpacity onPress={() => setFriendsVisible(false)}>
+                    <Ionicons name="close" size={22} color={C.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Arama */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface2, borderRadius: 12, paddingHorizontal: 12, marginBottom: 16, borderWidth: 1, borderColor: C.border }}>
+                  <Ionicons name="search" size={16} color={C.textMuted} />
+                  <TextInput value={friendSearch} onChangeText={searchFriends} placeholder="İsimle ara..." placeholderTextColor={C.textMuted}
+                    style={{ flex: 1, paddingVertical: 11, paddingHorizontal: 8, color: C.text, fontSize: 14 }} />
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                  {/* Arama sonuçları */}
+                  {friendSearchResults.length > 0 && (
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>SONUÇLAR</Text>
+                      {friendSearchResults.map(u => (
+                        <View key={u._id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border }}>
+                          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.orange + '33', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                            <Text style={{ color: C.orange, fontWeight: '900', fontSize: 15 }}>{u.name.charAt(0).toUpperCase()}</Text>
+                          </View>
+                          <Text style={{ color: C.text, fontSize: 15, flex: 1 }}>{u.name}</Text>
+                          {u.friendStatus === 'none' ? (
+                            <TouchableOpacity onPress={() => sendFriendRequest(u._id)}
+                              style={{ backgroundColor: C.orange, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 14 }}>
+                              <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 13 }}>Ekle</Text>
+                            </TouchableOpacity>
+                          ) : u.friendStatus.includes('sent') ? (
+                            <Text style={{ color: C.textMuted, fontSize: 12 }}>İstek gönderildi</Text>
+                          ) : u.friendStatus.includes('accepted') ? (
+                            <Text style={{ color: C.lime, fontSize: 12 }}>Arkadaş ✓</Text>
+                          ) : null}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Gelen istekler */}
+                  {friendRequests.length > 0 && friendSearchResults.length === 0 && (
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>GELEN İSTEKLER ({friendRequests.length})</Text>
+                      {friendRequests.map(r => (
+                        <View key={r._id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border }}>
+                          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                            <Text style={{ color: C.text, fontWeight: '900', fontSize: 15 }}>{r.name.charAt(0).toUpperCase()}</Text>
+                          </View>
+                          <Text style={{ color: C.text, fontSize: 15, flex: 1 }}>{r.name}</Text>
+                          <TouchableOpacity onPress={() => acceptFriendRequest(r._id)}
+                            style={{ backgroundColor: C.orange, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 14 }}>
+                            <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 13 }}>Kabul Et</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Arkadaş listesi */}
+                  {friends.length === 0 && friendSearchResults.length === 0 ? (
+                    <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                      <Text style={{ fontSize: 40, marginBottom: 10 }}>👥</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 14, textAlign: 'center' }}>Henüz arkadaşın yok. Yukarıdan ara ve ekle!</Text>
+                    </View>
+                  ) : friendSearchResults.length === 0 && (
+                    <>
+                      <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>ARKADAŞLARIM ({friends.length})</Text>
+                      {friends.map(f => (
+                        <TouchableOpacity key={f._id} onPress={() => openChat(f)}
+                          style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border }}>
+                          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.orange + '33', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                            <Text style={{ color: C.orange, fontWeight: '900', fontSize: 16 }}>{f.name.charAt(0).toUpperCase()}</Text>
+                          </View>
+                          <Text style={{ color: C.text, fontSize: 15, flex: 1, fontWeight: '600' }}>{f.name}</Text>
+                          {f.unread > 0 && (
+                            <View style={{ backgroundColor: C.orange, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
+                              <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 11 }}>{f.unread}</Text>
+                            </View>
+                          )}
+                          <Ionicons name="chevron-forward" size={16} color={C.textMuted} style={{ marginLeft: 6 }} />
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+                </ScrollView>
+              </View>
+            )}
+          </View>
         </View>
       </Modal>
 

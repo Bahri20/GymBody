@@ -2019,5 +2019,108 @@ app.post('/challenge/:code/submit', authMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── ARKADAŞLAR + SOHBET ────────────────────────────────────────────────────
+const friendshipSchema = new mongoose.Schema({
+  requesterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  recipientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  status:      { type: String, enum: ['pending', 'accepted'], default: 'pending' },
+  createdAt:   { type: Date, default: Date.now },
+});
+const Friendship = mongoose.model('Friendship', friendshipSchema);
+
+const messageSchema = new mongoose.Schema({
+  senderId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  text:       { type: String, required: true, maxLength: 500 },
+  read:       { type: Boolean, default: false },
+  createdAt:  { type: Date, default: Date.now },
+});
+const Message = mongoose.model('Message', messageSchema);
+
+// Kullanıcı ara
+app.get('/users/search', authMiddleware, async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    const users = await User.find({ _id: { $ne: req.userId }, name: { $regex: q, $options: 'i' } }, 'name _id').limit(15);
+    // arkadaşlık durumu ekle
+    const friendships = await Friendship.find({
+      $or: [{ requesterId: req.userId }, { recipientId: req.userId }],
+      $or: [{ requesterId: { $in: users.map(u => u._id) } }, { recipientId: { $in: users.map(u => u._id) } }],
+    });
+    const result = users.map(u => {
+      const fs = friendships.find(f => f.requesterId.equals(u._id) || f.recipientId.equals(u._id));
+      return { _id: u._id, name: u.name, friendStatus: fs ? (fs.requesterId.equals(req.userId) ? `sent_${fs.status}` : `received_${fs.status}`) : 'none' };
+    });
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// İstek gönder
+app.post('/friends/request/:userId', authMiddleware, async (req, res) => {
+  try {
+    const exists = await Friendship.findOne({ requesterId: req.userId, recipientId: req.params.userId });
+    if (exists) return res.status(400).json({ error: 'Zaten istek gönderildi' });
+    await Friendship.create({ requesterId: req.userId, recipientId: req.params.userId });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// İsteği kabul et
+app.post('/friends/accept/:userId', authMiddleware, async (req, res) => {
+  try {
+    const fs = await Friendship.findOne({ requesterId: req.params.userId, recipientId: req.userId, status: 'pending' });
+    if (!fs) return res.status(404).json({ error: 'İstek bulunamadı' });
+    fs.status = 'accepted';
+    await fs.save();
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Arkadaş listesi + bekleyen istekler
+app.get('/friends', authMiddleware, async (req, res) => {
+  try {
+    const myId = req.userId;
+    const accepted = await Friendship.find({ status: 'accepted', $or: [{ requesterId: myId }, { recipientId: myId }] });
+    const friendIds = accepted.map(f => f.requesterId.equals(myId) ? f.recipientId : f.requesterId);
+    const friends = await User.find({ _id: { $in: friendIds } }, 'name _id');
+    const pending = await Friendship.find({ recipientId: myId, status: 'pending' }).populate('requesterId', 'name _id');
+    // okunmamış mesaj sayısı
+    const unread = await Message.aggregate([
+      { $match: { receiverId: new mongoose.Types.ObjectId(myId), read: false } },
+      { $group: { _id: '$senderId', count: { $sum: 1 } } },
+    ]);
+    const unreadMap: Record<string, number> = {};
+    unread.forEach((u: any) => { unreadMap[u._id.toString()] = u.count; });
+    res.json({
+      friends: friends.map(f => ({ _id: f._id, name: f.name, unread: unreadMap[f._id.toString()] || 0 })),
+      requests: pending.map(p => ({ _id: (p.requesterId as any)._id, name: (p.requesterId as any).name })),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Mesaj gönder
+app.post('/messages/:friendId', authMiddleware, async (req, res) => {
+  try {
+    const text = (req.body.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'Mesaj boş olamaz' });
+    const msg = await Message.create({ senderId: req.userId, receiverId: req.params.friendId, text });
+    res.json(msg);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Sohbet geçmişi + okundu işaretle
+app.get('/messages/:friendId', authMiddleware, async (req, res) => {
+  try {
+    const myId = req.userId;
+    const friendId = req.params.friendId;
+    await Message.updateMany({ senderId: friendId, receiverId: myId, read: false }, { read: true });
+    const msgs = await Message.find({
+      $or: [{ senderId: myId, receiverId: friendId }, { senderId: friendId, receiverId: myId }],
+    }).sort({ createdAt: 1 }).limit(100);
+    res.json(msgs);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Sistem tam kapasite hazır! (port ${PORT})`));
