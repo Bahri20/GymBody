@@ -2093,7 +2093,7 @@ const sendMealToAI = async (uri: string) => {
               </View>
             ) : (
               <TouchableOpacity activeOpacity={0.85} onPress={() => fetchWeeklyPlan()} style={{ marginTop: 8 }}>
-                <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+                <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
                   <Ionicons name="sparkles" size={18} color="#1A1235" />
                   <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>PROGRAMIMI OLUŞTUR</Text>
                 </LinearGradient>
@@ -2115,7 +2115,7 @@ const sendMealToAI = async (uri: string) => {
               <ActivityIndicator size="large" color="#FF9F1C" />
             ) : (
               <TouchableOpacity activeOpacity={0.85} onPress={startProgram} style={{ width: '100%' }}>
-                <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+                <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
                   <Ionicons name="play" size={18} color="#1A1235" />
                   <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>PROGRAMA BAŞLA</Text>
                 </LinearGradient>
@@ -2166,7 +2166,7 @@ const sendMealToAI = async (uri: string) => {
 
 
       <TouchableOpacity activeOpacity={0.85} onPress={() => setDayFeedbackVisible(true)} style={{ marginTop: 8 }}>
-        <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+        <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
           <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
           <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{weeklyPlan.currentDay}. GÜNÜ TAMAMLADIM</Text>
         </LinearGradient>
@@ -2189,7 +2189,7 @@ const sendMealToAI = async (uri: string) => {
       multiline
     />
     <TouchableOpacity activeOpacity={0.85} onPress={() => setWeeklyPlan(null)} style={{ marginTop: 8 }}>
-      <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+      <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
         <Ionicons name="refresh-outline" size={18} color="#1A1235" />
         <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>YENİ PROGRAM AYARLA</Text>
       </LinearGradient>
@@ -2485,7 +2485,7 @@ const sendMealToAI = async (uri: string) => {
                   </View>
                 ))}
                 <TouchableOpacity activeOpacity={0.85} onPress={() => setDayFeedbackVisible(true)} style={{ marginTop: 12 }}>
-                  <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+                  <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
                     <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
                     <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{currentDay}. GÜNÜ TAMAMLADIM</Text>
                   </LinearGradient>
@@ -3426,7 +3426,7 @@ const sendMealToAI = async (uri: string) => {
               onSubmitEditing={Keyboard.dismiss}
             />
             <TouchableOpacity activeOpacity={0.85} onPress={() => { Keyboard.dismiss(); handleCompleteDay(dayFeedbackText); }}>
-              <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+              <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
                 <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
                 <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>GÜNÜ TAMAMLA</Text>
               </LinearGradient>
@@ -4875,7 +4875,8 @@ const styles = StyleSheet.create({
 
   // ---- MEAL ----
   mealHeaderCard: { borderRadius: 22, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border, alignItems: 'center' },
-  mealIconCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,159,28,0.14)', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  mealIconCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,159,28,0.14)', justifyContent: 'center', alignItems: 'center', marginBottom: 8,
+    shadowColor: C.orange, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6 },
   mealTitle: { fontSize: 20, fontWeight: '800', color: C.text, textAlign: 'center' },
   mealSubtitle: { fontSize: 13, color: C.textSec, textAlign: 'center', marginTop: 4, lineHeight: 18, paddingHorizontal: 10 },
   rightsPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,159,28,0.12)', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 10 },
