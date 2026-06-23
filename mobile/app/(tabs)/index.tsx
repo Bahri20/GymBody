@@ -64,6 +64,15 @@ const C = {
   green: '#34D399',
 };
 
+// Sekme aksanına göre yumuşak üst ambient glow (algılanan parlaklığa göre dengelendi)
+const TAB_GLOW: Record<string, string[]> = {
+  meal:    ['rgba(255,159,28,0.16)', 'rgba(255,159,28,0.05)', 'transparent'], // turuncu
+  gymBody: ['rgba(37,99,235,0.20)', 'rgba(37,99,235,0.06)', 'transparent'], // koyu mavi
+  stats:   ['rgba(91,141,239,0.18)', 'rgba(91,141,239,0.06)', 'transparent'], // mavi
+  gallery: ['rgba(198,255,61,0.12)', 'rgba(198,255,61,0.04)', 'transparent'], // lime
+  profile: ['rgba(198,255,61,0.12)', 'rgba(198,255,61,0.04)', 'transparent'], // lime
+};
+
 // ======================= GÜÇ SIRALAMASI (STRENGTH RANK) =======================
 // Her hareket için "max ağırlık ÷ vücut ağırlığı" oranına göre rank verilir.
 // Eşikler bir rank'a ULAŞMAK için gereken oran (cinsiyete göre ayrı).
@@ -634,8 +643,8 @@ export default function App() {
   const [friendSearch, setFriendSearch] = useState('');
   const [friendSearchResults, setFriendSearchResults] = useState<{_id:string;name:string;friendStatus:string}[]>([]);
   const [chatFriend, setChatFriend] = useState<{_id:string;name:string}|null>(null);
-  const [chatMessages, setChatMessages] = useState<{_id:string;senderId:string;text:string;createdAt:string}[]>([]);
-  const [chatInput, setChatInput] = useState('');
+  const [friendMessages, setFriendMessages] = useState<{_id:string;senderId:string;text:string;createdAt:string}[]>([]);
+  const [friendChatInput, setFriendChatInput] = useState('');
   const chatPollRef = useRef<any>(null);
 
   const [weeklySummaryVisible, setWeeklySummaryVisible] = useState(false);
@@ -1080,8 +1089,8 @@ const acceptFriendRequest = async (userId: string) => {
 
 const openChat = async (friend: {_id:string;name:string}) => {
   setChatFriend(friend);
-  setChatMessages([]);
-  setChatInput('');
+  setFriendMessages([]);
+  setFriendChatInput('');
   loadMessages(friend._id);
   // polling her 5 saniyede
   if (chatPollRef.current) clearInterval(chatPollRef.current);
@@ -1091,19 +1100,19 @@ const openChat = async (friend: {_id:string;name:string}) => {
 const loadMessages = async (friendId: string) => {
   try {
     const { data } = await axios.get(`${API_URL}/messages/${friendId}`, { headers: { Authorization: `Bearer ${token}` } });
-    setChatMessages(data);
+    setFriendMessages(data);
     // unread sıfırla
     setFriends(prev => prev.map(f => f._id === friendId ? { ...f, unread: 0 } : f));
   } catch {}
 };
 
 const sendMessage = async () => {
-  if (!chatFriend || !chatInput.trim()) return;
-  const text = chatInput.trim();
-  setChatInput('');
+  if (!chatFriend || !friendChatInput.trim()) return;
+  const text = friendChatInput.trim();
+  setFriendChatInput('');
   try {
     const { data } = await axios.post(`${API_URL}/messages/${chatFriend._id}`, { text }, { headers: { Authorization: `Bearer ${token}` } });
-    setChatMessages(prev => [...prev, data]);
+    setFriendMessages(prev => [...prev, data]);
   } catch { showToast('Gönderilemedi', 'error'); }
 };
 
@@ -1896,6 +1905,18 @@ const sendMealToAI = async (uri: string) => {
   <View style={[styles.container, { paddingTop: insets.top + 10 }]} {...swipePanResponder.panHandlers}>
       <StatusBar style="light" />
 
+      {/* AMBIENT GLOW — sekme aksanına göre yumuşak üst ışık (sırıtmadan derinlik) */}
+      {TAB_GLOW[currentTab] && (
+        <LinearGradient
+          pointerEvents="none"
+          colors={TAB_GLOW[currentTab] as any}
+          locations={[0, 0.45, 1]}
+          start={{ x: 0.3, y: 0 }}
+          end={{ x: 0.7, y: 1 }}
+          style={{ position: 'absolute', top: 0, left: -16, right: -16, height: 360 }}
+        />
+      )}
+
       {/* ÜST BAŞLIK */}
       <View style={styles.topBar}>
         <View>
@@ -2121,7 +2142,7 @@ const sendMealToAI = async (uri: string) => {
               <Ionicons name="checkmark-circle-outline" size={18} color="#FF9F1C" />
               {ex.gifUrl && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ marginLeft: 8 }}>
-                  <Ionicons name="play-circle" size={24} color="#C4F000" />
+                  <Ionicons name="play-circle" size={24} color="#2563EB" />
                 </TouchableOpacity>
               )}
               <View style={{ flex: 1, marginLeft: 8 }}>
@@ -2133,10 +2154,11 @@ const sendMealToAI = async (uri: string) => {
 
           {/* ANTRENMAN MODU BAŞLAT */}
           <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }} style={{ marginTop: 14 }}>
-            <LinearGradient colors={['#C4F000', '#A3CC00']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={{ borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <Ionicons name="play" size={18} color="#1A1235" />
-              <Text style={{ color: '#1A1235', fontWeight: '900', fontSize: 15 }}>Antrenmanı Başlat</Text>
+            <LinearGradient colors={['#2563EB', '#1E40AF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                shadowColor: '#2563EB', shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8 }}>
+              <Ionicons name="play" size={18} color="#FFFFFF" />
+              <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 15 }}>Antrenmanı Başlat</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -4505,10 +4527,10 @@ const sendMealToAI = async (uri: string) => {
                   </TouchableOpacity>
                 </View>
                 <ScrollView style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 8 }}>
-                  {chatMessages.length === 0 && (
+                  {friendMessages.length === 0 && (
                     <Text style={{ color: C.textMuted, textAlign: 'center', marginTop: 32, fontSize: 14 }}>Henüz mesaj yok. Merhaba de! 👋</Text>
                   )}
-                  {chatMessages.map((msg, i) => {
+                  {friendMessages.map((msg, i) => {
                     const isMe = msg.senderId === user?._id;
                     return (
                       <View key={msg._id || i} style={{ flexDirection: 'row', justifyContent: isMe ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
@@ -4520,11 +4542,11 @@ const sendMealToAI = async (uri: string) => {
                   })}
                 </ScrollView>
                 <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, paddingBottom: Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: C.border, gap: 8 }}>
-                  <TextInput value={chatInput} onChangeText={setChatInput} placeholder="Mesaj yaz..." placeholderTextColor={C.textMuted}
+                  <TextInput value={friendChatInput} onChangeText={setFriendChatInput} placeholder="Mesaj yaz..." placeholderTextColor={C.textMuted}
                     style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16, color: C.text, fontSize: 15, borderWidth: 1, borderColor: C.border }} />
-                  <TouchableOpacity onPress={sendMessage} disabled={!chatInput.trim()}
-                    style={{ backgroundColor: chatInput.trim() ? C.orange : C.surface2, borderRadius: 20, padding: 10 }}>
-                    <Ionicons name="send" size={20} color={chatInput.trim() ? '#0B0D12' : C.textMuted} />
+                  <TouchableOpacity onPress={sendMessage} disabled={!friendChatInput.trim()}
+                    style={{ backgroundColor: friendChatInput.trim() ? C.orange : C.surface2, borderRadius: 20, padding: 10 }}>
+                    <Ionicons name="send" size={20} color={friendChatInput.trim() ? '#0B0D12' : C.textMuted} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -4729,7 +4751,8 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   topGreeting: { color: C.textSec, fontSize: 13 },
   topName: { color: C.text, fontSize: 22, fontWeight: '800', marginTop: 2 },
-  avatar: { width: 46, height: 46, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  avatar: { width: 46, height: 46, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
+    shadowColor: C.lime, shadowOpacity: 0.45, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
   avatarText: { color: '#0B0D12', fontWeight: '900', fontSize: 18 },
 
   // ---- BOTTOM TAB BAR ----
@@ -4857,7 +4880,8 @@ const styles = StyleSheet.create({
   mealSubtitle: { fontSize: 13, color: C.textSec, textAlign: 'center', marginTop: 4, lineHeight: 18, paddingHorizontal: 10 },
   rightsPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,159,28,0.12)', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 10 },
   rightsText: { color: C.textSec, fontSize: 12.5 },
-  scanBtn: { flexDirection: 'row', gap: 8, backgroundColor: C.orange, paddingVertical: 13, paddingHorizontal: 30, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 12, alignSelf: 'stretch' },
+  scanBtn: { flexDirection: 'row', gap: 8, backgroundColor: C.orange, paddingVertical: 13, paddingHorizontal: 30, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 12, alignSelf: 'stretch',
+    shadowColor: C.orange, shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
   scanBtnText: { color: '#0B0D12', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
   loaderBox: { marginVertical: 36, alignItems: 'center' },
   loaderText: { marginTop: 14, color: C.textSec, fontStyle: 'italic', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 },
