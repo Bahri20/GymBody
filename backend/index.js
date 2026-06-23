@@ -1917,5 +1917,66 @@ cron.schedule('0 10 * * 0', async () => {
   }
 }, { timezone: 'Europe/Istanbul' });
 
+// ─── ARKADAŞ MEYDAN OKUMASI ───────────────────────────────────────────────────
+const challengeSchema = new mongoose.Schema({
+  code:            { type: String, required: true, unique: true },
+  challengerId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  challengerName:  { type: String, required: true },
+  lift:            { type: String, required: true },
+  liftLabel:       { type: String, required: true },
+  challengerBest:  { type: Number, required: true },
+  respondentId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  respondentName:  String,
+  respondentBest:  Number,
+  completedAt:     Date,
+  createdAt:       { type: Date, default: Date.now, expires: 7 * 24 * 3600 },
+});
+const Challenge = mongoose.model('Challenge', challengeSchema);
+
+const LIFT_LABELS = { bench: 'Bench Press', squat: 'Squat', deadlift: 'Deadlift', ohp: 'Shoulder Press', latpull: 'Lat Pull Down', curl: 'Barbell Curl', lateral: 'Lateral Raise' };
+
+app.post('/challenge/create', authMiddleware, async (req, res) => {
+  try {
+    const { lift, weight } = req.body;
+    if (!LIFT_LABELS[lift]) return res.status(400).json({ error: 'Geçersiz hareket' });
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+    const challengerBest = parseFloat(weight) || user.lifts?.[lift]?.best || 0;
+    if (!(challengerBest > 0)) return res.status(400).json({ error: 'Önce bir ağırlık gir' });
+    let code, exists = true;
+    while (exists) {
+      code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      exists = await Challenge.findOne({ code });
+    }
+    await Challenge.create({ code, challengerId: req.userId, challengerName: user.name, lift, liftLabel: LIFT_LABELS[lift], challengerBest });
+    res.json({ code });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/challenge/:code', async (req, res) => {
+  try {
+    const ch = await Challenge.findOne({ code: req.params.code.toUpperCase() });
+    if (!ch) return res.status(404).json({ error: 'Meydan okuma bulunamadı' });
+    res.json({ lift: ch.lift, liftLabel: ch.liftLabel, challengerName: ch.challengerName, challengerBest: ch.challengerBest, completed: !!ch.completedAt });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/challenge/:code/respond', authMiddleware, async (req, res) => {
+  try {
+    const w = parseFloat(req.body.weight);
+    if (!(w > 0)) return res.status(400).json({ error: 'Geçerli ağırlık gir' });
+    const ch = await Challenge.findOne({ code: req.params.code.toUpperCase() });
+    if (!ch) return res.status(404).json({ error: 'Meydan okuma bulunamadı' });
+    if (ch.completedAt) return res.status(400).json({ error: 'Bu meydan okuma zaten tamamlandı' });
+    const user = await User.findById(req.userId);
+    ch.respondentId = req.userId;
+    ch.respondentName = user.name;
+    ch.respondentBest = w;
+    ch.completedAt = new Date();
+    await ch.save();
+    res.json({ challengerName: ch.challengerName, challengerBest: ch.challengerBest, respondentName: user.name, respondentBest: w, liftLabel: ch.liftLabel, iWon: w >= ch.challengerBest });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Sistem tam kapasite hazır! (port ${PORT})`));
