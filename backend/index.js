@@ -2118,11 +2118,11 @@ app.get('/friends', authMiddleware, async (req, res) => {
       { $match: { receiverId: new mongoose.Types.ObjectId(myId), read: false } },
       { $group: { _id: '$senderId', count: { $sum: 1 } } },
     ]);
-    const unreadMap: Record<string, number> = {};
-    unread.forEach((u: any) => { unreadMap[u._id.toString()] = u.count; });
+    const unreadMap = {};
+    unread.forEach(u => { unreadMap[u._id.toString()] = u.count; });
     res.json({
       friends: friends.map(f => ({ _id: f._id, name: f.name, unread: unreadMap[f._id.toString()] || 0 })),
-      requests: pending.map(p => ({ _id: (p.requesterId as any)._id, name: (p.requesterId as any).name })),
+      requests: pending.map(p => ({ _id: p.requesterId._id, name: p.requesterId.name })),
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
