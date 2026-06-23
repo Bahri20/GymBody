@@ -134,6 +134,121 @@ axios.interceptors.response.use(
   }
 );
 
+// Rank rozet bileşenleri — her rank için özgün SVG tasarım
+function RankBadgeSvg({ rankKey, color, size = 44 }: { rankKey: string; color: string; size?: number }) {
+  const s = size;
+  const c = s / 2;
+  // glow + fill renkleri
+  const fill   = color + '30';
+  const stroke = color;
+  const bright = color;
+
+  if (rankKey === 'bronz') {
+    // Kalkan şekli — altıgen tabanlı, tek renk düz
+    return (
+      <Svg width={s} height={s} viewBox="0 0 44 44">
+        {/* Altıgen kalkan */}
+        <Path d="M22,4 L36,12 L36,28 L22,40 L8,28 L8,12 Z" fill={fill} stroke={stroke} strokeWidth={2} />
+        {/* İç küçük kalkan */}
+        <Path d="M22,10 L31,16 L31,27 L22,34 L13,27 L13,16 Z" fill={stroke} opacity={0.25} />
+        {/* Merkez nokta */}
+        <Circle cx={22} cy={22} r={4} fill={bright} opacity={0.9} />
+      </Svg>
+    );
+  }
+
+  if (rankKey === 'gumus') {
+    // Kalkan + iki küçük kanat
+    return (
+      <Svg width={s} height={s} viewBox="0 0 44 44">
+        {/* Sol kanat */}
+        <Path d="M8,22 Q2,18 4,12 Q8,16 10,22 Z" fill={stroke} opacity={0.7} />
+        {/* Sağ kanat */}
+        <Path d="M36,22 Q42,18 40,12 Q36,16 34,22 Z" fill={stroke} opacity={0.7} />
+        {/* Altıgen */}
+        <Path d="M22,5 L35,13 L35,29 L22,39 L9,29 L9,13 Z" fill={fill} stroke={stroke} strokeWidth={2} />
+        {/* İç elmas */}
+        <Path d="M22,13 L28,22 L22,31 L16,22 Z" fill={stroke} opacity={0.5} />
+        <Circle cx={22} cy={22} r={3} fill={bright} opacity={0.95} />
+      </Svg>
+    );
+  }
+
+  if (rankKey === 'altin') {
+    // Taç + altıgen
+    return (
+      <Svg width={s} height={s} viewBox="0 0 44 44">
+        {/* Sol kanat geniş */}
+        <Path d="M7,24 Q1,19 2,11 Q7,15 9,23 Z" fill={stroke} opacity={0.8} />
+        <Path d="M8,20 Q3,14 6,8 Q10,13 11,20 Z" fill={stroke} opacity={0.5} />
+        {/* Sağ kanat geniş */}
+        <Path d="M37,24 Q43,19 42,11 Q37,15 35,23 Z" fill={stroke} opacity={0.8} />
+        <Path d="M36,20 Q41,14 38,8 Q34,13 33,20 Z" fill={stroke} opacity={0.5} />
+        {/* Altıgen */}
+        <Path d="M22,6 L35,14 L35,30 L22,38 L9,30 L9,14 Z" fill={fill} stroke={stroke} strokeWidth={2} />
+        {/* Taç dişleri */}
+        <Path d="M14,14 L17,20 L22,14 L27,20 L30,14" fill="none" stroke={stroke} strokeWidth={1.8} strokeLinejoin="round" />
+        {/* Merkez yıldız */}
+        <Path d="M22,20 L23.5,25 L22,24 L20.5,25 Z M19,22 L24,22 L23,23.5 L21,23.5 Z" fill={bright} opacity={0.9} />
+        <Circle cx={22} cy={23} r={2.5} fill={bright} opacity={0.95} />
+      </Svg>
+    );
+  }
+
+  if (rankKey === 'platin') {
+    // Büyük kanatlar + kristal
+    return (
+      <Svg width={s} height={s} viewBox="0 0 44 44">
+        {/* Sol büyük kanat */}
+        <Path d="M6,26 Q-2,20 0,10 Q5,15 8,22 Z" fill={stroke} opacity={0.7} />
+        <Path d="M7,21 Q0,13 4,6 Q9,12 11,19 Z" fill={stroke} opacity={0.5} />
+        <Path d="M9,16 Q4,8 8,3 Q13,9 13,16 Z" fill={stroke} opacity={0.3} />
+        {/* Sağ büyük kanat */}
+        <Path d="M38,26 Q46,20 44,10 Q39,15 36,22 Z" fill={stroke} opacity={0.7} />
+        <Path d="M37,21 Q44,13 40,6 Q35,12 33,19 Z" fill={stroke} opacity={0.5} />
+        <Path d="M35,16 Q40,8 36,3 Q31,9 31,16 Z" fill={stroke} opacity={0.3} />
+        {/* Kristal altıgen */}
+        <Path d="M22,5 L36,13 L36,31 L22,39 L8,31 L8,13 Z" fill={fill} stroke={stroke} strokeWidth={2.2} />
+        {/* İç kristal facet */}
+        <Path d="M22,9 L31,16 L31,28 L22,35 L13,28 L13,16 Z" fill={stroke} opacity={0.15} />
+        <Path d="M22,13 L28,19 L28,27 L22,33 L16,27 L16,19 Z" fill={stroke} opacity={0.2} />
+        <Circle cx={22} cy={22} r={4} fill={bright} opacity={0.9} />
+        <Circle cx={22} cy={22} r={2} fill="#fff" opacity={0.5} />
+      </Svg>
+    );
+  }
+
+  // elmas — tam mücevher, geniş kanatlar + ışık huzmesi
+  return (
+    <Svg width={s} height={s} viewBox="0 0 44 44">
+      {/* Işık huzmesi arka plan */}
+      <Path d="M22,22 L4,2 L22,8 Z"  fill={stroke} opacity={0.15} />
+      <Path d="M22,22 L40,2 L22,8 Z" fill={stroke} opacity={0.15} />
+      <Path d="M22,22 L2,22 L8,12 Z" fill={stroke} opacity={0.1} />
+      <Path d="M22,22 L42,22 L36,12 Z" fill={stroke} opacity={0.1} />
+      {/* Sol kanatlar (3 katman) */}
+      <Path d="M5,28 Q-4,22 -2,10 Q4,16 7,24 Z"  fill={stroke} opacity={0.75} />
+      <Path d="M6,22 Q-2,14 2,5  Q8,12 10,20 Z"  fill={stroke} opacity={0.55} />
+      <Path d="M8,16 Q3,7  7,1   Q13,8 13,16 Z"  fill={stroke} opacity={0.35} />
+      {/* Sağ kanatlar */}
+      <Path d="M39,28 Q48,22 46,10 Q40,16 37,24 Z" fill={stroke} opacity={0.75} />
+      <Path d="M38,22 Q46,14 42,5  Q36,12 34,20 Z" fill={stroke} opacity={0.55} />
+      <Path d="M36,16 Q41,7  37,1  Q31,8  31,16 Z" fill={stroke} opacity={0.35} />
+      {/* Mücevher altıgen */}
+      <Path d="M22,4 L37,12 L37,32 L22,40 L7,32 L7,12 Z" fill={fill} stroke={stroke} strokeWidth={2.5} />
+      {/* Facet çizgileri */}
+      <Path d="M22,4 L37,12 M22,4 L7,12 M22,40 L37,32 M22,40 L7,32 M7,12 L7,32 M37,12 L37,32" stroke={stroke} strokeWidth={0.7} opacity={0.4} />
+      <Path d="M22,4 L22,40 M7,22 L37,22" stroke={stroke} strokeWidth={0.5} opacity={0.25} />
+      {/* İç elmas parlaması */}
+      <Path d="M22,10 L31,22 L22,34 L13,22 Z" fill={stroke} opacity={0.25} />
+      <Circle cx={22} cy={22} r={5} fill={bright} opacity={0.85} />
+      <Circle cx={22} cy={22} r={2.5} fill="#fff" opacity={0.6} />
+      {/* Yıldız parıltı */}
+      <Path d="M22,17 L22.8,21 L26,22 L22.8,23 L22,27 L21.2,23 L18,22 L21.2,21 Z" fill="#fff" opacity={0.7} />
+    </Svg>
+  );
+}
+
 // Kas grubu → egzersiz eşleştirme
 const MUSCLE_LIFT_MAP: Record<string, string[]> = {
   chest:     ['bench'],
@@ -1719,17 +1834,10 @@ const sendMealToAI = async (uri: string) => {
             gender={user?.gender}
           />
           {/* Rank rozet sırası */}
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 14 }}>
             {RANKS.map((r) => (
-              <View key={r.key} style={{ alignItems: 'center', gap: 3 }}>
-                <View style={{
-                  width: 32, height: 32, borderRadius: 10,
-                  backgroundColor: r.color + '28',
-                  borderWidth: 1.5, borderColor: r.color + '80',
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Text style={{ fontSize: 16 }}>{r.emoji}</Text>
-                </View>
+              <View key={r.key} style={{ alignItems: 'center', gap: 4 }}>
+                <RankBadgeSvg rankKey={r.key} color={r.color} size={44} />
                 <Text style={{ color: r.color, fontSize: 9, fontWeight: '700' }}>{r.label}</Text>
               </View>
             ))}
@@ -1743,8 +1851,13 @@ const sendMealToAI = async (uri: string) => {
             <TouchableOpacity key={lift.key} activeOpacity={0.7}
               onPress={() => { setLiftModal(lift.key); setLiftInput(best ? String(best) : ''); }}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.border }}>
-              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 22 }}>{rank ? rank.emoji : lift.icon}</Text>
+              <View style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                {rank
+                  ? <RankBadgeSvg rankKey={rank.key} color={rank.color} size={44} />
+                  : <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 22 }}>{lift.icon}</Text>
+                    </View>
+                }
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
