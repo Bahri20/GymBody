@@ -1504,6 +1504,22 @@ app.post('/ai-chat', authMiddleware, async (req, res) => {
   }
 });
 
+// ==================== REVENUECAT IAP WEBHOOK ====================
+
+app.post('/revenuecat-webhook', authMiddleware, async (req, res) => {
+  try {
+    const { entitlement, expiresAt } = req.body;
+    if (entitlement !== 'vip') return res.status(400).json({ error: 'Geçersiz entitlement' });
+    const expiry = expiresAt ? new Date(expiresAt) : (() => {
+      const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d;
+    })();
+    await User.findByIdAndUpdate(req.userId, { isVip: true, vipExpiresAt: expiry });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ==================== PROMO KOD SİSTEMİ ====================
 
 app.post('/redeem-promo', authMiddleware, async (req, res) => {
