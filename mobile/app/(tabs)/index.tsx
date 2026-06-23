@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
+import Svg, { Path, Ellipse, G, Circle } from 'react-native-svg';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -132,6 +133,96 @@ axios.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+
+// Kas grubu → egzersiz eşleştirme
+const MUSCLE_LIFT_MAP: Record<string, string[]> = {
+  chest:     ['bench'],
+  shoulders: ['ohp', 'lateral'],
+  arms:      ['curl'],
+  legs:      ['squat'],
+  back:      ['latpull', 'deadlift'],
+};
+
+function getMuscleColor(
+  muscleKey: string,
+  liftsData: Record<string, number>,
+  bodyweight: number,
+  gender?: string
+): string {
+  const liftKeys = MUSCLE_LIFT_MAP[muscleKey] || [];
+  let best = -1;
+  for (const k of liftKeys) {
+    const b = liftsData[k] || 0;
+    if (b > 0) {
+      const { rankIndex } = computeRank(k, b, bodyweight, gender);
+      if (rankIndex > best) best = rankIndex;
+    }
+  }
+  if (best < 0) return '#1E2335';
+  return RANKS[best].color + 'CC'; // slight transparency
+}
+
+function MuscleSilhouette({ liftsData, bodyweight, gender }: {
+  liftsData: Record<string, number>;
+  bodyweight: number;
+  gender?: string;
+}) {
+  const mc = (key: string) => getMuscleColor(key, liftsData, bodyweight, gender);
+  const chest     = mc('chest');
+  const shoulders = mc('shoulders');
+  const arms      = mc('arms');
+  const legs      = mc('legs');
+  const back      = mc('back');
+  const base      = '#252838';
+  const skin      = '#2E3147';
+
+  return (
+    <Svg width={130} height={250} viewBox="0 0 130 250">
+      {/* Head */}
+      <Ellipse cx={65} cy={18} rx={14} ry={16} fill={skin} />
+      {/* Neck */}
+      <Path d="M58,32 L58,44 L72,44 L72,32 Z" fill={skin} />
+      {/* Trapezius / top shoulder connecting */}
+      <Path d="M32,44 Q46,34 58,38 L72,38 Q84,34 98,44 L90,54 Q74,46 65,46 Q56,46 40,54 Z" fill={shoulders} />
+      {/* Left shoulder ball */}
+      <Ellipse cx={28} cy={54} rx={13} ry={11} fill={shoulders} />
+      {/* Right shoulder ball */}
+      <Ellipse cx={102} cy={54} rx={13} ry={11} fill={shoulders} />
+      {/* Left pec */}
+      <Path d="M40,50 Q35,56 36,68 Q40,78 54,76 L55,50 Z" fill={chest} />
+      {/* Right pec */}
+      <Path d="M90,50 Q95,56 94,68 Q90,78 76,76 L75,50 Z" fill={chest} />
+      {/* Center chest */}
+      <Path d="M54,50 L76,50 L76,76 Q65,80 54,76 Z" fill={chest} opacity={0.65} />
+      {/* Lats (visible from front sides) */}
+      <Path d="M28,56 Q20,72 22,90 Q28,98 38,95 Q40,80 40,64 Z" fill={back} />
+      <Path d="M102,56 Q110,72 108,90 Q102,98 92,95 Q90,80 90,64 Z" fill={back} />
+      {/* Left upper arm (bicep) */}
+      <Path d="M17,50 Q10,62 12,80 Q17,90 26,87 Q30,72 28,56 Z" fill={arms} />
+      {/* Right upper arm (bicep) */}
+      <Path d="M113,50 Q120,62 118,80 Q113,90 104,87 Q100,72 102,56 Z" fill={arms} />
+      {/* Left forearm */}
+      <Path d="M12,88 Q8,100 10,116 Q15,124 22,120 Q24,106 24,90 Z" fill={arms} opacity={0.75} />
+      {/* Right forearm */}
+      <Path d="M118,88 Q122,100 120,116 Q115,124 108,120 Q106,106 106,90 Z" fill={arms} opacity={0.75} />
+      {/* Abs/torso */}
+      <Path d="M40,74 Q38,88 39,106 Q40,120 42,130 L88,130 Q90,120 91,106 Q92,88 90,74 Z" fill={base} />
+      {/* Abs grid lines hint */}
+      <Path d="M52,80 L52,128 M65,78 L65,128 M78,80 L78,128" stroke="#ffffff10" strokeWidth={1} />
+      <Path d="M40,94 L90,94 M40,108 L90,108 M40,122 L90,122" stroke="#ffffff10" strokeWidth={1} />
+      {/* Hip */}
+      <Path d="M40,130 Q38,140 40,150 L90,150 Q92,140 90,130 Z" fill="#1A1C2A" />
+      {/* Left thigh */}
+      <Path d="M40,148 Q33,166 35,192 Q40,204 50,201 Q54,182 54,162 Q52,142 44,144 Z" fill={legs} />
+      {/* Right thigh */}
+      <Path d="M90,148 Q97,166 95,192 Q90,204 80,201 Q76,182 76,162 Q78,142 86,144 Z" fill={legs} />
+      {/* Left calf */}
+      <Path d="M34,202 Q30,216 34,234 Q39,242 46,238 Q48,222 48,206 Z" fill={legs} opacity={0.8} />
+      {/* Right calf */}
+      <Path d="M96,202 Q100,216 96,234 Q91,242 84,238 Q82,222 82,206 Z" fill={legs} opacity={0.8} />
+    </Svg>
+  );
+}
 
 // ⚠️ Google Cloud Console > Credentials'tan al, buraya yapıştır
 const GOOGLE_CLIENT_IDS = {
@@ -1616,9 +1707,34 @@ const sendMealToAI = async (uri: string) => {
           <Text style={styles.statsTitle}>💪 Güç Sıralaması</Text>
           {!user?.weight && <Text style={{ color: C.orange, fontSize: 11 }}>Profilde kilonu gir</Text>}
         </View>
-        <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 12 }}>
+        <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 16 }}>
           Max ağırlığını gir, rozetini kazan. Vücut ağırlığına oranlı.
         </Text>
+
+        {/* Vücut haritası */}
+        <View style={{ alignItems: 'center', marginBottom: 16 }}>
+          <MuscleSilhouette
+            liftsData={Object.fromEntries(LIFTS.map(l => [l.key, user?.lifts?.[l.key]?.best || 0]))}
+            bodyweight={user?.weight || 70}
+            gender={user?.gender}
+          />
+          {/* Rank rozet sırası */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 12 }}>
+            {RANKS.map((r) => (
+              <View key={r.key} style={{ alignItems: 'center', gap: 3 }}>
+                <View style={{
+                  width: 32, height: 32, borderRadius: 10,
+                  backgroundColor: r.color + '28',
+                  borderWidth: 1.5, borderColor: r.color + '80',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Text style={{ fontSize: 16 }}>{r.emoji}</Text>
+                </View>
+                <Text style={{ color: r.color, fontSize: 9, fontWeight: '700' }}>{r.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
         {LIFTS.map((lift) => {
           const best = user?.lifts?.[lift.key]?.best || 0;
           const { rankIndex, nextWeight, progress } = computeRank(lift.key, best, user?.weight, user?.gender);
