@@ -21,8 +21,9 @@
           }
         ],
         "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        }
+          "NSAllowsLocalNetworking": true
+        },
+        "NSUserTrackingUsageDescription": "İzin verirsen sana daha uygun reklamlar göstermek için reklam tanımlayıcını kullanırız. VIP üyeler reklam görmez."
       }
     },
     "android": {
@@ -56,6 +57,13 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Gelişim ve yemek fotoğraflarını galeriden seçebilmen için fotoğraflarına erişim gerekiyor.",
+          "cameraPermission": "Gelişim ve yemek fotoğraflarını çekebilmen için kameraya erişim gerekiyor."
+        }
+      ],
       [
         "react-native-google-mobile-ads",
         {
