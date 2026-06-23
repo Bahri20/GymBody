@@ -1919,62 +1919,103 @@ cron.schedule('0 10 * * 0', async () => {
 
 // ─── ARKADAŞ MEYDAN OKUMASI ───────────────────────────────────────────────────
 const challengeSchema = new mongoose.Schema({
-  code:            { type: String, required: true, unique: true },
-  challengerId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  challengerName:  { type: String, required: true },
-  lift:            { type: String, required: true },
-  liftLabel:       { type: String, required: true },
-  challengerBest:  { type: Number, required: true },
-  respondentId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  respondentName:  String,
-  respondentBest:  Number,
-  completedAt:     Date,
-  createdAt:       { type: Date, default: Date.now, expires: 7 * 24 * 3600 },
+  code:           { type: String, required: true, unique: true },
+  challengerId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  challengerName: { type: String, required: true },
+  lift:           { type: String, required: true },
+  liftLabel:      { type: String, required: true },
+  challengerBest: Number,   // ikisi de bağlanınca girilir
+  respondentId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  respondentName: String,
+  respondentBest: Number,
+  status:         { type: String, enum: ['pending','active','complete'], default: 'pending' },
+  createdAt:      { type: Date, default: Date.now, expires: 7 * 24 * 3600 },
 });
 const Challenge = mongoose.model('Challenge', challengeSchema);
 
 const LIFT_LABELS = { bench: 'Bench Press', squat: 'Squat', deadlift: 'Deadlift', ohp: 'Shoulder Press', latpull: 'Lat Pull Down', curl: 'Barbell Curl', lateral: 'Lateral Raise' };
 
+// Kapışma oluştur — sadece hareket, kilo yok
 app.post('/challenge/create', authMiddleware, async (req, res) => {
   try {
-    const { lift, weight } = req.body;
+    const { lift } = req.body;
     if (!LIFT_LABELS[lift]) return res.status(400).json({ error: 'Geçersiz hareket' });
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
-    const challengerBest = parseFloat(weight) || user.lifts?.[lift]?.best || 0;
-    if (!(challengerBest > 0)) return res.status(400).json({ error: 'Önce bir ağırlık gir' });
     let code, exists = true;
     while (exists) {
       code = Math.random().toString(36).substring(2, 8).toUpperCase();
       exists = await Challenge.findOne({ code });
     }
-    await Challenge.create({ code, challengerId: req.userId, challengerName: user.name, lift, liftLabel: LIFT_LABELS[lift], challengerBest });
+    await Challenge.create({ code, challengerId: req.userId, challengerName: user.name, lift, liftLabel: LIFT_LABELS[lift] });
     res.json({ code });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Kapışmayı getir
 app.get('/challenge/:code', async (req, res) => {
   try {
     const ch = await Challenge.findOne({ code: req.params.code.toUpperCase() });
     if (!ch) return res.status(404).json({ error: 'Meydan okuma bulunamadı' });
-    res.json({ lift: ch.lift, liftLabel: ch.liftLabel, challengerName: ch.challengerName, challengerBest: ch.challengerBest, completed: !!ch.completedAt });
+    res.json({
+      lift: ch.lift, liftLabel: ch.liftLabel,
+      challengerName: ch.challengerName, respondentName: ch.respondentName,
+      status: ch.status,
+      challengerSubmitted: ch.challengerBest != null,
+      respondentSubmitted: ch.respondentBest != null,
+      // Sonuç tamamsa her iki kiloyu da gönder
+      ...(ch.status === 'complete' ? {
+        challengerBest: ch.challengerBest, respondentBest: ch.respondentBest
+      } : {}),
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/challenge/:code/respond', authMiddleware, async (req, res) => {
+// Rakip katıl — challenge active olur
+app.post('/challenge/:code/join', authMiddleware, async (req, res) => {
+  try {
+    const ch = await Challenge.findOne({ code: req.params.code.toUpperCase() });
+    if (!ch) return res.status(404).json({ error: 'Meydan okuma bulunamadı' });
+    if (ch.status !== 'pending') return res.status(400).json({ error: 'Bu kapışmaya zaten katılındı' });
+    if (ch.challengerId.toString() === req.userId) return res.status(400).json({ error: 'Kendi kapışmana kendi katılamazsın' });
+    const user = await User.findById(req.userId);
+    ch.respondentId = req.userId;
+    ch.respondentName = user.name;
+    ch.status = 'active';
+    await ch.save();
+    res.json({ liftLabel: ch.liftLabel, challengerName: ch.challengerName });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// İki taraftan biri kilosunu gönderir; ikisi de gönderdiyse sonuç döner
+app.post('/challenge/:code/submit', authMiddleware, async (req, res) => {
   try {
     const w = parseFloat(req.body.weight);
     if (!(w > 0)) return res.status(400).json({ error: 'Geçerli ağırlık gir' });
     const ch = await Challenge.findOne({ code: req.params.code.toUpperCase() });
     if (!ch) return res.status(404).json({ error: 'Meydan okuma bulunamadı' });
-    if (ch.completedAt) return res.status(400).json({ error: 'Bu meydan okuma zaten tamamlandı' });
-    const user = await User.findById(req.userId);
-    ch.respondentId = req.userId;
-    ch.respondentName = user.name;
-    ch.respondentBest = w;
-    ch.completedAt = new Date();
+    if (ch.status === 'complete') return res.status(400).json({ error: 'Kapışma zaten bitti' });
+
+    const isChallenger = ch.challengerId.toString() === req.userId;
+    const isRespondent = ch.respondentId?.toString() === req.userId;
+    if (!isChallenger && !isRespondent) return res.status(403).json({ error: 'Bu kapışmada değilsin' });
+
+    if (isChallenger) ch.challengerBest = w;
+    if (isRespondent) ch.respondentBest = w;
+
+    if (ch.challengerBest != null && ch.respondentBest != null) {
+      ch.status = 'complete';
+      await ch.save();
+      return res.json({
+        complete: true,
+        challengerName: ch.challengerName, challengerBest: ch.challengerBest,
+        respondentName: ch.respondentName, respondentBest: ch.respondentBest,
+        liftLabel: ch.liftLabel,
+        iWon: isChallenger ? ch.challengerBest >= ch.respondentBest : ch.respondentBest >= ch.challengerBest,
+      });
+    }
     await ch.save();
-    res.json({ challengerName: ch.challengerName, challengerBest: ch.challengerBest, respondentName: user.name, respondentBest: w, liftLabel: ch.liftLabel, iWon: w >= ch.challengerBest });
+    res.json({ complete: false });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

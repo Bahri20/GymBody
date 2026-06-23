@@ -609,7 +609,7 @@ export default function App() {
 
   // Arkadaş meydan okuması
   const challengeShareRef = useRef<ViewShot>(null);
-  const [challengeScreen, setChallengeScreen] = useState<null|'create'|'code'|'accept'|'accept-weight'|'result'>(null);
+  const [challengeScreen, setChallengeScreen] = useState<null|'create'|'code'|'accept'|'accept-weight'|'waiting'|'result'>(null);
   const [challengeLift, setChallengeLift] = useState('bench');
   const [challengeMyWeight, setChallengeMyWeight] = useState('');
   const [challengeCode, setChallengeCode] = useState('');
@@ -1028,41 +1028,69 @@ const openRankShare = (liftKey: string) => {
 // ─── ARKADAŞ MEYDAN OKUMASI ───────────────────────────────────────────────────
 const LIFT_LABELS_MAP: Record<string,string> = { bench:'Bench Press', squat:'Squat', deadlift:'Deadlift', ohp:'Shoulder Press', latpull:'Lat Pull Down', curl:'Barbell Curl', lateral:'Lateral Raise' };
 
+// 1. Oluştur — sadece hareket, kilo yok
 const createChallenge = async () => {
-  const w = parseFloat(challengeMyWeight) || user?.lifts?.[challengeLift]?.best || 0;
-  if (!(w > 0)) { showToast('Ağırlık gir', 'error'); return; }
   try {
     setLoading(true);
-    const { data } = await axios.post(`${API_URL}/challenge/create`, { lift: challengeLift, weight: w }, { headers: { Authorization: `Bearer ${token}` } });
+    const { data } = await axios.post(`${API_URL}/challenge/create`, { lift: challengeLift }, { headers: { Authorization: `Bearer ${token}` } });
     setChallengeCode(data.code);
     setChallengeScreen('code');
   } catch (e: any) { showToast(e.response?.data?.error || 'Hata', 'error'); }
   finally { setLoading(false); }
 };
 
-const lookupChallenge = async () => {
+// 2. Rakip kodu girer → katıl
+const joinChallenge = async () => {
   const code = challengeCodeInput.trim().toUpperCase();
   if (code.length < 4) { showToast('Kodu gir', 'error'); return; }
   try {
     setLoading(true);
-    const { data } = await axios.get(`${API_URL}/challenge/${code}`);
-    if (data.completed) { showToast('Bu meydan okuma zaten tamamlandı', 'error'); return; }
+    const { data } = await axios.post(`${API_URL}/challenge/${code}/join`, {}, { headers: { Authorization: `Bearer ${token}` } });
     setChallengeInfo(data);
     setChallengeScreen('accept-weight');
-  } catch { showToast('Kod bulunamadı', 'error'); }
+  } catch (e: any) { showToast(e.response?.data?.error || 'Kod bulunamadı', 'error'); }
   finally { setLoading(false); }
 };
 
-const respondChallenge = async () => {
-  const w = parseFloat(challengeTheirWeight);
+// 3. Her iki taraf da kendi kilosunu gönderir
+const submitChallengeWeight = async (isChallenger: boolean) => {
+  const w = parseFloat(isChallenger ? challengeMyWeight : challengeTheirWeight);
   if (!(w > 0)) { showToast('Ağırlık gir', 'error'); return; }
+  const code = (isChallenger ? challengeCode : challengeCodeInput.trim().toUpperCase());
   try {
     setLoading(true);
-    const code = challengeCodeInput.trim().toUpperCase();
-    const { data } = await axios.post(`${API_URL}/challenge/${code}/respond`, { weight: w }, { headers: { Authorization: `Bearer ${token}` } });
-    setChallengeResult(data);
-    setChallengeScreen('result');
+    const { data } = await axios.post(`${API_URL}/challenge/${code}/submit`, { weight: w }, { headers: { Authorization: `Bearer ${token}` } });
+    if (data.complete) {
+      setChallengeResult(data);
+      setChallengeScreen('result');
+    } else {
+      setChallengeScreen('waiting');
+    }
   } catch (e: any) { showToast(e.response?.data?.error || 'Hata', 'error'); }
+  finally { setLoading(false); }
+};
+
+// 4. Bekleyen taraf sonucu kontrol eder
+const checkChallengeResult = async () => {
+  const code = challengeCode || challengeCodeInput.trim().toUpperCase();
+  try {
+    setLoading(true);
+    const { data } = await axios.get(`${API_URL}/challenge/${code}`);
+    if (data.status === 'complete') {
+      // iWon: kim ben olduğumu anlamak için challengerName kontrol et
+      const myName = user?.name || '';
+      const iAmChallenger = data.challengerName === myName;
+      setChallengeResult({
+        challengerName: data.challengerName, challengerBest: data.challengerBest,
+        respondentName: data.respondentName, respondentBest: data.respondentBest,
+        liftLabel: data.liftLabel,
+        iWon: iAmChallenger ? data.challengerBest >= data.respondentBest : data.respondentBest >= data.challengerBest,
+      });
+      setChallengeScreen('result');
+    } else {
+      showToast('Henüz bitmedi, bekle!');
+    }
+  } catch { showToast('Hata', 'error'); }
   finally { setLoading(false); }
 };
 
@@ -3959,83 +3987,106 @@ const sendMealToAI = async (uri: string) => {
               <Ionicons name="close" size={20} color={C.textMuted} />
             </TouchableOpacity>
 
-            {/* CREATE: hareket + kilo seç */}
+            {/* CREATE: sadece hareket seç, kilo yok */}
             {challengeScreen === 'create' && (
               <View>
-                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 18 }}>⚔️ Meydan Okuma Oluştur</Text>
-                <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 }}>HAREKET</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 6 }}>⚔️ Meydan Okuma Oluştur</Text>
+                <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 18 }}>Arkadaşın katıldıktan sonra ikiniz de kiloyu o an girersiniz.</Text>
+                <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 }}>HANGİ HAREKET?</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
                   {Object.entries(LIFT_LABELS_MAP).map(([key, label]) => (
-                    <TouchableOpacity key={key} onPress={() => { setChallengeLift(key); setChallengeMyWeight(String(user?.lifts?.[key]?.best || '')); }}
+                    <TouchableOpacity key={key} onPress={() => setChallengeLift(key)}
                       style={{ marginRight: 8, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, backgroundColor: challengeLift === key ? C.orange : C.surface2, borderWidth: 1, borderColor: challengeLift === key ? C.orange : C.border }}>
                       <Text style={{ color: challengeLift === key ? '#0B0D12' : C.textSec, fontWeight: '700', fontSize: 13 }}>{label}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
-                <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 }}>SENIN AĞIRLIĞIN (kg)</Text>
-                <TextInput value={challengeMyWeight} onChangeText={setChallengeMyWeight} keyboardType="decimal-pad"
-                  placeholder={String(user?.lifts?.[challengeLift]?.best || '0')} placeholderTextColor={C.textMuted}
-                  style={{ backgroundColor: C.surface2, borderRadius: 12, padding: 14, color: C.text, fontSize: 17, fontWeight: '700', borderWidth: 1, borderColor: C.border, marginBottom: 20 }} />
                 <TouchableOpacity onPress={createChallenge} activeOpacity={0.85} disabled={loading}
                   style={{ backgroundColor: C.orange, borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
-                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? 'Oluşturuluyor...' : 'Link Oluştur'}</Text>
+                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? 'Oluşturuluyor...' : 'Kapışma Oluştur'}</Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* CODE: oluşturulan kodu göster */}
+            {/* CODE: kodu göster + kopyala + kendi kilonu gir */}
             {challengeScreen === 'code' && (
               <View style={{ alignItems: 'center' }}>
-                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 6 }}>Kapışma Hazır!</Text>
-                <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
-                  Bu kodu arkadaşına gönder. O da GymBodyAI'da "Kodu Gir"e bassın.
+                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 4 }}>Kapışma Hazır!</Text>
+                <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 20 }}>
+                  Kodu arkadaşına gönder, o katıldıktan sonra ikiniz de kendi kilonuzu girin.
                 </Text>
-                <View style={{ backgroundColor: C.surface2, borderRadius: 16, paddingVertical: 20, paddingHorizontal: 40, borderWidth: 2, borderColor: C.orange, marginBottom: 24 }}>
+                <View style={{ backgroundColor: C.surface2, borderRadius: 16, paddingVertical: 18, paddingHorizontal: 36, borderWidth: 2, borderColor: C.orange, marginBottom: 10 }}>
                   <Text style={{ color: C.orange, fontSize: 38, fontWeight: '900', letterSpacing: 6 }}>{challengeCode}</Text>
                 </View>
-                <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 20 }}>
-                  {LIFT_LABELS_MAP[challengeLift]} · {parseFloat(challengeMyWeight) || user?.lifts?.[challengeLift]?.best || 0} kg
-                </Text>
+                <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 20 }}>{LIFT_LABELS_MAP[challengeLift]}</Text>
                 <TouchableOpacity onPress={() => {
-                  const msg = `GymBodyAI'da ${LIFT_LABELS_MAP[challengeLift]} kapışması başlattım! 💪\n${parseFloat(challengeMyWeight) || user?.lifts?.[challengeLift]?.best || 0} kg kaldırdım.\nKabul et → GymBodyAI aç, "Kodu Gir" → ${challengeCode}`;
+                  const msg = `GymBodyAI'da ${LIFT_LABELS_MAP[challengeLift]} kapışması başlattım! ⚔️\nKatıl → GymBodyAI aç, "Kodu Gir" → ${challengeCode}\nKiloları o an girersiniz, kazanan belli olur!`;
                   Clipboard.setStringAsync(msg).then(() => showToast('Mesaj kopyalandı!'));
                 }} activeOpacity={0.85}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.orange, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 28 }}>
-                  <Ionicons name="copy-outline" size={18} color="#0B0D12" />
-                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>Mesajı Kopyala</Text>
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 22, marginBottom: 14, borderWidth: 1, borderColor: C.border }}>
+                  <Ionicons name="copy-outline" size={16} color={C.textSec} />
+                  <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 14 }}>Davet Mesajını Kopyala</Text>
                 </TouchableOpacity>
+
+                {/* Challenger kendi kilosunu girer */}
+                <View style={{ alignSelf: 'stretch', backgroundColor: C.surface2, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.orange + '55' }}>
+                  <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 10 }}>SENİN AĞIRLIĞIN (kg) — rakip beklerken gir</Text>
+                  <TextInput value={challengeMyWeight} onChangeText={setChallengeMyWeight} keyboardType="decimal-pad"
+                    placeholder="0" placeholderTextColor={C.textMuted}
+                    style={{ backgroundColor: C.surface, borderRadius: 10, padding: 12, color: C.text, fontSize: 17, fontWeight: '700', borderWidth: 1, borderColor: C.border, marginBottom: 12 }} />
+                  <TouchableOpacity onPress={() => submitChallengeWeight(true)} activeOpacity={0.85} disabled={loading}
+                    style={{ backgroundColor: C.orange, borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}>
+                    <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>{loading ? 'Kaydediliyor...' : 'Kilonu Kaydet ⚡'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 
             {/* ACCEPT: kod gir */}
             {challengeScreen === 'accept' && (
               <View>
-                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 18 }}>Kodu Gir</Text>
+                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 6 }}>Kodu Gir</Text>
+                <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 18 }}>Sana gönderilen kapışma kodunu buraya yaz.</Text>
                 <TextInput value={challengeCodeInput} onChangeText={t => setChallengeCodeInput(t.toUpperCase())}
                   placeholder="ABC123" placeholderTextColor={C.textMuted} autoCapitalize="characters" maxLength={8}
                   style={{ backgroundColor: C.surface2, borderRadius: 12, padding: 14, color: C.text, fontSize: 22, fontWeight: '900', letterSpacing: 4, textAlign: 'center', borderWidth: 1, borderColor: C.border, marginBottom: 20 }} />
-                <TouchableOpacity onPress={lookupChallenge} activeOpacity={0.85} disabled={loading}
+                <TouchableOpacity onPress={joinChallenge} activeOpacity={0.85} disabled={loading}
                   style={{ backgroundColor: C.orange, borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
-                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? 'Aranıyor...' : 'Devam'}</Text>
+                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? 'Katılıyor...' : 'Katıl ⚔️'}</Text>
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* ACCEPT-WEIGHT: kapışma detayı + kilo gir */}
+            {/* ACCEPT-WEIGHT: katılındı, kilo gir */}
             {challengeScreen === 'accept-weight' && challengeInfo && (
               <View>
                 <View style={{ backgroundColor: C.surface2, borderRadius: 14, padding: 16, marginBottom: 18, borderLeftWidth: 3, borderLeftColor: C.orange }}>
-                  <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700' }}>MEYDAN OKUMA</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700' }}>KAPIŞMA BAŞLADI</Text>
                   <Text style={{ color: C.text, fontWeight: '900', fontSize: 17, marginTop: 4 }}>{challengeInfo.liftLabel}</Text>
-                  <Text style={{ color: C.orange, fontSize: 24, fontWeight: '900', marginTop: 4 }}>{challengeInfo.challengerName}: {challengeInfo.challengerBest} kg</Text>
+                  <Text style={{ color: C.orange, fontSize: 16, fontWeight: '700', marginTop: 4 }}>{challengeInfo.challengerName} seni meydan okuyor!</Text>
                 </View>
                 <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 }}>SENİN AĞIRLIĞIN (kg)</Text>
                 <TextInput value={challengeTheirWeight} onChangeText={setChallengeTheirWeight} keyboardType="decimal-pad"
                   placeholder="0" placeholderTextColor={C.textMuted}
                   style={{ backgroundColor: C.surface2, borderRadius: 12, padding: 14, color: C.text, fontSize: 17, fontWeight: '700', borderWidth: 1, borderColor: C.border, marginBottom: 20 }} />
-                <TouchableOpacity onPress={respondChallenge} activeOpacity={0.85} disabled={loading}
+                <TouchableOpacity onPress={() => submitChallengeWeight(false)} activeOpacity={0.85} disabled={loading}
                   style={{ backgroundColor: C.orange, borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
                   <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? 'Kaydediliyor...' : 'Kapış! ⚔️'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* WAITING: rakip bekleniyor */}
+            {challengeScreen === 'waiting' && (
+              <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                <Text style={{ fontSize: 40, marginBottom: 12 }}>⏳</Text>
+                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 8 }}>Rakibini Bekliyorsun...</Text>
+                <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 28 }}>
+                  Rakibin kilosunu girdikten sonra sonucu görebilirsin.
+                </Text>
+                <TouchableOpacity onPress={checkChallengeResult} activeOpacity={0.85} disabled={loading}
+                  style={{ backgroundColor: C.orange, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 36, alignItems: 'center' }}>
+                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>{loading ? 'Kontrol ediliyor...' : 'Sonucu Kontrol Et'}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -4043,10 +4094,10 @@ const sendMealToAI = async (uri: string) => {
             {/* RESULT: sonuç + paylaşım kartı */}
             {challengeScreen === 'result' && challengeResult && (
               <View style={{ alignItems: 'center' }}>
-                <Text style={{ color: challengeResult.iWon ? '#FFD700' : C.textMuted, fontSize: 32, fontWeight: '900', marginBottom: 4 }}>
+                <Text style={{ color: challengeResult.iWon ? '#FFD700' : C.textMuted, fontSize: 30, fontWeight: '900', marginBottom: 4 }}>
                   {challengeResult.iWon ? '🏆 KAZANDIN!' : '💪 İyi mücadele!'}
                 </Text>
-                <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 20 }}>{challengeResult.liftLabel}</Text>
+                <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>{challengeResult.liftLabel}</Text>
 
                 <ViewShot ref={challengeShareRef} options={{ format: 'jpg', quality: 0.95 }} style={{ overflow: 'hidden' }}>
                   <View style={{ width: 300, height: 380, backgroundColor: '#0B0D12', borderRadius: 22, overflow: 'hidden', borderWidth: 1, borderColor: challengeResult.iWon ? '#FFD70088' : C.orange + '55' }}>
@@ -4054,31 +4105,46 @@ const sendMealToAI = async (uri: string) => {
                       <Image source={{ uri: challengeSharePhoto }} style={{ position: 'absolute', width: 300, height: 380 }} resizeMode="cover" />
                     ) : (
                       <LinearGradient colors={['#1A1205', '#0B0D12']} style={{ position: 'absolute', width: 300, height: 380, alignItems: 'center', justifyContent: 'center' }}>
-                        <Text style={{ fontSize: 72, opacity: 0.18 }}>⚔️</Text>
+                        <Text style={{ fontSize: 72, opacity: 0.15 }}>⚔️</Text>
                       </LinearGradient>
                     )}
                     <Text style={{ position: 'absolute', top: 16, left: 18, color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 3, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 6 }}>GYMBODY</Text>
                     <LinearGradient
-                      colors={['transparent', 'rgba(11,13,18,0.95)', '#0B0D12']}
-                      style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 220, justifyContent: 'flex-end', padding: 20 }}
+                      colors={['transparent', 'rgba(11,13,18,0.97)', '#0B0D12']}
+                      style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 230, justifyContent: 'flex-end', padding: 20 }}
                     >
-                      <Text style={{ color: '#A3ABBA', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 8 }}>KAPIŞMA · {challengeResult.liftLabel.toUpperCase()}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <Text style={{ color: challengeResult.iWon ? '#FFD700' : '#fff', fontSize: 20, fontWeight: '900' }}>{challengeResult.respondentName}</Text>
-                        <Text style={{ color: challengeResult.iWon ? '#FFD700' : C.orange, fontSize: 26, fontWeight: '900' }}>{challengeResult.respondentBest} kg</Text>
-                        {challengeResult.iWon && <Text style={{ fontSize: 18 }}>🏆</Text>}
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                        <Text style={{ color: !challengeResult.iWon ? '#FFD700' : C.textSec, fontSize: 16, fontWeight: '700' }}>{challengeResult.challengerName}</Text>
-                        <Text style={{ color: !challengeResult.iWon ? '#FFD700' : C.textMuted, fontSize: 20, fontWeight: '800' }}>{challengeResult.challengerBest} kg</Text>
-                        {!challengeResult.iWon && <Text style={{ fontSize: 16 }}>🏆</Text>}
-                      </View>
+                      <Text style={{ color: '#A3ABBA', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 12 }}>KAPIŞMA · {challengeResult.liftLabel.toUpperCase()}</Text>
+                      {/* Kazanan üstte */}
+                      {(() => {
+                        const myBest = challengeResult.iWon
+                          ? Math.max(challengeResult.challengerBest, challengeResult.respondentBest)
+                          : Math.min(challengeResult.challengerBest, challengeResult.respondentBest);
+                        const theirBest = challengeResult.iWon
+                          ? Math.min(challengeResult.challengerBest, challengeResult.respondentBest)
+                          : Math.max(challengeResult.challengerBest, challengeResult.respondentBest);
+                        const myName = user?.name || '';
+                        const theirName = myName === challengeResult.challengerName ? challengeResult.respondentName : challengeResult.challengerName;
+                        return (
+                          <>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                              <Text style={{ fontSize: 16 }}>🏆</Text>
+                              <Text style={{ color: '#FFD700', fontSize: 20, fontWeight: '900', flex: 1 }}>{challengeResult.iWon ? myName : theirName}</Text>
+                              <Text style={{ color: '#FFD700', fontSize: 28, fontWeight: '900' }}>{challengeResult.iWon ? myBest : theirBest} kg</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                              <Text style={{ fontSize: 16, opacity: 0 }}>🏆</Text>
+                              <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700', flex: 1 }}>{challengeResult.iWon ? theirName : myName}</Text>
+                              <Text style={{ color: C.textMuted, fontSize: 22, fontWeight: '800' }}>{challengeResult.iWon ? theirBest : myBest} kg</Text>
+                            </View>
+                          </>
+                        );
+                      })()}
                       <Text style={{ color: '#6B7384', fontSize: 11 }}>GymBodyAI · gymbodyai.app</Text>
                     </LinearGradient>
                   </View>
                 </ViewShot>
 
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
                   <TouchableOpacity onPress={pickChallengePhoto} activeOpacity={0.85}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16, borderWidth: 1, borderColor: C.border }}>
                     <Ionicons name="image" size={17} color="#fff" />
