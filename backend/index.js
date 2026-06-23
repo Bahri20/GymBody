@@ -700,7 +700,8 @@ app.post('/update-lift', authMiddleware, async (req, res) => {
     user.markModified('lifts');
     await user.save();
 
-    res.json({ message: "PR kaydedildi!", lifts: user.lifts });
+    const newBadges = await checkAndAwardBadges(req.userId).catch(() => []);
+    res.json({ message: "PR kaydedildi!", lifts: user.lifts, newBadges });
   } catch (err) {
     console.error("🔥 /update-lift Hatası:", err);
     res.status(500).json({ error: "PR kaydedilemedi." });
@@ -1441,17 +1442,40 @@ async function checkAndAwardBadges(userId) {
   const user = await User.findById(userId);
   if (!user) return [];
   const existing = new Set(user.badges || []);
-  const newBadges = [];
+
+  // async context
+  const hasFriend = await Friendship.findOne({ status: 'accepted', $or: [{ requesterId: userId }, { recipientId: userId }] }).catch(() => null);
+  const completedChallenges = await Challenge.find({ status: 'complete', $or: [{ challengerId: userId }, { respondentId: userId }] }).catch(() => []);
+  const wonChallenge = completedChallenges.some(c => {
+    const isMe = c.challengerId.toString() === userId.toString();
+    return isMe ? (c.challengerBest || 0) >= (c.respondentBest || 0) : (c.respondentBest || 0) >= (c.challengerBest || 0);
+  });
+  const benchBest = user.lifts?.bench?.best || 0;
+  const sqBest   = user.lifts?.squat?.best || 0;
+  const dlBest   = user.lifts?.deadlift?.best || 0;
+  const anyPR    = Object.values(user.lifts || {}).some(l => l.history?.length > 0);
 
   const BADGE_RULES = [
-    { id: 'first_workout',   label: 'İlk Adım 🏃',      check: () => (user.weeklyPlan?.currentDay || 0) >= 1 },
-    { id: 'streak_3',        label: '3 Günlük Seri 🔥',  check: () => (user.streak || 0) >= 3 },
-    { id: 'streak_7',        label: '7 Günlük Seri ⚡',  check: () => (user.streak || 0) >= 7 },
-    { id: 'streak_30',       label: '30 Günlük Efsane 👑', check: () => (user.streak || 0) >= 30 },
-    { id: 'vip_member',      label: 'VIP Üye ⭐',         check: () => user.isVip },
-    { id: 'plan_complete',   label: 'Program Tamamlandı 💪', check: () => user.weeklyPlan?.completedFully },
+    // ── COMMON ──────────────────────────────────────────────────────
+    { id: 'first_workout',    label: 'İlk Adım',        check: () => (user.weeklyPlan?.currentDay || 0) >= 1 },
+    { id: 'first_pr',         label: 'İlk PR',          check: () => anyPR },
+    { id: 'streak_3',         label: '3 Günlük Seri',   check: () => (user.streak || 0) >= 3 },
+    // ── RARE ────────────────────────────────────────────────────────
+    { id: 'streak_7',         label: '7 Günlük Seri',   check: () => (user.streak || 0) >= 7 },
+    { id: 'plan_complete',    label: 'Programcı',       check: () => !!(user.weeklyPlan?.completedFully) },
+    { id: 'bench_50',         label: 'Başlangıç Gücü',  check: () => benchBest >= 50 },
+    { id: 'first_friend',     label: 'Sosyal Kelebek',  check: () => !!hasFriend },
+    // ── EPIC ────────────────────────────────────────────────────────
+    { id: 'streak_30',        label: 'Demir Disiplin',  check: () => (user.streak || 0) >= 30 },
+    { id: 'bench_100',        label: 'Yüz Kulübü',      check: () => benchBest >= 100 },
+    { id: 'challenge_won',    label: 'Kapışma Ustası',  check: () => wonChallenge },
+    // ── LEGENDARY ───────────────────────────────────────────────────
+    { id: 'streak_100',       label: 'Efsane Seri',     check: () => (user.streak || 0) >= 100 },
+    { id: 'bench_bodyweight', label: 'Vücut Gücü',      check: () => !!(user.weight && benchBest >= user.weight) },
+    { id: 'total_lifter',     label: 'Güç Canavarı',    check: () => (benchBest + sqBest + dlBest) >= 300 },
   ];
 
+  const newBadges = [];
   for (const rule of BADGE_RULES) {
     if (!existing.has(rule.id) && rule.check()) {
       newBadges.push({ id: rule.id, label: rule.label });
@@ -1461,7 +1485,7 @@ async function checkAndAwardBadges(userId) {
   if (newBadges.length) {
     await User.findByIdAndUpdate(userId, {
       $push: { badges: { $each: newBadges.map(b => b.id) } },
-      $inc: { tokens: newBadges.length * 5 }
+      $inc: { tokens: newBadges.length * 10 }
     });
   }
   return newBadges;
@@ -2006,12 +2030,14 @@ app.post('/challenge/:code/submit', authMiddleware, async (req, res) => {
     if (ch.challengerBest != null && ch.respondentBest != null) {
       ch.status = 'complete';
       await ch.save();
+      const newBadges = await checkAndAwardBadges(req.userId).catch(() => []);
       return res.json({
         complete: true,
         challengerName: ch.challengerName, challengerBest: ch.challengerBest,
         respondentName: ch.respondentName, respondentBest: ch.respondentBest,
         liftLabel: ch.liftLabel,
         iWon: isChallenger ? ch.challengerBest >= ch.respondentBest : ch.respondentBest >= ch.challengerBest,
+        newBadges,
       });
     }
     await ch.save();
@@ -2073,6 +2099,8 @@ app.post('/friends/accept/:userId', authMiddleware, async (req, res) => {
     if (!fs) return res.status(404).json({ error: 'İstek bulunamadı' });
     fs.status = 'accepted';
     await fs.save();
+    await checkAndAwardBadges(req.userId).catch(() => []);
+    await checkAndAwardBadges(req.params.userId).catch(() => []);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

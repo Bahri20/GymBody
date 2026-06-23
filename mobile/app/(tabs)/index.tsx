@@ -3096,25 +3096,59 @@ const sendMealToAI = async (uri: string) => {
 )}
 
     {/* ROZETLER — VIP'in altında */}
-    {(user.badges?.length > 0 || userStats.badges?.length > 0) && (
-      <View style={[styles.statsCard, { marginHorizontal: 0 }]}>
-        <Text style={styles.statsTitle}>Rozetlerim</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
-          {(user.badges || []).map((b: string) => {
-            const BADGE_LABELS: any = {
-              first_workout: 'İlk Adım 🏃', streak_3: '3 Günlük Seri 🔥',
-              streak_7: '7 Günlük Seri ⚡', streak_30: '30 Günlük Efsane 👑',
-              vip_member: 'VIP Üye ⭐', plan_complete: 'Program Tamamlandı 💪'
-            };
-            return (
-              <View key={b} style={{ backgroundColor: C.surface2, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: C.border }}>
-                <Text style={{ color: C.text, fontSize: 12, fontWeight: '700' }}>{BADGE_LABELS[b] || b}</Text>
-              </View>
-            );
-          })}
+    {(() => {
+      const ALL_BADGES = [
+        // common — gri
+        { id: 'first_workout',    label: 'İlk Adım',        emoji: '🏃', rarity: 'common',    color: '#6B7384', desc: 'İlk antrenman gününü tamamla' },
+        { id: 'first_pr',         label: 'İlk PR',          emoji: '💪', rarity: 'common',    color: '#6B7384', desc: 'İlk ağırlık kaydını gir' },
+        { id: 'streak_3',         label: '3 Günlük Seri',   emoji: '🔥', rarity: 'common',    color: '#6B7384', desc: '3 gün üst üste giriş yap' },
+        // rare — cyan
+        { id: 'streak_7',         label: '7 Günlük Seri',   emoji: '⚡', rarity: 'rare',      color: '#5BC8E0', desc: '7 gün üst üste' },
+        { id: 'plan_complete',    label: 'Programcı',       emoji: '📋', rarity: 'rare',      color: '#5BC8E0', desc: 'Bir programı tamamla' },
+        { id: 'bench_50',         label: 'Başlangıç Gücü',  emoji: '🏋️', rarity: 'rare',      color: '#5BC8E0', desc: 'Bench 50 kg kaldır' },
+        { id: 'first_friend',     label: 'Sosyal Kelebek',  emoji: '👥', rarity: 'rare',      color: '#5BC8E0', desc: 'İlk arkadaşını ekle' },
+        // epic — mor
+        { id: 'streak_30',        label: 'Demir Disiplin',  emoji: '👑', rarity: 'epic',      color: '#9B6BFF', desc: '30 gün üst üste' },
+        { id: 'bench_100',        label: 'Yüz Kulübü',      emoji: '🔱', rarity: 'epic',      color: '#9B6BFF', desc: 'Bench 100 kg kaldır' },
+        { id: 'challenge_won',    label: 'Kapışma Ustası',  emoji: '⚔️', rarity: 'epic',      color: '#9B6BFF', desc: 'Bir arkadaş kapışması kazan' },
+        // legendary — altın
+        { id: 'streak_100',       label: 'Efsane Seri',     emoji: '💎', rarity: 'legendary', color: '#FFD700', desc: '100 gün üst üste' },
+        { id: 'bench_bodyweight', label: 'Vücut Gücü',      emoji: '🏆', rarity: 'legendary', color: '#FFD700', desc: 'Bench ≥ vücut ağırlığın' },
+        { id: 'total_lifter',     label: 'Güç Canavarı',    emoji: '🦁', rarity: 'legendary', color: '#FFD700', desc: 'Bench+Squat+Deadlift ≥ 300 kg' },
+      ];
+      const earned = new Set(user.badges || []);
+      const earnedCount = ALL_BADGES.filter(b => earned.has(b.id)).length;
+      return (
+        <View style={[styles.statsCard, { marginHorizontal: 0 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+            <Text style={[styles.statsTitle, { flex: 1, marginBottom: 0 }]}>Rozetler</Text>
+            <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700' }}>{earnedCount} / {ALL_BADGES.length}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {ALL_BADGES.map(b => {
+              const isEarned = earned.has(b.id);
+              return (
+                <View key={b.id} style={{ alignItems: 'center', width: 68 }}>
+                  <View style={{
+                    width: 56, height: 56, borderRadius: 28,
+                    backgroundColor: isEarned ? b.color + '22' : C.surface2,
+                    borderWidth: 2, borderColor: isEarned ? b.color : C.border,
+                    alignItems: 'center', justifyContent: 'center',
+                    opacity: isEarned ? 1 : 0.45,
+                  }}>
+                    <Text style={{ fontSize: 26 }}>{isEarned ? b.emoji : '🔒'}</Text>
+                  </View>
+                  <Text style={{ color: isEarned ? C.text : C.textMuted, fontSize: 10, fontWeight: isEarned ? '800' : '600', marginTop: 5, textAlign: 'center' }} numberOfLines={2}>{b.label}</Text>
+                  {!isEarned && (
+                    <Text style={{ color: C.textMuted, fontSize: 9, textAlign: 'center', marginTop: 1 }} numberOfLines={2}>{b.desc}</Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
         </View>
-      </View>
-    )}
+      );
+    })()}
 
     {!isEditingProfile ? (
       <>
@@ -3656,19 +3690,49 @@ const sendMealToAI = async (uri: string) => {
 
       {/* ROZET KAZANILDI MODAL */}
       <Modal visible={newBadgeVisible} transparent animationType="fade" onRequestClose={() => setNewBadgeVisible(false)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 32 }} activeOpacity={1} onPress={() => setNewBadgeVisible(false)}>
-          <View style={{ backgroundColor: C.surface, borderRadius: 24, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: C.lime, width: '100%' }}>
-            <Text style={{ fontSize: 48, marginBottom: 8 }}>🏅</Text>
-            <Text style={{ color: C.lime, fontSize: 20, fontWeight: '800', marginBottom: 4 }}>Yeni Rozet Kazandın!</Text>
-            {newBadges.map(b => (
-              <Text key={b.id} style={{ color: C.text, fontSize: 16, fontWeight: '700', marginTop: 8 }}>{b.label}</Text>
-            ))}
-            <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 12 }}>+{newBadges.length * 5} bonus token kazandın!</Text>
-            <TouchableOpacity onPress={() => setNewBadgeVisible(false)} style={{ marginTop: 20 }}>
-              <LinearGradient colors={[C.lime, C.limeDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { paddingHorizontal: 32 }]}>
-                <Text style={styles.primaryBtnText}>HARİKA!</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 32 }} activeOpacity={1} onPress={() => setNewBadgeVisible(false)}>
+          <View style={{ backgroundColor: C.surface, borderRadius: 24, padding: 28, alignItems: 'center', width: '100%' }}>
+            {(() => {
+              const BADGE_META: Record<string,{emoji:string;color:string;rarity:string}> = {
+                first_workout:    { emoji:'🏃', color:'#6B7384', rarity:'Common' },
+                first_pr:         { emoji:'💪', color:'#6B7384', rarity:'Common' },
+                streak_3:         { emoji:'🔥', color:'#6B7384', rarity:'Common' },
+                streak_7:         { emoji:'⚡', color:'#5BC8E0', rarity:'Rare' },
+                plan_complete:    { emoji:'📋', color:'#5BC8E0', rarity:'Rare' },
+                bench_50:         { emoji:'🏋️', color:'#5BC8E0', rarity:'Rare' },
+                first_friend:     { emoji:'👥', color:'#5BC8E0', rarity:'Rare' },
+                streak_30:        { emoji:'👑', color:'#9B6BFF', rarity:'Epic' },
+                bench_100:        { emoji:'🔱', color:'#9B6BFF', rarity:'Epic' },
+                challenge_won:    { emoji:'⚔️', color:'#9B6BFF', rarity:'Epic' },
+                streak_100:       { emoji:'💎', color:'#FFD700', rarity:'Legendary' },
+                bench_bodyweight: { emoji:'🏆', color:'#FFD700', rarity:'Legendary' },
+                total_lifter:     { emoji:'🦁', color:'#FFD700', rarity:'Legendary' },
+              };
+              const topBadge = newBadges[0] ? BADGE_META[newBadges[0].id] : null;
+              return (
+                <>
+                  <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: (topBadge?.color || C.orange) + '22', borderWidth: 3, borderColor: topBadge?.color || C.orange, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                    <Text style={{ fontSize: 40 }}>{topBadge?.emoji || '🏅'}</Text>
+                  </View>
+                  {topBadge && <Text style={{ color: topBadge.color, fontSize: 11, fontWeight: '800', letterSpacing: 2, marginBottom: 4 }}>{topBadge.rarity.toUpperCase()}</Text>}
+                  <Text style={{ color: C.text, fontSize: 22, fontWeight: '900', marginBottom: 4 }}>Rozet Kazandın!</Text>
+                  {newBadges.map(b => {
+                    const m = BADGE_META[b.id];
+                    return (
+                      <View key={b.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                        <Text style={{ fontSize: 20 }}>{m?.emoji || '🏅'}</Text>
+                        <Text style={{ color: C.text, fontSize: 16, fontWeight: '700' }}>{b.label}</Text>
+                      </View>
+                    );
+                  })}
+                  <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 14 }}>+{newBadges.length * 10} token kazandın!</Text>
+                  <TouchableOpacity onPress={() => setNewBadgeVisible(false)}
+                    style={{ marginTop: 20, backgroundColor: topBadge?.color || C.orange, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 36 }}>
+                    <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>HARİKA! 🎉</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
           </View>
         </TouchableOpacity>
       </Modal>
