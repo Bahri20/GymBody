@@ -1051,14 +1051,14 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
       maintain: 'Koruma (mevcut formu koruma)',
     };
     const goalText = goalLabels[goal] || 'Definasyon (yağ yakma)';
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı kanka!" });
+
     const od = user.onboardingData || {};
-    const programDays = od.daysPerWeek && DAY_STRUCTURES[od.daysPerWeek] ? od.daysPerWeek : 3;
+    const programDays = od.daysPerWeek && [2,3,4,5].includes(od.daysPerWeek) ? od.daysPerWeek : 3;
     const experienceText = { beginner: 'Yeni başlayan (0-1 yıl)', intermediate: 'Orta seviye (1-3 yıl)', advanced: 'İleri seviye (3+ yıl)' }[od.experience] || 'Orta seviye';
     const locationText = { gym: 'Spor salonu (tam ekipman)', home_equipped: 'Ev (dambıl, bant vs.)', home_bare: 'Ev (ekipmansız, sadece vücut ağırlığı)' }[od.location] || 'Spor salonu';
     const restrictionsText = od.restrictions && od.restrictions !== 'none' ? `Kısıtlama: ${od.restrictions} sorunu var — o bölgeyi zorlayan egzersizlerden kaçın` : 'Fiziksel kısıtlama yok';
-    const trainingDaysPerWeek = null;
-    const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı kanka!" });
 
     const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
     if (!isVipActive) {
@@ -1259,7 +1259,7 @@ Yalnızca aşağıdaki saf JSON formatında cevap ver, kod bloğu veya açıklam
 
     user.weeklyPlan = {
       generatedAt: new Date(),
-      trainingDaysPerWeek,
+      trainingDaysPerWeek: programDays,
       cycleDays: programDays,
       totalDays: programDays,
       currentDay: 1,
