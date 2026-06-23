@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ViewShot from 'react-native-view-shot';
-import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated, Share } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Clipboard from 'expo-clipboard';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
@@ -4021,7 +4020,7 @@ const sendMealToAI = async (uri: string) => {
                 <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 20 }}>{LIFT_LABELS_MAP[challengeLift]}</Text>
                 <TouchableOpacity onPress={() => {
                   const msg = `GymBodyAI'da ${LIFT_LABELS_MAP[challengeLift]} kapışması başlattım! ⚔️\nKatıl → GymBodyAI aç, "Kodu Gir" → ${challengeCode}\nKiloları o an girersiniz, kazanan belli olur!`;
-                  Clipboard.setStringAsync(msg).then(() => showToast('Mesaj kopyalandı!'));
+                  Share.share({ message: msg });
                 }} activeOpacity={0.85}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 22, marginBottom: 14, borderWidth: 1, borderColor: C.border }}>
                   <Ionicons name="copy-outline" size={16} color={C.textSec} />
