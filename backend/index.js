@@ -1145,17 +1145,32 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     const prevExercisesText = prevPlan?.workoutPlan
       ?.flatMap(d => d.exercises?.map(e => e.name) || []).join(', ') || '';
 
+    // Yağ oranına göre beslenme direktifi
+    let fatDirective = '';
+    if (bodyFat != null) {
+      if (bodyFat >= 25) {
+        fatDirective = `Kullanıcının yağ oranı yüksek (%${bodyFat}). Beslenme planı: yüksek protein (vücut ağırlığının 2-2.2g/kg), düşük karbonhidrat (günlük karbonhidratların büyük kısmı antrenman saatine yığ), düşük işlenmiş şeker, lifli sebzeler ön planda. Porsiyon kontrolü vurgula. Kalori açığı kesinlikle korunmalı.`;
+      } else if (bodyFat >= 18) {
+        fatDirective = `Kullanıcının yağ oranı orta (%${bodyFat}). Beslenme planı: orta-yüksek protein (vücut ağırlığının 1.8-2g/kg), orta karbonhidrat (antrenman günleri biraz fazla, dinlenme günleri biraz az), sağlıklı yağlar ılımlı. Sürdürülebilir kalori açığı veya idame, hedefe göre.`;
+      } else if (bodyFat >= 12) {
+        fatDirective = `Kullanıcının yağ oranı iyi (%${bodyFat}). Beslenme planı: yüksek protein (vücut ağırlığının 1.8g/kg), karbonhidrat döngüsü (antrenman günleri yüksek karbonhidrat, dinlenme günleri düşük), kas kayıp olmaması için kalori açığını az tut.`;
+      } else {
+        fatDirective = `Kullanıcının yağ oranı çok düşük/atletik (%${bodyFat}). Beslenme planı: yüksek protein (vücut ağırlığının 1.8-2g/kg), yüksek karbonhidrat (performans ve kas için), sağlıklı yağlar bol. Kalori fazlası veya idame önerilir, kesinlikle açık kalori kesme.`;
+      }
+    }
+
     const prompt = `
 Sen bir kişisel antrenör ve diyetisyensin. Aşağıdaki bilgilere göre ${programDays} günlük döngü antrenman ve beslenme programı hazırla:
 
 - Boy: ${uH || 'bilinmiyor'} cm, Kilo: ${uW || 'bilinmiyor'} kg
 - Yaş: ${gAge || 'bilinmiyor'}, Cinsiyet: ${user.gender || 'bilinmiyor'}
-- Vücut yağ oranı: ${bodyFat != null ? bodyFat + '%' : 'bilinmiyor'}
+- Vücut yağ oranı: ${bodyFat != null ? '%' + bodyFat : 'bilinmiyor'}
 - Hedef kilo: ${user.targetWeight || 'belirtilmemiş'}
 - Günlük kalori hedefi: ${dailyCalorieTarget} kcal
 - Döngü uzunluğu: ${programDays} gün — sabit 3 günlük döngü (bittikten sonra baştan başlar)
 - Beslenme hedefi: ${goalText}
 - Alerji/kısıtlama: ${allergy || 'yok'}
+${fatDirective ? `- BESLENME DİREKTİFİ (MUTLAKA UYGULA): ${fatDirective}` : ''}
 - Önceki programa genel kullanıcı yorumu: ${feedback || 'yok'}
 ${dayFeedbacksText ? `- Önceki programın günlük geri bildirimleri (mutlaka dikkate al):\n${dayFeedbacksText}` : ''}
 ${prevExercisesText ? `- Önceki döngüde kullanılan egzersizler (bunları TEKRAR KULLANMA, tamamen farklı varyasyonlar seç): ${prevExercisesText}` : ''}
