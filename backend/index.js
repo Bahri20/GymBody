@@ -736,11 +736,11 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
     // Aynı siklet + aynı cinsiyetteki herkesi çek, VIP + PR filtresini JS'te yap (lifts Mixed)
     const users = await User.find({
       weight: { $gte: bracketMin, $lt: bracketMax }
-    }).select('name lifts weight isVip vipExpiresAt gender');
+    }).select('name lifts weight isVip vipExpiresAt gender profilePhoto googlePhoto');
 
     const ranked = users
       .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && normGender(u.gender) === myGender)
-      .map(u => ({ id: String(u._id), name: u.name || 'Anonim', best: u.lifts?.[lift]?.best || 0 }))
+      .map(u => ({ id: String(u._id), name: u.name || 'Anonim', best: u.lifts?.[lift]?.best || 0, photo: u.profilePhoto || u.googlePhoto || null }))
       .filter(u => u.best > 0)
       .sort((a, b) => b.best - a.best);
 
@@ -752,11 +752,30 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
 
     const myId = String(me._id);
     const myRank = ranked.findIndex(u => u.id === myId) + 1; // 0 = listede yok (PR girilmemiş)
-    const top10 = ranked.slice(0, 10).map((u, i) => ({
+    const top = ranked.slice(0, 10);
+
+    // İlk 10 için arkadaşlık durumlarını tek sorguda çek
+    const topIds = top.map(u => u.id).filter(id => id !== myId);
+    const friendships = await Friendship.find({
+      $or: [
+        { requesterId: myId, recipientId: { $in: topIds } },
+        { recipientId: myId, requesterId: { $in: topIds } },
+      ],
+    }).catch(() => []);
+    const friendStatusFor = (otherId) => {
+      const fs = friendships.find(f => f.requesterId.equals(otherId) || f.recipientId.equals(otherId));
+      if (!fs) return 'none';
+      return fs.requesterId.equals(myId) ? `sent_${fs.status}` : `received_${fs.status}`;
+    };
+
+    const top10 = top.map((u, i) => ({
       rank: i + 1,
+      id: u.id,
       name: mask(u.name),
       best: u.best,
-      isMe: u.id === myId
+      photo: u.photo,
+      isMe: u.id === myId,
+      friendStatus: u.id === myId ? 'self' : friendStatusFor(u.id),
     }));
 
     res.json({
@@ -1491,6 +1510,81 @@ async function checkAndAwardBadges(userId) {
   return newBadges;
 }
 
+// ==================== AYLIK ROZET (PERFORMANS) ====================
+// Ay sonunda performansa göre rozet: güç (PR artışı) + aktivite birleşik skor.
+// Rozetler stack'lenir → frontend "Efsane ×2" gibi gösterir, arttıkça renklenir.
+const MONTH_NAMES_TR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+function periodKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Bir kullanıcının verilen ay (YYYY-MM) için bileşik skoru: güç + aktivite
+async function computeMonthlyScore(user, period) {
+  const [y, m] = period.split('-').map(Number);
+  const periodStart = new Date(y, m - 1, 1);
+  const periodEnd   = new Date(y, m, 1);
+
+  // GÜÇ — ay içindeki PR artışı (bench+squat+deadlift, kg)
+  let strengthGain = 0;
+  for (const lift of ['bench', 'squat', 'deadlift']) {
+    const hist = (user.lifts?.[lift]?.history) || [];
+    const within = hist.filter(h => { const d = new Date(h.date); return d >= periodStart && d < periodEnd; }).map(h => h.weight);
+    if (!within.length) continue;
+    const before = hist.filter(h => new Date(h.date) < periodStart).map(h => h.weight);
+    const periodMax = Math.max(...within);
+    const priorBest = before.length ? Math.max(...before) : Math.min(...within);
+    strengthGain += Math.max(0, periodMax - priorBest);
+  }
+
+  // AKTİVİTE — ay içindeki etkinlik sayısı (PR kayıtları + gelişim fotoğrafları)
+  let activityEvents = 0;
+  for (const lift of Object.values(user.lifts || {})) {
+    activityEvents += ((lift && lift.history) || []).filter(h => { const d = new Date(h.date); return d >= periodStart && d < periodEnd; }).length;
+  }
+  const photoCount = await ProgressPhoto.countDocuments({
+    userId: String(user._id),
+    date: { $gte: periodStart, $lt: periodEnd }
+  }).catch(() => 0);
+  activityEvents += photoCount;
+
+  return Math.round(strengthGain * 2 + activityEvents * 3);
+}
+
+function tierForScore(score) {
+  if (score >= 60) return 'legend';
+  if (score >= 30) return 'elite';
+  if (score >= 10) return 'rising';
+  return null;
+}
+
+// Verilen ay için kullanıcıya aylık rozet ver (zaten verilmişse atla)
+async function awardMonthlyBadgeForPeriod(userId, period) {
+  const user = await User.findById(userId);
+  if (!user) return null;
+  if ((user.monthlyBadges || []).some(b => b.period === period)) return null;
+  const score = await computeMonthlyScore(user, period);
+  const tier = tierForScore(score);
+  if (!tier) return null;
+  await User.findByIdAndUpdate(userId, {
+    $push: { monthlyBadges: { period, tier, score, awardedAt: new Date() } },
+    $inc: { tokens: tier === 'legend' ? 50 : tier === 'elite' ? 25 : 10 },
+  });
+  return { period, tier, score };
+}
+
+// Çağıran kullanıcı için İÇİNDE BULUNULAN ayın rozetini hemen hesapla/ver (uygulama içi tetikleme)
+app.post('/monthly-badge/run', authMiddleware, async (req, res) => {
+  try {
+    const period = periodKey(new Date());
+    const awarded = await awardMonthlyBadgeForPeriod(req.userId, period);
+    const user = await User.findById(req.userId).select('monthlyBadges tokens');
+    res.json({ awarded, period, monthlyBadges: user.monthlyBadges || [], tokens: user.tokens || 0 });
+  } catch (err) {
+    console.error('🔥 /monthly-badge/run Hatası:', err.message);
+    res.status(500).json({ error: 'Aylık rozet hesaplanamadı.' });
+  }
+});
+
 // ==================== AI ANTRENMAN KOÇU CHAT ====================
 app.post('/ai-chat', authMiddleware, async (req, res) => {
   try {
@@ -1938,6 +2032,35 @@ cron.schedule('0 10 * * 0', async () => {
     console.log(`📊 Haftalık özet bildirimi: ${users.length} kullanıcı`);
   } catch (err) {
     console.error('Haftalık özet cron hatası:', err.message);
+  }
+}, { timezone: 'Europe/Istanbul' });
+
+// Her ayın 1'inde 00:30'da bir önceki ayın performans rozetlerini herkese dağıt
+cron.schedule('30 0 1 * *', async () => {
+  try {
+    const now = new Date();
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const period = periodKey(prev);
+    const users = await User.find({}).select('_id');
+    let awarded = 0;
+    for (const u of users) {
+      const r = await awardMonthlyBadgeForPeriod(u._id, period).catch(() => null);
+      if (r) {
+        awarded++;
+        const fresh = await User.findById(u._id).select('pushToken name');
+        if (fresh?.pushToken) {
+          const tierLabel = r.tier === 'legend' ? 'Efsanesi' : r.tier === 'elite' ? 'Eliti' : 'Yıldızı';
+          await sendPushNotification(
+            fresh.pushToken,
+            `🏅 ${MONTH_NAMES_TR[prev.getMonth()]} ${tierLabel}!`,
+            'Bu ayın performans rozetini kazandın, profilinden gör!'
+          ).catch(() => {});
+        }
+      }
+    }
+    console.log(`🏅 Aylık rozet dağıtıldı (${period}): ${awarded} kullanıcı`);
+  } catch (err) {
+    console.error('Aylık rozet cron hatası:', err.message);
   }
 }, { timezone: 'Europe/Istanbul' });
 

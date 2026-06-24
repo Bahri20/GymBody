@@ -24,6 +24,14 @@ const userSchema = new mongoose.Schema({
   discountRate: { type: Number, default: 0 },
   pushToken: { type: String },
   badges: [{ type: String }],
+  // Aylık rozetler — her ay performansa göre kazanılır, stack'lenir (Efsane ×2 gibi)
+  // monthlyBadges: [{ period: '2026-06', tier: 'legend'|'elite'|'rising', score: 72 }]
+  monthlyBadges: [{
+    period: { type: String },   // YYYY-MM
+    tier:   { type: String },   // legend | elite | rising
+    score:  { type: Number },
+    awardedAt: { type: Date, default: Date.now },
+  }],
   // Güç sıralaması — temel bileşik hareketlerde max ağırlık (PR) ve geçmiş
   // lifts: { bench: { best: 80, history: [{ weight, date }] }, squat: {...}, ... }
   lifts: { type: mongoose.Schema.Types.Mixed, default: {} },

@@ -70,6 +70,12 @@
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
           "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
+      ],
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "İzin verirsen sana daha uygun reklamlar göstermek için reklam tanımlayıcını kullanırız. VIP üyeler reklam görmez."
+        }
       ]
     ],
     "experiments": {

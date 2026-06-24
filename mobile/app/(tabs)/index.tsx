@@ -12,6 +12,9 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import mobileAds, { BannerAd, BannerAdSize, TestIds, RewardedAd, RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
+// expo-tracking-transparency native module — yalnızca native build'de mevcut
+let requestTrackingPermissionsAsync: (() => Promise<any>) | undefined;
+try { requestTrackingPermissionsAsync = require('expo-tracking-transparency').requestTrackingPermissionsAsync; } catch {}
 
 WebBrowser.maybeCompleteAuthSession(); // Google girişi sonrası tarayıcı sekmesini kapat
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
@@ -72,6 +75,28 @@ const TAB_GLOW: Record<string, string[]> = {
   gallery: ['rgba(198,255,61,0.12)', 'rgba(198,255,61,0.04)', 'transparent'], // lime
   profile: ['rgba(198,255,61,0.12)', 'rgba(198,255,61,0.04)', 'transparent'], // lime
 };
+
+// ======================= AYLIK ROZET (performans, stack'lenir) =======================
+const MONTH_TIERS: Record<string,{label:string;emoji:string;color:string}> = {
+  legend: { label: 'Efsane', emoji: '🐉', color: '#FFD700' },
+  elite:  { label: 'Elit',   emoji: '⚜️', color: '#A06BFF' },
+  rising: { label: 'Yıldız', emoji: '🌟', color: '#5BC8E0' },
+};
+const MONTH_FULL_TR  = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+const MONTH_SHORT_TR = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+// Geçici önizleme: gerçek veri yokken seviyelendirme görselini görmek için
+const DEV_MONTHLY_PREVIEW = true;
+function resolveMonthlyBadges(user: any): {period:string;tier:string;score?:number}[] {
+  const real = (user && user.monthlyBadges) || [];
+  if (real.length === 0 && DEV_MONTHLY_PREVIEW) {
+    return [
+      { period:'2026-04', tier:'rising', score:14 }, { period:'2026-05', tier:'elite',  score:38 },
+      { period:'2026-06', tier:'legend', score:72 }, { period:'2026-03', tier:'legend', score:64 },
+      { period:'2026-02', tier:'elite',  score:33 }, { period:'2026-01', tier:'elite',  score:31 },
+    ];
+  }
+  return real;
+}
 
 // ======================= GÜÇ SIRALAMASI (STRENGTH RANK) =======================
 // Her hareket için "max ağırlık ÷ vücut ağırlığı" oranına göre rank verilir.
@@ -142,9 +167,16 @@ function computeRank(liftKey: string, best: number, bodyweight: number, gender?:
 // Canlı backend (Render). Yerel geliştirme için: 'http://192.168.1.100:3000'
 const API_URL = 'https://gymbody.onrender.com';
 const RC_API_KEY_ANDROID = 'goog_eftKBcKbeMJVYLeJIRfhpyPHWdW';
+const RC_API_KEY_IOS = ''; // TODO: RevenueCat iOS app oluşturunca 'appl_...' anahtarını buraya yaz
 
 Purchases.setLogLevel(LOG_LEVEL.ERROR);
-Purchases.configure({ apiKey: RC_API_KEY_ANDROID });
+// Platforma göre doğru anahtarla yapılandır; anahtar yoksa (iOS henüz kurulmadıysa) çökme
+const RC_KEY = Platform.OS === 'ios' ? RC_API_KEY_IOS : RC_API_KEY_ANDROID;
+if (RC_KEY) {
+  Purchases.configure({ apiKey: RC_KEY });
+} else {
+  console.warn('RevenueCat: bu platform için API anahtarı tanımlı değil, satın alma devre dışı.');
+}
 
 // Ağ hatalarını yakala — sunucuya ulaşılamazsa net mesaj
 axios.interceptors.response.use(
@@ -458,6 +490,8 @@ export default function App() {
 
   // Giriş ve Kullanıcı State'leri
   const [user, setUser] = useState<any>(null);
+  const [monthlyDetailTier, setMonthlyDetailTier] = useState<string|null>(null);
+  const [rankSentIds, setRankSentIds] = useState<string[]>([]);
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -713,7 +747,15 @@ export default function App() {
  }, []);
 
  // AdMob'u bir kez başlat
- useEffect(() => { mobileAds().initialize(); }, []);
+ useEffect(() => {
+   (async () => {
+     // iOS'ta reklam tanımlayıcısı kullanmadan ÖNCE ATT izni iste (Apple zorunluluğu)
+     if (Platform.OS === 'ios') {
+       try { if (requestTrackingPermissionsAsync) await requestTrackingPermissionsAsync(); } catch {}
+     }
+     mobileAds().initialize();
+   })();
+ }, []);
 
  // Ödüllü reklam göster → izlenince backend'den token al (VIP hariç, sunucu günlük sınırı uygular)
  const showRewardedAd = () => {
@@ -1618,6 +1660,25 @@ const sendMealToAI = async (uri: string) => {
     setLoading(false);
   }
 };
+  // --- PROFİL FOTOĞRAFI: galeriden seç + yükle ---
+const pickAndUploadProfilePhoto = async () => {
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    const uri = result.assets[0].uri;
+    const formData = new FormData();
+    const filename = uri.split('/').pop() || 'profile.jpg';
+    formData.append('photo', { uri, name: filename, type: 'image/jpeg' } as any);
+    showToast('Fotoğraf yükleniyor…');
+    const res = await axios.post(`${API_URL}/upload-profile-photo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
+    });
+    if (res.data.user) setUser(res.data.user);
+    showToast('Profil fotoğrafı güncellendi ✓');
+  } catch (e: any) {
+    showToast(e.response?.data?.error || 'Fotoğraf yüklenemedi', 'error');
+  }
+};
   // --- AÇILIŞ: otomatik giriş kontrol edilirken splash göster ---
   if (restoring) {
     return (
@@ -1923,10 +1984,17 @@ const sendMealToAI = async (uri: string) => {
           <Text style={styles.topGreeting}>Hoş geldin 👋</Text>
           <Text style={styles.topName}>{user.name}</Text>
         </View>
-        <TouchableOpacity activeOpacity={0.8} onPress={() => setCurrentTab('profile')}>
-          <LinearGradient colors={[C.lime, C.limeDark]} style={styles.avatar}>
-            <Text style={styles.avatarText}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
-          </LinearGradient>
+        <TouchableOpacity activeOpacity={0.85} onPress={pickAndUploadProfilePhoto} style={styles.avatar}>
+          {(user.profilePhoto || user.googlePhoto) ? (
+            <Image source={{ uri: user.profilePhoto || user.googlePhoto }} style={{ width: 46, height: 46, borderRadius: 16 }} />
+          ) : (
+            <LinearGradient colors={[C.lime, C.limeDark]} style={{ width: 46, height: 46, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={styles.avatarText}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
+            </LinearGradient>
+          )}
+          <View style={{ position: 'absolute', bottom: -3, right: -3, backgroundColor: C.orange, borderRadius: 9, width: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.bg }}>
+            <Ionicons name="camera" size={10} color="#0B0D12" />
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -3140,8 +3208,59 @@ const sendMealToAI = async (uri: string) => {
       ];
       const earned = new Set(user.badges || []);
       const earnedCount = ALL_BADGES.filter(b => earned.has(b.id)).length;
+
+      // ── AYLIK ROZETLER (performans, stack'lenir → Efsane ×2 gibi) ──
+      const monthly = resolveMonthlyBadges(user);
+      // Tier'a göre grupla → say (Efsane ×2)
+      const tierOrder = ['legend','elite','rising'];
+      const grouped = tierOrder
+        .map(t => ({ tier: t, count: monthly.filter(m => m.tier === t).length,
+                     months: monthly.filter(m => m.tier === t).map(m => { const mm = parseInt(m.period.split('-')[1]) - 1; return MONTH_SHORT_TR[mm] || ''; }) }))
+        .filter(g => g.count > 0);
+
       return (
         <View style={[styles.statsCard, { marginHorizontal: 0 }]}>
+          {/* ===== AYLIK ROZETLER (seviyelendirme) ===== */}
+          {grouped.length > 0 && (
+            <View style={{ marginBottom: 18 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={[styles.statsTitle, { flex: 1, marginBottom: 0 }]}>Aylık Rozetler</Text>
+                <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>her ay performans</Text>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+                {grouped.map(g => {
+                  const meta = MONTH_TIERS[g.tier];
+                  const n = g.count;
+                  const glowRadius = 6 + n * 4;
+                  const glowOpacity = Math.min(0.35 + n * 0.18, 0.95);
+                  const borderWidth = 2 + Math.min(n, 3);
+                  const prestige = n >= 3;
+                  return (
+                    <TouchableOpacity key={g.tier} activeOpacity={0.8} onPress={() => setMonthlyDetailTier(g.tier)} style={{ alignItems: 'center', width: 78 }}>
+                      <View style={{
+                        width: 64, height: 64, borderRadius: 32,
+                        backgroundColor: meta.color + (prestige ? '33' : '22'),
+                        borderWidth, borderColor: meta.color,
+                        alignItems: 'center', justifyContent: 'center',
+                        shadowColor: meta.color, shadowOpacity: glowOpacity, shadowRadius: glowRadius, shadowOffset: { width: 0, height: 0 }, elevation: 10,
+                      }}>
+                        <Text style={{ fontSize: 30 }}>{meta.emoji}</Text>
+                        {n > 1 && (
+                          <View style={{ position: 'absolute', bottom: -4, right: -4, backgroundColor: meta.color, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 2, borderColor: C.surface }}>
+                            <Text style={{ color: '#0B0D12', fontSize: 11, fontWeight: '900' }}>×{n}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={{ color: meta.color, fontSize: 12, fontWeight: '900', marginTop: 7 }}>{meta.label}{prestige ? ' ✦' : ''}</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 9, marginTop: 1, textAlign: 'center' }} numberOfLines={1}>{g.months.join(' · ')}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={{ height: 1, backgroundColor: C.border, marginTop: 16 }} />
+            </View>
+          )}
+
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
             <Text style={[styles.statsTitle, { flex: 1, marginBottom: 0 }]}>Rozetler</Text>
             <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700' }}>{earnedCount} / {ALL_BADGES.length}</Text>
@@ -3347,6 +3466,52 @@ const sendMealToAI = async (uri: string) => {
   </ScrollView>
       )}
       </Animated.View>
+
+      {/* AYLIK ROZET DETAY MODAL */}
+      <Modal visible={!!monthlyDetailTier} transparent animationType="fade" onRequestClose={() => setMonthlyDetailTier(null)}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setMonthlyDetailTier(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 28 }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: C.surface, borderRadius: 22, padding: 22, borderWidth: 1, borderColor: C.border }}>
+            {(() => {
+              if (!monthlyDetailTier) return null;
+              const meta = MONTH_TIERS[monthlyDetailTier];
+              const items = resolveMonthlyBadges(user)
+                .filter(m => m.tier === monthlyDetailTier)
+                .sort((a, b) => b.period.localeCompare(a.period));
+              return (
+                <>
+                  <View style={{ alignItems: 'center', marginBottom: 18 }}>
+                    <View style={{
+                      width: 72, height: 72, borderRadius: 36, backgroundColor: meta.color + '22',
+                      borderWidth: 3, borderColor: meta.color, alignItems: 'center', justifyContent: 'center',
+                      shadowColor: meta.color, shadowOpacity: 0.8, shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, elevation: 12,
+                    }}>
+                      <Text style={{ fontSize: 36 }}>{meta.emoji}</Text>
+                    </View>
+                    <Text style={{ color: meta.color, fontSize: 19, fontWeight: '900', marginTop: 12 }}>{meta.label} ×{items.length}</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 2 }}>{items.length} ay bu seviyeye ulaştın</Text>
+                  </View>
+                  {items.map((m, i) => {
+                    const [yy, mm] = m.period.split('-');
+                    return (
+                      <View key={m.period + i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: C.border }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: meta.color, marginRight: 12 }} />
+                        <Text style={{ color: C.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{MONTH_FULL_TR[parseInt(mm) - 1]} {yy}</Text>
+                        <Text style={{ color: meta.color, fontSize: 13, fontWeight: '800' }}>{meta.label} Rozeti</Text>
+                        {typeof m.score === 'number' && (
+                          <Text style={{ color: C.textMuted, fontSize: 12, marginLeft: 10 }}>{m.score} puan</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                  <TouchableOpacity onPress={() => setMonthlyDetailTier(null)} style={{ marginTop: 18, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 13, alignItems: 'center' }}>
+                    <Text style={{ color: C.text, fontWeight: '800', fontSize: 14 }}>Kapat</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* GİZLİLİK / KULLANIM KOŞULLARI MODAL */}
       <Modal visible={!!privacyModal} transparent animationType="slide" onRequestClose={() => setPrivacyModal(null)}>
@@ -4119,18 +4284,39 @@ const sendMealToAI = async (uri: string) => {
                       </Text>
                       <ScrollView showsVerticalScrollIndicator={false}>
                         {leaderboardData.top10?.length > 0 ? leaderboardData.top10.map((row: any) => (
-                          <View key={row.rank} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11,
-                            paddingHorizontal: 12, borderRadius: 12, marginBottom: 6,
+                          <View key={row.rank} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9,
+                            paddingHorizontal: 10, borderRadius: 12, marginBottom: 6,
                             backgroundColor: row.isMe ? 'rgba(255,159,28,0.14)' : C.surface,
                             borderWidth: row.isMe ? 1 : 0, borderColor: C.orange }}>
-                            <Text style={{ width: 30, textAlign: 'center', fontSize: row.rank <= 3 ? 18 : 14, fontWeight: '800',
+                            <Text style={{ width: 26, textAlign: 'center', fontSize: row.rank <= 3 ? 18 : 13, fontWeight: '800',
                               color: row.rank === 1 ? '#FFD700' : row.rank === 2 ? '#C0C0C0' : row.rank === 3 ? '#CD7F32' : C.textSec }}>
                               {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${row.rank}`}
                             </Text>
-                            <Text style={{ flex: 1, color: row.isMe ? C.orange : C.text, fontWeight: row.isMe ? '800' : '600', fontSize: 14 }}>
+                            {row.photo ? (
+                              <Image source={{ uri: row.photo }} style={{ width: 34, height: 34, borderRadius: 17 }} />
+                            ) : (
+                              <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border }}>
+                                <Text style={{ color: C.textSec, fontWeight: '800', fontSize: 14 }}>{(row.name?.[0] || '?').toUpperCase()}</Text>
+                              </View>
+                            )}
+                            <Text style={{ flex: 1, color: row.isMe ? C.orange : C.text, fontWeight: row.isMe ? '800' : '600', fontSize: 14 }} numberOfLines={1}>
                               {row.name}{row.isMe ? ' (sen)' : ''}
                             </Text>
-                            <Text style={{ color: row.isMe ? C.orange : C.textSec, fontWeight: '800', fontSize: 15 }}>{row.best} kg</Text>
+                            {!row.isMe && row.id && (() => {
+                              const sent = rankSentIds.includes(row.id) || String(row.friendStatus || '').startsWith('sent');
+                              const accepted = String(row.friendStatus || '').includes('accepted');
+                              const incoming = String(row.friendStatus || '').startsWith('received');
+                              if (accepted) return <Ionicons name="checkmark-circle" size={22} color={C.green} />;
+                              if (sent) return <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>İstendi</Text>;
+                              if (incoming) return <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>Sana istek</Text>;
+                              return (
+                                <TouchableOpacity onPress={() => { sendFriendRequest(row.id); setRankSentIds(prev => [...prev, row.id]); }}
+                                  style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(198,255,61,0.14)', borderWidth: 1, borderColor: C.lime, alignItems: 'center', justifyContent: 'center' }}>
+                                  <Ionicons name="person-add" size={16} color={C.lime} />
+                                </TouchableOpacity>
+                              );
+                            })()}
+                            <Text style={{ color: row.isMe ? C.orange : C.textSec, fontWeight: '800', fontSize: 15, minWidth: 52, textAlign: 'right' }}>{row.best} kg</Text>
                           </View>
                         )) : (
                           <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginVertical: 30 }}>
