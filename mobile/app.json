@@ -23,7 +23,8 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         },
-        "NSUserTrackingUsageDescription": "İzin verirsen sana daha uygun reklamlar göstermek için reklam tanımlayıcını kullanırız. VIP üyeler reklam görmez."
+        "NSUserTrackingUsageDescription": "İzin verirsen sana daha uygun reklamlar göstermek için reklam tanımlayıcını kullanırız. VIP üyeler reklam görmez.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -35,7 +36,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "com.google.android.gms.permission.AD_ID"
+      ]
     },
     "web": {
       "output": "static",
@@ -81,6 +86,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5c9aac65-0abe-4a2a-b63e-b9ced523f384"
+      }
+    },
+    "owner": "bahri1"
   }
 }

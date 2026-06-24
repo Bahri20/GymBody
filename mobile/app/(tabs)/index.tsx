@@ -167,7 +167,7 @@ function computeRank(liftKey: string, best: number, bodyweight: number, gender?:
 // Canlı backend (Render). Yerel geliştirme için: 'http://192.168.1.100:3000'
 const API_URL = 'https://gymbody.onrender.com';
 const RC_API_KEY_ANDROID = 'goog_eftKBcKbeMJVYLeJIRfhpyPHWdW';
-const RC_API_KEY_IOS = ''; // TODO: RevenueCat iOS app oluşturunca 'appl_...' anahtarını buraya yaz
+const RC_API_KEY_IOS = 'app8b58a1e395';
 
 Purchases.setLogLevel(LOG_LEVEL.ERROR);
 // Platforma göre doğru anahtarla yapılandır; anahtar yoksa (iOS henüz kurulmadıysa) çökme
