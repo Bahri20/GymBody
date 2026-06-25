@@ -2186,12 +2186,83 @@ const messageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', messageSchema);
 
+// Kullanıcı/içerik şikayetleri — moderasyon (App Store/Play Store UGC zorunluluğu)
+const reportSchema = new mongoose.Schema({
+  reporterId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  reportedId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  reason:     { type: String, maxLength: 500 },
+  context:    { type: String }, // 'chat' | 'profile' | 'leaderboard' vb.
+  status:     { type: String, enum: ['open', 'reviewed'], default: 'open' },
+  createdAt:  { type: Date, default: Date.now },
+});
+const Report = mongoose.model('Report', reportSchema);
+
+// Bir kullanıcının engellediği VE onu engelleyenlerin ID set'i (her iki yön de gizlenir)
+async function blockedIdSet(myId) {
+  const me = await User.findById(myId).select('blockedUsers');
+  const blockedByMe = (me?.blockedUsers || []).map(id => String(id));
+  const blockedMe = await User.find({ blockedUsers: myId }).select('_id');
+  const set = new Set(blockedByMe);
+  blockedMe.forEach(u => set.add(String(u._id)));
+  return set;
+}
+
+// Kullanıcıyı engelle — arkadaşlığı siler, iki yönlü mesajlaşmayı keser
+app.post('/block/:userId', authMiddleware, async (req, res) => {
+  try {
+    const target = req.params.userId;
+    if (target === req.userId) return res.status(400).json({ error: 'Kendini engelleyemezsin.' });
+    await User.findByIdAndUpdate(req.userId, { $addToSet: { blockedUsers: target } });
+    // varsa arkadaşlığı kaldır
+    await Friendship.deleteMany({
+      $or: [
+        { requesterId: req.userId, recipientId: target },
+        { requesterId: target, recipientId: req.userId },
+      ],
+    }).catch(() => {});
+    res.json({ ok: true, message: 'Kullanıcı engellendi.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Engeli kaldır
+app.post('/unblock/:userId', authMiddleware, async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.userId, { $pull: { blockedUsers: req.params.userId } });
+    res.json({ ok: true, message: 'Engel kaldırıldı.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Engellediklerimin listesi
+app.get('/blocked', authMiddleware, async (req, res) => {
+  try {
+    const me = await User.findById(req.userId).populate('blockedUsers', 'name _id profilePhoto googlePhoto');
+    res.json((me?.blockedUsers || []).map(u => ({ _id: u._id, name: u.name, photo: u.profilePhoto || u.googlePhoto || null })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Kullanıcıyı/içeriği şikayet et
+app.post('/report/:userId', authMiddleware, async (req, res) => {
+  try {
+    const target = req.params.userId;
+    if (target === req.userId) return res.status(400).json({ error: 'Kendini şikayet edemezsin.' });
+    await Report.create({
+      reporterId: req.userId,
+      reportedId: target,
+      reason: (req.body.reason || '').slice(0, 500),
+      context: req.body.context || 'chat',
+    });
+    res.json({ ok: true, message: 'Şikayetin alındı, 24 saat içinde incelenecek.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Kullanıcı ara
 app.get('/users/search', authMiddleware, async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     if (q.length < 2) return res.json([]);
-    const users = await User.find({ _id: { $ne: req.userId }, name: { $regex: q, $options: 'i' } }, 'name _id').limit(15);
+    const blocked = await blockedIdSet(req.userId);
+    const users = (await User.find({ _id: { $ne: req.userId }, name: { $regex: q, $options: 'i' } }, 'name _id').limit(30))
+      .filter(u => !blocked.has(String(u._id))).slice(0, 15);
     // arkadaşlık durumu ekle
     const friendships = await Friendship.find({
       $or: [{ requesterId: req.userId }, { recipientId: req.userId }],
@@ -2232,10 +2303,13 @@ app.post('/friends/accept/:userId', authMiddleware, async (req, res) => {
 app.get('/friends', authMiddleware, async (req, res) => {
   try {
     const myId = req.userId;
+    const blocked = await blockedIdSet(myId);
     const accepted = await Friendship.find({ status: 'accepted', $or: [{ requesterId: myId }, { recipientId: myId }] });
-    const friendIds = accepted.map(f => f.requesterId.equals(myId) ? f.recipientId : f.requesterId);
+    const friendIds = accepted.map(f => f.requesterId.equals(myId) ? f.recipientId : f.requesterId)
+      .filter(id => !blocked.has(String(id)));
     const friends = await User.find({ _id: { $in: friendIds } }, 'name _id');
-    const pending = await Friendship.find({ recipientId: myId, status: 'pending' }).populate('requesterId', 'name _id');
+    const pending = (await Friendship.find({ recipientId: myId, status: 'pending' }).populate('requesterId', 'name _id'))
+      .filter(p => p.requesterId && !blocked.has(String(p.requesterId._id)));
     // okunmamış mesaj sayısı
     const unread = await Message.aggregate([
       { $match: { receiverId: new mongoose.Types.ObjectId(myId), read: false } },
@@ -2255,6 +2329,9 @@ app.post('/messages/:friendId', authMiddleware, async (req, res) => {
   try {
     const text = (req.body.text || '').trim();
     if (!text) return res.status(400).json({ error: 'Mesaj boş olamaz' });
+    // engelli ilişkide mesajlaşma yok (iki yön)
+    const blocked = await blockedIdSet(req.userId);
+    if (blocked.has(String(req.params.friendId))) return res.status(403).json({ error: 'Bu kullanıcıyla mesajlaşamazsın.' });
     const msg = await Message.create({ senderId: req.userId, receiverId: req.params.friendId, text });
     res.json(msg);
   } catch (e) { res.status(500).json({ error: e.message }); }

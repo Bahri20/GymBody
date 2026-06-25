@@ -24,6 +24,8 @@ const userSchema = new mongoose.Schema({
   discountRate: { type: Number, default: 0 },
   pushToken: { type: String },
   badges: [{ type: String }],
+  // Engellenen kullanıcılar (arkadaşlık/mesajlaşmadan gizlenir) — UGC moderasyon zorunluluğu
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   // Aylık rozetler — her ay performansa göre kazanılır, stack'lenir (Efsane ×2 gibi)
   // monthlyBadges: [{ period: '2026-06', tier: 'legend'|'elite'|'rising', score: 72 }]
   monthlyBadges: [{

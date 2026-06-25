@@ -1163,6 +1163,38 @@ const closeChat = () => {
   setChatFriend(null);
 };
 
+// ─── ENGELLE / ŞİKAYET ET (UGC moderasyon — App Store/Play Store zorunlu) ───
+const blockUser = async (target: {_id:string;name:string}) => {
+  try {
+    await axios.post(`${API_URL}/block/${target._id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
+    showToast(`${target.name} engellendi`);
+    closeChat();
+    fetchFriends();
+  } catch { showToast('Engellenemedi', 'error'); }
+};
+
+const reportUser = async (target: {_id:string;name:string}) => {
+  try {
+    await axios.post(`${API_URL}/report/${target._id}`, { context: 'chat' }, { headers: { Authorization: `Bearer ${token}` } });
+    showToast('Şikayetin alındı, 24 saat içinde incelenecek');
+  } catch { showToast('Şikayet gönderilemedi', 'error'); }
+};
+
+// Engelle/şikayet menüsü (sohbet başlığındaki ⋯ butonu)
+const openModerationMenu = (target: {_id:string;name:string}) => {
+  Alert.alert(target.name, 'Bu kullanıcı için bir işlem seç', [
+    { text: 'Şikayet Et', onPress: () => Alert.alert('Şikayet Et', `${target.name} adlı kullanıcıyı uygunsuz davranıştan şikayet etmek istiyor musun?`, [
+      { text: 'Vazgeç', style: 'cancel' },
+      { text: 'Şikayet Et', style: 'destructive', onPress: () => reportUser(target) },
+    ]) },
+    { text: 'Engelle', style: 'destructive', onPress: () => Alert.alert('Engelle', `${target.name} engellenecek. Arkadaşlığınız kaldırılır ve birbirinize mesaj gönderemezsiniz.`, [
+      { text: 'Vazgeç', style: 'cancel' },
+      { text: 'Engelle', style: 'destructive', onPress: () => blockUser(target) },
+    ]) },
+    { text: 'Vazgeç', style: 'cancel' },
+  ]);
+};
+
 // ─── ARKADAŞ MEYDAN OKUMASI ───────────────────────────────────────────────────
 const LIFT_LABELS_MAP: Record<string,string> = { bench:'Bench Press', squat:'Squat', deadlift:'Deadlift', ohp:'Shoulder Press', latpull:'Lat Pull Down', curl:'Barbell Curl', lateral:'Lateral Raise' };
 
@@ -4708,6 +4740,9 @@ const pickAndUploadProfilePhoto = async () => {
                     <Ionicons name="chevron-back" size={24} color={C.orange} />
                   </TouchableOpacity>
                   <Text style={{ color: C.text, fontWeight: '900', fontSize: 17, flex: 1 }}>{chatFriend.name}</Text>
+                  <TouchableOpacity onPress={() => openModerationMenu(chatFriend)} style={{ marginRight: 14 }}>
+                    <Ionicons name="ellipsis-horizontal" size={22} color={C.textMuted} />
+                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => { setFriendsVisible(false); closeChat(); }}>
                     <Ionicons name="close" size={22} color={C.textMuted} />
                   </TouchableOpacity>
