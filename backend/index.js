@@ -2408,6 +2408,50 @@ const LEGAL_PAGE = (title, bodyHtml) => `<!DOCTYPE html>
 <div class="foot">İletişim: <a href="mailto:ilhanbahri4@gmail.com">ilhanbahri4@gmail.com</a><br>GymBodyAI © 2026</div>
 </div></body></html>`;
 
+// Ana sayfa — basit tanıtım (mağaza web sitesi alanı için)
+app.get('/', (req, res) => {
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GymBodyAI — Yapay Zeka Antrenörün</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0B0D12;color:#E7EAF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;text-align:center}
+  .hero{max-width:760px;margin:0 auto;padding:80px 24px 40px}
+  .logo{width:96px;height:96px;border-radius:24px;background:linear-gradient(135deg,#D4FF5C,#9FE000);display:inline-flex;align-items:center;justify-content:center;font-size:48px;box-shadow:0 10px 40px rgba(159,224,0,0.35);margin-bottom:28px}
+  h1{font-size:40px;font-weight:800;letter-spacing:-1px}
+  h1 .ai{color:#C6FF3D}
+  .tag{color:#A3ABBA;font-size:18px;margin-top:10px}
+  .feats{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin:44px 0}
+  .feat{background:#12151C;border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:18px 20px;width:220px;text-align:left}
+  .feat .e{font-size:24px}
+  .feat .t{font-weight:700;margin-top:8px}
+  .feat .d{color:#6B7384;font-size:13px;margin-top:2px}
+  .links{margin-top:40px;color:#6B7384;font-size:14px}
+  .links a{color:#5B8DEF;text-decoration:none;margin:0 10px}
+  .foot{color:#6B7384;font-size:13px;margin-top:30px;padding-bottom:40px}
+</style></head>
+<body>
+  <div class="hero">
+    <div class="logo">🏋️</div>
+    <h1>GymBody<span class="ai">AI</span></h1>
+    <div class="tag">Yapay zeka destekli kişisel fitness asistanın</div>
+    <div class="feats">
+      <div class="feat"><div class="e">🏋️</div><div class="t">AI Antrenman</div><div class="d">Sana özel haftalık program</div></div>
+      <div class="feat"><div class="e">🥗</div><div class="t">Beslenme Planı</div><div class="d">Kalori takibi & makro analizi</div></div>
+      <div class="feat"><div class="e">🏆</div><div class="t">Güç Sıralaması</div><div class="d">Ranklar, rozetler, liderlik</div></div>
+      <div class="feat"><div class="e">📸</div><div class="t">Gelişim Analizi</div><div class="d">AI ile yağ oranı & fotoğraf</div></div>
+    </div>
+    <div class="links">
+      <a href="/privacy">Gizlilik Politikası</a> ·
+      <a href="/terms">Kullanım Koşulları</a> ·
+      <a href="/delete-account">Hesap Silme</a>
+    </div>
+    <div class="foot">İletişim: ilhanbahri4@gmail.com<br>GymBodyAI © 2026</div>
+  </div>
+</body></html>`);
+});
+
 app.get('/privacy', (req, res) => {
   res.type('html').send(LEGAL_PAGE('Gizlilik Politikası', `
     <h1>Gizlilik Politikası</h1>

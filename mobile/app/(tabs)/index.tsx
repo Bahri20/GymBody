@@ -1211,7 +1211,7 @@ const deleteAccount = async () => {
 const confirmDeleteAccount = () => {
   Alert.alert(
     'Hesabı Sil',
-    'Hesabın, antrenman/beslenme verilerin, fotoğrafların, mesajların ve tüm bilgilerin KALICI olarak silinecek. Bu işlem geri alınamaz.',
+    'Hesabın, antrenman/beslenme verilerin, fotoğrafların, mesajların ve tüm bilgilerin KALICI olarak silinecek. Bu işlem geri alınamaz.\n\nNot: Aktif aboneliğin varsa, hesabı silmek aboneliği iptal ETMEZ. İptal için App Store / Google Play → Abonelikler bölümünü kullan.',
     [
       { text: 'Vazgeç', style: 'cancel' },
       { text: 'Devam Et', style: 'destructive', onPress: () => Alert.alert(
