@@ -4,7 +4,8 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String }, // Google ile girenlerde şifre olmaz
   googleId: { type: String }, // Google hesap kimliği (sub)
-  authProvider: { type: String, default: 'email' }, // 'email' | 'google'
+  appleId: { type: String }, // Apple hesap kimliği (sub) — Sign in with Apple
+  authProvider: { type: String, default: 'email' }, // 'email' | 'google' | 'apple'
   googlePhoto: { type: String }, // Google hesabından gelen profil fotoğrafı URL
   profilePhoto: { type: String }, // Kullanıcının kendi yüklediği profil fotoğrafı
   name: { type: String, required: true },

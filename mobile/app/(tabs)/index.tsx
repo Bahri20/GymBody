@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import * as Google from 'expo-auth-session/providers/google';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import mobileAds, { BannerAd, BannerAdSize, TestIds, RewardedAd, RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
@@ -178,11 +179,17 @@ if (RC_KEY) {
   console.warn('RevenueCat: bu platform için API anahtarı tanımlı değil, satın alma devre dışı.');
 }
 
+// İstek 45 sn'de cevap gelmezse iptal et — sonsuz yüklenmeyi önler (sunucu uykudan
+// uyanırken askıda kalmasın). App Review 2.1 "login indefinitely loading" düzeltmesi.
+axios.defaults.timeout = 45000;
+
 // Ağ hatalarını yakala — sunucuya ulaşılamazsa net mesaj
 axios.interceptors.response.use(
   res => res,
   err => {
-    if (!err.response) {
+    if (err.code === 'ECONNABORTED') {
+      err.userMessage = 'Sunucu yanıt vermedi, tekrar dene. (Sunucu uyanıyor olabilir, birkaç saniye sonra tekrar dene.)';
+    } else if (!err.response) {
       err.userMessage = 'İnternet bağlantını kontrol et ve tekrar dene.';
     }
     return Promise.reject(err);
@@ -690,6 +697,8 @@ export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(true); // açılışta otomatik giriş kontrolü
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
   const [welcomeVisible, setWelcomeVisible] = useState(false); // ilk giriş karşılama modalı
   const [adLoading, setAdLoading] = useState(false); // ödüllü reklam yükleniyor
   const onboardingDoneRef = useRef(false);
@@ -744,6 +753,12 @@ export default function App() {
        setRestoring(false);
      }
    })();
+ }, []);
+
+ // Apple ile Giriş cihazda destekleniyor mu (iOS 13+) — butonu ona göre göster
+ useEffect(() => {
+   if (Platform.OS !== 'ios') return;
+   AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => setAppleAvailable(false));
  }, []);
 
  // AdMob'u bir kez başlat
@@ -819,6 +834,37 @@ export default function App() {
      Alert.alert('Google Hatası', msg);
    } finally {
      setGoogleLoading(false);
+   }
+ };
+
+ // Apple ile Giriş (yalnızca iOS) — App Store 4.8 zorunlu
+ const loginWithApple = async () => {
+   try {
+     setAppleLoading(true);
+     const credential = await AppleAuthentication.signInAsync({
+       requestedScopes: [
+         AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+         AppleAuthentication.AppleAuthenticationScope.EMAIL,
+       ],
+     });
+     if (!credential.identityToken) {
+       Alert.alert('Apple Hatası', 'Apple kimlik bilgisi alınamadı.');
+       return;
+     }
+     const res = await axios.post(`${API_URL}/apple-login`, {
+       identityToken: credential.identityToken,
+       fullName: credential.fullName ? { givenName: credential.fullName.givenName, familyName: credential.fullName.familyName } : null,
+     });
+     setUser(res.data.user);
+     setToken(res.data.token);
+     await SecureStore.setItemAsync('userToken', res.data.token);
+     registerPushToken(res.data.token);
+   } catch (err: any) {
+     if (err?.code === 'ERR_REQUEST_CANCELED') return; // kullanıcı vazgeçti
+     const msg = err.response?.data?.error || err.userMessage || 'Apple girişi başarısız.';
+     Alert.alert('Apple Hatası', msg);
+   } finally {
+     setAppleLoading(false);
    }
  };
 
@@ -1431,7 +1477,7 @@ const handleCompleteDay = async (feedback?: string) => {
       }
     } catch (err: any) {
       console.log("🔥 AUTH HATASI:", err);
-      const errorMsg = err.response?.data?.error || err.message || "Sunucuya bağlanılamadı kanka";
+      const errorMsg = err.response?.data?.error || err.userMessage || err.message || "Sunucuya bağlanılamadı kanka";
       showToast(errorMsg, 'error');
     } finally {
       setLoading(false);
@@ -1916,6 +1962,27 @@ const pickAndUploadProfilePhoto = async () => {
               )}
               <Text style={{ color: '#1D2230', fontWeight: '700', fontSize: 15 }}>Google ile devam et</Text>
             </TouchableOpacity>
+
+            {/* APPLE İLE GİRİŞ (yalnızca iOS — App Store 4.8 zorunlu) */}
+            {Platform.OS === 'ios' && appleAvailable && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                disabled={appleLoading}
+                onPress={loginWithApple}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  backgroundColor: '#000000', borderRadius: 14, paddingVertical: 14, marginTop: 12,
+                  borderWidth: 1, borderColor: '#3A3A3C', opacity: appleLoading ? 0.6 : 1,
+                }}
+              >
+                {appleLoading ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
+                )}
+                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>Apple ile devam et</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <TouchableOpacity onPress={() => setIsRegister(!isRegister)} style={{ marginTop: 22 }}>

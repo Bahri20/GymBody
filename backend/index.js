@@ -18,6 +18,7 @@ const sharp = require('sharp');
 const toDateString = (date) => date.toISOString().split('T')[0];
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const cloudinary = require('cloudinary').v2;
+const appleSignin = require('apple-signin-auth');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { OAuth2Client } = require('google-auth-library');
 const googleClient = new OAuth2Client();
@@ -364,6 +365,58 @@ app.post('/google-login', async (req, res) => {
     res.status(401).json({ error: "Google girişi doğrulanamadı kanka." });
   }
 });
+
+// ============== APPLE İLE GİRİŞ / KAYIT (App Store 4.8 zorunlu) ==============
+app.post('/apple-login', async (req, res) => {
+  try {
+    const { identityToken, fullName } = req.body;
+    if (!identityToken) return res.status(400).json({ error: "Apple token gerekli." });
+
+    // Apple identity token'ı doğrula (imza + audience)
+    const payload = await appleSignin.verifyIdToken(identityToken, {
+      audience: 'com.gymbodyai.app',
+      ignoreExpiration: false,
+    });
+    const appleId = payload.sub;
+    if (!appleId) return res.status(401).json({ error: "Apple kimliği alınamadı." });
+    let email = (payload.email || '').toLowerCase().trim();
+
+    // Önce appleId, sonra (varsa) e-posta ile mevcut kullanıcıyı bul
+    let user = await User.findOne({ appleId });
+    if (!user && email) user = await User.findOne({ email });
+    let isNew = false;
+
+    if (!user) {
+      // Apple gizli relay e-posta vermemişse appleId bazlı placeholder
+      const finalEmail = email || `apple_${appleId.slice(-12)}@privaterelay.gymbodyai.com`;
+      const name = (fullName && (fullName.givenName || fullName.familyName))
+        ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim()
+        : (email ? email.split('@')[0] : 'GymBody Üyesi');
+      const vipExpiresAt = new Date();
+      vipExpiresAt.setDate(vipExpiresAt.getDate() + 1); // kayıttaki gibi 1 gün VIP
+      user = await User.create({
+        email: finalEmail, name, appleId, authProvider: 'apple',
+        isVip: true, vipExpiresAt,
+      });
+      isNew = true;
+      console.log("👤 Apple ile yeni kullanıcı:", name);
+    } else if (!user.appleId) {
+      user.appleId = appleId; // mevcut hesabı Apple'a bağla
+      await user.save();
+      console.log("🔗 Mevcut hesap Apple'a bağlandı:", user.name);
+    }
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '90d' });
+    const { password: _, ...safeUser } = user.toObject();
+    res.json({ message: "Apple girişi başarılı!", token, user: safeUser, isNew });
+  } catch (err) {
+    console.error("🔥 Apple Login Hatası:", err.message);
+    res.status(401).json({ error: "Apple girişi doğrulanamadı." });
+  }
+});
+
+// Sağlık kontrolü — harici uptime pinger için (Render'ı uyutmamak)
+app.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 app.put('/update-profile', authMiddleware, async (req, res) => {
   try {
     const allowed = ['name', 'height', 'weight', 'age', 'gender', 'targetWeight'];
