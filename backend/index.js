@@ -2350,6 +2350,44 @@ app.get('/messages/:friendId', authMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── HESAP SİLME (App Store 5.1.1 + Google Play zorunlu) ───
+// Kullanıcının kendi hesabını ve tüm ilişkili verilerini kalıcı siler
+app.delete('/account', authMiddleware, async (req, res) => {
+  try {
+    const myId = req.userId;
+    const user = await User.findById(myId);
+    if (!user) return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
+
+    // Şifre gönderilmişse doğrula (ekstra güvenlik); gönderilmediyse token yeterli (kullanıcı zaten oturum açmış)
+    if (user.password && req.body.password) {
+      const ok = await bcrypt.compare(req.body.password, user.password);
+      if (!ok) return res.status(400).json({ error: 'Şifre hatalı.' });
+    }
+
+    const oid = new mongoose.Types.ObjectId(myId);
+    // İlişkili verileri temizle (her biri ayrı, hata olsa da devam)
+    await Promise.allSettled([
+      ProgressPhoto.deleteMany({ userId: myId }),
+      Message.deleteMany({ $or: [{ senderId: oid }, { receiverId: oid }] }),
+      Friendship.deleteMany({ $or: [{ requesterId: oid }, { recipientId: oid }] }),
+      Report.deleteMany({ $or: [{ reporterId: oid }, { reportedId: oid }] }),
+      Challenge.deleteMany({ $or: [{ challengerId: myId }, { respondentId: myId }] }).catch(() => {}),
+      BodyStat.deleteMany({ userId: myId }).catch(() => {}),
+      MealLog.deleteMany({ userId: myId }).catch(() => {}),
+      User.updateMany({ blockedUsers: oid }, { $pull: { blockedUsers: oid } }),
+    ]);
+    // Cloudinary profil fotoğrafını sil (varsa)
+    try { await cloudinary.uploader.destroy(`profile_photos/user_${myId}`); } catch {}
+
+    await User.findByIdAndDelete(myId);
+    console.log(`🗑️ Hesap silindi: ${user.email || user.name} (${myId})`);
+    res.json({ ok: true, message: 'Hesabın ve tüm verilerin kalıcı olarak silindi.' });
+  } catch (err) {
+    console.error('🔥 Hesap silme hatası:', err);
+    res.status(500).json({ error: 'Hesap silinemedi, tekrar dene.' });
+  }
+});
+
 // ─── GİZLİLİK POLİTİKASI & KULLANIM KOŞULLARI (App Store / Play Store zorunlu) ───
 const LEGAL_PAGE = (title, bodyHtml) => `<!DOCTYPE html>
 <html lang="tr"><head><meta charset="utf-8">
@@ -2447,6 +2485,31 @@ app.get('/terms', (req, res) => {
 
     <h2>7. İletişim</h2>
     <p>Sorularını ilhanbahri4@gmail.com adresine iletebilirsin.</p>
+  `));
+});
+
+app.get('/delete-account', (req, res) => {
+  res.type('html').send(LEGAL_PAGE('Hesabı Sil', `
+    <h1>GymBodyAI — Hesap Silme</h1>
+    <div class="date">Son güncelleme: 25 Haziran 2026</div>
+    <p>Hesabını ve tüm verilerini iki şekilde kalıcı olarak silebilirsin:</p>
+
+    <h2>1. Uygulama içinden (önerilen)</h2>
+    <ul>
+      <li>GymBodyAI uygulamasını aç</li>
+      <li><b>Profil</b> sekmesine git</li>
+      <li>En altta <b>"Hesabı Sil"</b> bağlantısına dokun</li>
+      <li>Onay adımlarını tamamla</li>
+    </ul>
+
+    <h2>2. E-posta ile</h2>
+    <p>Uygulamaya erişemiyorsan, hesabını açtığın e-posta adresinden <a href="mailto:ilhanbahri4@gmail.com">ilhanbahri4@gmail.com</a> adresine "Hesap silme talebi" konulu bir e-posta gönder. Talebin en geç 30 gün içinde işlenir.</p>
+
+    <h2>Silinen veriler</h2>
+    <p>Hesap silindiğinde şunlar kalıcı olarak kaldırılır: ad, e-posta, profil ve gelişim fotoğrafları, antrenman ve beslenme verileri, güç kayıtları, mesajlar, arkadaşlıklar ve rozetler.</p>
+
+    <h2>Saklanan veriler</h2>
+    <p>Yasal yükümlülükler gereği faturalandırma/işlem kayıtları sınırlı süre saklanabilir; bunlar kişisel profilinle ilişkilendirilmez. Abonelik iptali App Store/Google Play hesabından ayrıca yapılmalıdır.</p>
   `));
 });
 

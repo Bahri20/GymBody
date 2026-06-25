@@ -1195,6 +1195,37 @@ const openModerationMenu = (target: {_id:string;name:string}) => {
   ]);
 };
 
+// ─── HESABI SİL (App Store 5.1.1 + Play zorunlu) — çift onaylı, kalıcı ───
+const deleteAccount = async () => {
+  try {
+    await axios.delete(`${API_URL}/account`, { headers: { Authorization: `Bearer ${token}` } });
+    showToast('Hesabın ve tüm verilerin silindi.');
+    await SecureStore.deleteItemAsync('userToken');
+    setUser(null);
+    setToken(null);
+  } catch (e: any) {
+    showToast(e.response?.data?.error || 'Hesap silinemedi', 'error');
+  }
+};
+
+const confirmDeleteAccount = () => {
+  Alert.alert(
+    'Hesabı Sil',
+    'Hesabın, antrenman/beslenme verilerin, fotoğrafların, mesajların ve tüm bilgilerin KALICI olarak silinecek. Bu işlem geri alınamaz.',
+    [
+      { text: 'Vazgeç', style: 'cancel' },
+      { text: 'Devam Et', style: 'destructive', onPress: () => Alert.alert(
+        'Emin misin?',
+        'Bu son adım. Hesabın kalıcı olarak silinecek ve geri getirilemeyecek.',
+        [
+          { text: 'Vazgeç', style: 'cancel' },
+          { text: 'Hesabı Kalıcı Sil', style: 'destructive', onPress: deleteAccount },
+        ]
+      ) },
+    ]
+  );
+};
+
 // ─── ARKADAŞ MEYDAN OKUMASI ───────────────────────────────────────────────────
 const LIFT_LABELS_MAP: Record<string,string> = { bench:'Bench Press', squat:'Squat', deadlift:'Deadlift', ohp:'Shoulder Press', latpull:'Lat Pull Down', curl:'Barbell Curl', lateral:'Lateral Raise' };
 
@@ -3495,6 +3526,11 @@ const pickAndUploadProfilePhoto = async () => {
     <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await SecureStore.deleteItemAsync('userToken'); setUser(null); setToken(null); }}>
       <Ionicons name="log-out-outline" size={18} color={C.red} />
       <Text style={styles.logoutText}>ÇIKIŞ YAP</Text>
+    </TouchableOpacity>
+
+    {/* HESABI SİL — App Store/Play zorunlu, kalıcı silme */}
+    <TouchableOpacity onPress={confirmDeleteAccount} style={{ alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
+      <Text style={{ color: C.textMuted, fontSize: 13, textDecorationLine: 'underline' }}>Hesabı Sil</Text>
     </TouchableOpacity>
   </ScrollView>
       )}
