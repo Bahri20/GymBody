@@ -2273,5 +2273,105 @@ app.get('/messages/:friendId', authMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── GİZLİLİK POLİTİKASI & KULLANIM KOŞULLARI (App Store / Play Store zorunlu) ───
+const LEGAL_PAGE = (title, bodyHtml) => `<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title} — GymBodyAI</title>
+<style>
+  body{margin:0;background:#0B0D12;color:#E7EAF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.7}
+  .wrap{max-width:760px;margin:0 auto;padding:40px 22px 80px}
+  h1{color:#C6FF3D;font-size:26px;margin-bottom:4px}
+  .date{color:#6B7384;font-size:13px;margin-bottom:32px}
+  h2{color:#FF9F1C;font-size:18px;margin-top:34px}
+  a{color:#5B8DEF}
+  ul{padding-left:20px}
+  li{margin:6px 0}
+  .foot{margin-top:48px;color:#6B7384;font-size:13px;border-top:1px solid #1C2230;padding-top:18px}
+</style></head>
+<body><div class="wrap">${bodyHtml}
+<div class="foot">İletişim: <a href="mailto:ilhanbahri4@gmail.com">ilhanbahri4@gmail.com</a><br>GymBodyAI © 2026</div>
+</div></body></html>`;
+
+app.get('/privacy', (req, res) => {
+  res.type('html').send(LEGAL_PAGE('Gizlilik Politikası', `
+    <h1>Gizlilik Politikası</h1>
+    <div class="date">Son güncelleme: 25 Haziran 2026</div>
+    <p>GymBodyAI ("uygulama") olarak gizliliğine önem veriyoruz. Bu politika, hangi verileri topladığımızı, nasıl kullandığımızı ve haklarını açıklar.</p>
+
+    <h2>1. Topladığımız Veriler</h2>
+    <ul>
+      <li><b>Hesap bilgileri:</b> Ad, e-posta adresi ve (Google ile giriş yapıyorsan) Google profil bilgilerin.</li>
+      <li><b>Fiziksel veriler:</b> Boy, kilo, yaş, cinsiyet, hedef kilo ve antrenman/güç kayıtların — sana kişisel program ve gelişim takibi sunmak için.</li>
+      <li><b>Fotoğraflar:</b> Yüklediğin profil ve gelişim fotoğrafları.</li>
+      <li><b>Kullanım verileri:</b> Seri (streak), token, rozet ve uygulama içi etkinlik bilgileri.</li>
+      <li><b>Bildirim kimliği:</b> Push bildirimi gönderebilmek için cihaz bildirim jetonu.</li>
+    </ul>
+
+    <h2>2. Verileri Nasıl Kullanıyoruz</h2>
+    <ul>
+      <li>Sana özel antrenman ve beslenme programı oluşturmak,</li>
+      <li>Gelişimini takip etmek ve karşılaştırmalı analiz sunmak,</li>
+      <li>Güç sıralaması ve arkadaş özelliklerini sağlamak,</li>
+      <li>Hatırlatma ve bilgilendirme bildirimleri göndermek.</li>
+    </ul>
+
+    <h2>3. Üçüncü Taraf Hizmetler</h2>
+    <p>Uygulama aşağıdaki hizmetleri kullanır; bu hizmetlerin kendi gizlilik politikaları geçerlidir:</p>
+    <ul>
+      <li><b>Google AdMob</b> — reklam gösterimi (VIP üyeler reklam görmez).</li>
+      <li><b>RevenueCat / App Store</b> — abonelik ve satın alma yönetimi.</li>
+      <li><b>Cloudinary</b> — fotoğraf depolama.</li>
+      <li><b>Google Sign-In</b> — isteğe bağlı giriş yöntemi.</li>
+    </ul>
+
+    <h2>4. Veri Güvenliği</h2>
+    <p>Verilerin şifreli bağlantı (HTTPS) üzerinden iletilir ve güvenli sunucularda saklanır. Şifreler hash'lenerek tutulur.</p>
+
+    <h2>5. Haklarınız</h2>
+    <p>Hesabını ve tüm verilerini silmek istersen uygulama içinden hesabını silebilir veya bizimle iletişime geçebilirsin. Talebin üzerine verilerin kalıcı olarak silinir.</p>
+
+    <h2>6. Çocukların Gizliliği</h2>
+    <p>Uygulama 13 yaş altı kullanıcılara yönelik değildir.</p>
+
+    <h2>7. Değişiklikler</h2>
+    <p>Bu politikayı zaman zaman güncelleyebiliriz. Önemli değişiklikleri uygulama üzerinden bildiririz.</p>
+  `));
+});
+
+app.get('/terms', (req, res) => {
+  res.type('html').send(LEGAL_PAGE('Kullanım Koşulları', `
+    <h1>Kullanım Koşulları</h1>
+    <div class="date">Son güncelleme: 25 Haziran 2026</div>
+    <p>GymBodyAI uygulamasını kullanarak aşağıdaki koşulları kabul etmiş olursun.</p>
+
+    <h2>1. Hizmet</h2>
+    <p>GymBodyAI; yapay zeka destekli antrenman ve beslenme önerileri, gelişim takibi ve güç sıralaması sunan bir fitness uygulamasıdır.</p>
+
+    <h2>2. Sağlık Uyarısı</h2>
+    <p>Uygulamadaki öneriler genel bilgilendirme amaçlıdır ve <b>tıbbi tavsiye yerine geçmez</b>. Yeni bir antrenman veya beslenme programına başlamadan önce doktoruna danışmanı öneririz. Yaptığın egzersizlerden doğan sorumluluk sana aittir.</p>
+
+    <h2>3. Abonelik (VIP)</h2>
+    <ul>
+      <li>VIP üyelik aylık, 6 aylık veya yıllık olarak sunulur.</li>
+      <li>Ödeme, App Store hesabın üzerinden tahsil edilir.</li>
+      <li>Abonelik, dönem bitiminden en az 24 saat önce iptal edilmezse otomatik yenilenir.</li>
+      <li>Abonelik yönetimi ve iptal, cihazının App Store ayarlarından yapılır.</li>
+    </ul>
+
+    <h2>4. Kullanıcı Sorumluluğu</h2>
+    <p>Hesabını ve şifreni gizli tutmaktan sen sorumlusun. Başkalarını rahatsız edici içerik paylaşmamayı kabul edersin.</p>
+
+    <h2>5. Fikri Mülkiyet</h2>
+    <p>Uygulamanın tüm içeriği ve tasarımı GymBodyAI'ya aittir. İzinsiz kopyalanamaz.</p>
+
+    <h2>6. Sorumluluğun Sınırlanması</h2>
+    <p>Uygulama "olduğu gibi" sunulur. Kullanımdan doğan dolaylı zararlardan sorumlu tutulamayız.</p>
+
+    <h2>7. İletişim</h2>
+    <p>Sorularını ilhanbahri4@gmail.com adresine iletebilirsin.</p>
+  `));
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Sistem tam kapasite hazır! (port ${PORT})`));
