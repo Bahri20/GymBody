@@ -3323,6 +3323,19 @@ const pickAndUploadProfilePhoto = async () => {
       );
     })()}
 
+    {/* ARKADAŞLAR — ölçülerin üstünde, daha erişilebilir */}
+    <TouchableOpacity onPress={() => { fetchFriends(); setFriendsVisible(true); }} activeOpacity={0.85}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border }}>
+      <Ionicons name="people" size={20} color={C.orange} />
+      <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, flex: 1 }}>Arkadaşlar</Text>
+      {friends.reduce((acc, f) => acc + f.unread, 0) > 0 && (
+        <View style={{ backgroundColor: C.orange, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
+          <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 11 }}>{friends.reduce((acc, f) => acc + f.unread, 0)}</Text>
+        </View>
+      )}
+      <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+    </TouchableOpacity>
+
     {!isEditingProfile ? (
       <>
         {/* Özet — boy / kilo / VKİ */}
@@ -3478,18 +3491,6 @@ const pickAndUploadProfilePhoto = async () => {
         <Text style={{ color: C.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>Kullanım Koşulları</Text>
       </TouchableOpacity>
     </View>
-
-    <TouchableOpacity onPress={() => { fetchFriends(); setFriendsVisible(true); }} activeOpacity={0.85}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, marginBottom: 10, borderWidth: 1, borderColor: C.border }}>
-      <Ionicons name="people" size={20} color={C.orange} />
-      <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, flex: 1 }}>Arkadaşlar</Text>
-      {friends.reduce((acc, f) => acc + f.unread, 0) > 0 && (
-        <View style={{ backgroundColor: C.orange, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
-          <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 11 }}>{friends.reduce((acc, f) => acc + f.unread, 0)}</Text>
-        </View>
-      )}
-      <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
-    </TouchableOpacity>
 
     <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await SecureStore.deleteItemAsync('userToken'); setUser(null); setToken(null); }}>
       <Ionicons name="log-out-outline" size={18} color={C.red} />
