@@ -35,6 +35,9 @@ mongoose.connect(process.env.MONGO_URI)
   .catch((err) => console.error("🔥 MongoDB bağlantı hatası:", err));
 
 const app = express();
+// Render/proxy arkasında gerçek istemci IP'sini al — yoksa rate-limit TÜM kullanıcıları
+// tek (proxy) IP sayar ve hepsini birden engeller. 1 = tek güvenilir proxy hop (Render).
+app.set('trust proxy', 1);
 
 // ─── GÜVENLİK MİDDLEWARE'LERİ ───────────────────────────────────────────────
 
@@ -98,7 +101,7 @@ app.use(generalLimiter);
 // Auth endpoint'leri için sıkı limit (brute force önlemi)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 30, // kişi başı (trust proxy ile gerçek IP); başarılı girişler sayılmaz
   message: { error: 'Çok fazla giriş denemesi. 15 dakika bekle.' },
   skipSuccessfulRequests: true
 });
