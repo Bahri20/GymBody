@@ -1134,6 +1134,47 @@ app.get('/get-body-stats', authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Veriler getirilemedi." });
   }
 });
+// Tek bir ölçü kaydını güncelle (yanlış girilen değeri düzeltmek için)
+app.put('/body-stat/:id', authMiddleware, async (req, res) => {
+  try {
+    const { weight, height, waist, shoulder, neck } = req.body;
+    // sadece gönderilen alanları güncelle (boş gelenlere dokunma)
+    const fields = { weight, height, waist, shoulder, neck };
+    const update = {};
+    Object.keys(fields).forEach(k => { if (fields[k] !== undefined) update[k] = fields[k] || null; });
+
+    // kayıt bu kullanıcıya mı ait? (başkasının kaydını düzeltemesin)
+    const stat = await BodyStat.findOneAndUpdate(
+      { _id: req.params.id, userId: req.userId },
+      update,
+      { new: true }
+    );
+    if (!stat) return res.status(404).json({ error: "Kayıt bulunamadı." });
+
+    // boy/kilo düzeltildiyse profili de senkron tut
+    if (weight || height) {
+      const profileUpdate = {};
+      if (weight) profileUpdate.weight = weight;
+      if (height) profileUpdate.height = height;
+      await User.findByIdAndUpdate(req.userId, profileUpdate);
+    }
+    res.json({ message: "Ölçü güncellendi kanka!", stat });
+  } catch (err) {
+    console.error("🔥 BodyStat Güncelleme Hatası:", err);
+    res.status(500).json({ error: "Güncellenemedi." });
+  }
+});
+// Tek bir ölçü kaydını sil (yanlış/fazladan girilen kaydı kaldırmak için)
+app.delete('/body-stat/:id', authMiddleware, async (req, res) => {
+  try {
+    const stat = await BodyStat.findOneAndDelete({ _id: req.params.id, userId: req.userId });
+    if (!stat) return res.status(404).json({ error: "Kayıt bulunamadı." });
+    res.json({ message: "Ölçü silindi kanka!" });
+  } catch (err) {
+    console.error("🔥 BodyStat Silme Hatası:", err);
+    res.status(500).json({ error: "Silinemedi." });
+  }
+});
 app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
   try {
     const { allergy, feedback, goal } = req.body;
