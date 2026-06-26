@@ -86,7 +86,7 @@ const MONTH_TIERS: Record<string,{label:string;emoji:string;color:string}> = {
 const MONTH_FULL_TR  = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const MONTH_SHORT_TR = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
 // Geçici önizleme: gerçek veri yokken seviyelendirme görselini görmek için
-const DEV_MONTHLY_PREVIEW = true;
+const DEV_MONTHLY_PREVIEW = false;
 function resolveMonthlyBadges(user: any): {period:string;tier:string;score?:number}[] {
   const real = (user && user.monthlyBadges) || [];
   if (real.length === 0 && DEV_MONTHLY_PREVIEW) {
