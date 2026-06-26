@@ -3501,30 +3501,36 @@ const pickAndUploadProfilePhoto = async () => {
             <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>VKİ</Text>
           </View>
         </View>
-        {/* Vücut ölçüleri — bel / omuz / boyun */}
-        {(bodyStats[0]?.waist || bodyStats[0]?.shoulder || bodyStats[0]?.neck) ? (
+        {/* Vücut ölçüleri — bel / omuz / boyun. En YENİ ölçü kaydını göster
+            (backend date artan döndürür, o yüzden sondan başa ilk dolu kaydı bul). */}
+        {(() => {
+          const m = [...bodyStats].reverse().find(s => s?.waist || s?.shoulder || s?.neck);
+          if (!m) return (
+            <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.border, marginBottom: 16 }} />
+          );
+          return (
           <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.border, marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 }}>
-            {bodyStats[0]?.waist ? (
+            {m.waist ? (
               <View style={{ alignItems: 'center' }}>
-                <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{bodyStats[0].waist}</Text>
+                <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{m.waist}</Text>
                 <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>Bel (cm)</Text>
               </View>
             ) : null}
-            {bodyStats[0]?.shoulder ? (
+            {m.shoulder ? (
               <>
                 <View style={{ width: 1, backgroundColor: C.border }} />
                 <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{bodyStats[0].shoulder}</Text>
+                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{m.shoulder}</Text>
                   <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>Omuz (cm)</Text>
                 </View>
               </>
             ) : null}
-            {bodyStats[0]?.neck ? (
+            {m.neck ? (
               <>
                 <View style={{ width: 1, backgroundColor: C.border }} />
                 <View style={{ alignItems: 'center' }}>
-                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{bodyStats[0].neck}</Text>
+                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{m.neck}</Text>
                   <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>Boyun (cm)</Text>
                 </View>
               </>
@@ -3532,19 +3538,18 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
           {/* En son ölçü kaydını düzelt / sil */}
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 28, paddingBottom: 11 }}>
-            <TouchableOpacity onPress={() => startEditBodyStat(bodyStats[0])} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <TouchableOpacity onPress={() => startEditBodyStat(m)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Ionicons name="create-outline" size={15} color={C.lime} />
               <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>Düzenle</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => deleteBodyStat(bodyStats[0]._id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <TouchableOpacity onPress={() => deleteBodyStat(m._id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Ionicons name="trash-outline" size={15} color={C.red} />
               <Text style={{ color: C.red, fontSize: 12, fontWeight: '700' }}>Sil</Text>
             </TouchableOpacity>
           </View>
           </View>
-        ) : (
-          <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.border, marginBottom: 16 }} />
-        )}
+          );
+        })()}
 
         <TouchableOpacity
           activeOpacity={0.85}
