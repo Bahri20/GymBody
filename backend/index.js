@@ -152,14 +152,33 @@ async function generateWithRetry(model, prompt, imagePart, retries = 2) {
   }
 }
 
+// Egzersiz adından en uygun GIF'i bulur. Eski sürüm "ilk benzeri" alıp yanlış GIF
+// eşleştirebiliyordu; bu sürüm kelime kesişim oranına göre PUANLAYIP en iyisini seçer,
+// çok zayıf eşleşmeyi reddeder (yanlış GIF göstermektense hiç gösterme).
 function matchGifUrl(exerciseName, availableExercises) {
-  const aiWords = exerciseName.toLowerCase().split(/\s+/);
-  return availableExercises.find(e => {
-    const dbWords = e.name.toLowerCase().split(/\s+/);
-    const shorter = aiWords.length <= dbWords.length ? aiWords : dbWords;
-    const longer  = aiWords.length <= dbWords.length ? dbWords : aiWords;
-    return shorter.every(w => longer.includes(w));
-  });
+  // anlam taşımayan dolgu kelimeleri ele (yanlış eşleşmeyi azaltır)
+  const STOP = new Set(['the','a','an','with','and','to','of','for','on','in','-','&','your','one']);
+  const norm = (s) => (s || '').toLowerCase()
+    .replace(/[()\/,.]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w && !STOP.has(w));
+
+  const aiWords = norm(exerciseName);
+  if (aiWords.length === 0) return null;
+
+  let best = null, bestScore = 0;
+  for (const e of availableExercises) {
+    const dbWords = norm(e.name);
+    if (dbWords.length === 0) continue;
+    const common = aiWords.filter(w => dbWords.includes(w)).length;
+    if (common === 0) continue;
+    // Jaccard benzeri skor: ortak kelimelerin HER İKİ isimdeki oranının çarpımı.
+    // Böylece "press" tek kelimesi uzun bir isimle gevşek eşleşip yüksek puan alamaz.
+    const score = (common / aiWords.length) * (common / dbWords.length);
+    if (score > bestScore) { bestScore = score; best = e; }
+  }
+  // Eşik: en az anlamlı bir örtüşme yoksa eşleştirme yapma (yanlış GIF'i engelle)
+  return bestScore >= 0.34 ? best : null;
 }
 function getMonday(date) {
   const d = new Date(date);
