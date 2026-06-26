@@ -168,7 +168,7 @@ function computeRank(liftKey: string, best: number, bodyweight: number, gender?:
 // Canlı backend (Render). Yerel geliştirme için: 'http://192.168.1.100:3000'
 const API_URL = 'https://gymbody.onrender.com';
 const RC_API_KEY_ANDROID = 'goog_eftKBcKbeMJVYLeJIRfhpyPHWdW';
-const RC_API_KEY_IOS = 'app8b58a1e395';
+const RC_API_KEY_IOS = 'appl_FkkFrtwjKozHMrvNSMEgWOHALgO';
 
 Purchases.setLogLevel(LOG_LEVEL.ERROR);
 // Platforma göre doğru anahtarla yapılandır; anahtar yoksa (iOS henüz kurulmadıysa) çökme
@@ -518,6 +518,7 @@ export default function App() {
   const [statWaist, setStatWaist] = useState('');
   const [statShoulder, setStatShoulder] = useState('');
   const [statNeck, setStatNeck] = useState('');
+  const [editingStatId, setEditingStatId] = useState<string | null>(null); // düzenlenen ölçü kaydının id'si (null=yeni kayıt)
   const [statsPage, setStatsPage] = useState(0);
   const [selectedVipPlan, setSelectedVipPlan] = useState('$rc_annual');
   const [macroPage, setMacroPage] = useState(0); // "Bugün ne kadar tamamlandı" kaydırma sayfası
@@ -1003,16 +1004,25 @@ const saveBodyStat = async () => {
 
   setLoading(true);
   try {
-    await axios.post(`${API_URL}/add-body-stat`, {
+    const payload = {
       weight: statWeight ? parseFloat(statWeight) : null,
       waist: statWaist ? parseFloat(statWaist) : null,
       shoulder: statShoulder ? parseFloat(statShoulder) : null,
       neck: statNeck ? parseFloat(statNeck) : null
-    }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    showToast('Ölçülerin kaydedildi ✓');
+    };
+    // editingStatId varsa mevcut kaydı DÜZELT (PUT), yoksa yeni kayıt EKLE (POST)
+    if (editingStatId) {
+      await axios.put(`${API_URL}/body-stat/${editingStatId}`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      showToast('Ölçü güncellendi ✓');
+    } else {
+      await axios.post(`${API_URL}/add-body-stat`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      showToast('Ölçülerin kaydedildi ✓');
+    }
+    setEditingStatId(null);
     setStatWeight(''); setStatWaist(''); setStatShoulder(''); setStatNeck('');
     fetchBodyStats();
 
@@ -1027,6 +1037,35 @@ const saveBodyStat = async () => {
   } finally {
     setLoading(false);
   }
+};
+
+// Bir ölçü kaydını sil (onaylı). En son ölçü yanlışsa/fazlaysa kaldırmak için.
+const deleteBodyStat = (statId: string) => {
+  Alert.alert('Ölçüyü Sil', 'Bu ölçü kaydını silmek istediğine emin misin?', [
+    { text: 'Vazgeç', style: 'cancel' },
+    { text: 'Sil', style: 'destructive', onPress: async () => {
+      try {
+        await axios.delete(`${API_URL}/body-stat/${statId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        showToast('Ölçü silindi ✓');
+        fetchBodyStats();
+      } catch (error: any) {
+        showToast(error.response?.data?.error || 'Silinemedi', 'error');
+      }
+    }},
+  ]);
+};
+
+// Bir ölçü kaydını düzenleme modunda aç: profil formunu açar ve mevcut değerleri doldurur.
+// updateProfile, editingStatId doluysa POST yerine PUT yapar (yeni kayıt eklemez, düzeltir).
+const startEditBodyStat = (stat: any) => {
+  setEditingStatId(stat._id);
+  setEditWeight(stat.weight ? String(stat.weight) : (user?.weight ? String(user.weight) : ''));
+  setStatWaist(stat.waist ? String(stat.waist) : '');
+  setStatShoulder(stat.shoulder ? String(stat.shoulder) : '');
+  setStatNeck(stat.neck ? String(stat.neck) : '');
+  setIsEditingProfile(true);
 };
 // Push token kayıt
 const registerPushToken = async (authToken: string) => {
@@ -1526,14 +1565,21 @@ const handleCompleteDay = async (feedback?: string) => {
     });
     setUser(res.data.user);
 
-    // Opsiyonel vücut ölçüleri girildiyse onları da kaydet (BodyStat)
-    if (statWaist || statShoulder || statNeck) {
-      await axios.post(`${API_URL}/add-body-stat`, {
+    // Opsiyonel vücut ölçüleri: editingStatId varsa mevcut kaydı DÜZELT (PUT),
+    // yoksa yeni ölçü kaydı EKLE (POST).
+    if (statWaist || statShoulder || statNeck || editingStatId) {
+      const measurePayload = {
         weight: parseFloat(editWeight) || null,
         waist: statWaist ? parseFloat(statWaist) : null,
         shoulder: statShoulder ? parseFloat(statShoulder) : null,
         neck: statNeck ? parseFloat(statNeck) : null
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      };
+      if (editingStatId) {
+        await axios.put(`${API_URL}/body-stat/${editingStatId}`, measurePayload, { headers: { Authorization: `Bearer ${token}` } });
+        setEditingStatId(null);
+      } else {
+        await axios.post(`${API_URL}/add-body-stat`, measurePayload, { headers: { Authorization: `Bearer ${token}` } });
+      }
       setStatWaist(''); setStatShoulder(''); setStatNeck('');
       fetchBodyStats();
     }
@@ -3457,7 +3503,8 @@ const pickAndUploadProfilePhoto = async () => {
         </View>
         {/* Vücut ölçüleri — bel / omuz / boyun */}
         {(bodyStats[0]?.waist || bodyStats[0]?.shoulder || bodyStats[0]?.neck) ? (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12, borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.border, marginBottom: 16 }}>
+          <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.border, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12 }}>
             {bodyStats[0]?.waist ? (
               <View style={{ alignItems: 'center' }}>
                 <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{bodyStats[0].waist}</Text>
@@ -3482,6 +3529,18 @@ const pickAndUploadProfilePhoto = async () => {
                 </View>
               </>
             ) : null}
+          </View>
+          {/* En son ölçü kaydını düzelt / sil */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 28, paddingBottom: 11 }}>
+            <TouchableOpacity onPress={() => startEditBodyStat(bodyStats[0])} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Ionicons name="create-outline" size={15} color={C.lime} />
+              <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>Düzenle</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => deleteBodyStat(bodyStats[0]._id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+              <Ionicons name="trash-outline" size={15} color={C.red} />
+              <Text style={{ color: C.red, fontSize: 12, fontWeight: '700' }}>Sil</Text>
+            </TouchableOpacity>
+          </View>
           </View>
         ) : (
           <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.border, marginBottom: 16 }} />
@@ -3540,7 +3599,7 @@ const pickAndUploadProfilePhoto = async () => {
               <Ionicons name="checkmark" size={18} color="#0B0D12" />
               <Text style={styles.miniBtnPrimaryText}>KAYDET</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.miniBtn, styles.miniBtnGhost]} onPress={() => setIsEditingProfile(false)}>
+            <TouchableOpacity style={[styles.miniBtn, styles.miniBtnGhost]} onPress={() => { setIsEditingProfile(false); setEditingStatId(null); setStatWaist(''); setStatShoulder(''); setStatNeck(''); }}>
               <Ionicons name="close" size={18} color={C.red} />
               <Text style={styles.miniBtnGhostText}>İPTAL</Text>
             </TouchableOpacity>
