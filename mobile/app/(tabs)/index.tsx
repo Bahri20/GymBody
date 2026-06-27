@@ -3340,10 +3340,14 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.8} onPress={redeemPromo} style={{ marginTop: 10, alignItems: 'center' }}>
-          <Text style={{ color: '#FF9F1C', fontSize: 13, fontWeight: '600' }}>Promosyon kodum var</Text>
-        </TouchableOpacity>
-        {!user?.referredBy && (
+        {/* Promosyon kodu yalnızca Android'de — Apple 3.1.1 gereği iOS'ta IAP dışı
+            içerik açma (promo kod ile VIP/indirim) yasak. iOS'ta gizli. */}
+        {Platform.OS !== 'ios' && (
+          <TouchableOpacity activeOpacity={0.8} onPress={redeemPromo} style={{ marginTop: 10, alignItems: 'center' }}>
+            <Text style={{ color: '#FF9F1C', fontSize: 13, fontWeight: '600' }}>Promosyon kodum var</Text>
+          </TouchableOpacity>
+        )}
+        {Platform.OS !== 'ios' && !user?.referredBy && (
           <TouchableOpacity activeOpacity={0.8} onPress={() => askReferralCode()} style={{ marginTop: 8, alignItems: 'center' }}>
             <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: '600' }}>🎯 Referans kodu gir</Text>
           </TouchableOpacity>
