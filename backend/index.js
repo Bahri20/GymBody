@@ -2790,6 +2790,22 @@ app.get('/coach', (req, res) => {
         <div id="gymList"></div>
       </div>
     </div>
+
+    <!-- ÖĞRENCİ DETAY + PROGRAM EDİTÖRÜ -->
+    <div id="studentView" class="hidden">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+        <div><b id="sName"></b><div class="muted" id="sInfo"></div></div>
+        <button onclick="closeStudent()" style="background:#1C2230;color:#FF9F1C;margin:0;padding:8px 14px">← Geri</button>
+      </div>
+      <div class="card" id="sProgress"></div>
+      <div class="card">
+        <div class="muted" style="margin-bottom:8px">📋 Antrenman Programı</div>
+        <div id="planDays"></div>
+        <button class="ghost" onclick="addDay()" style="width:100%;margin-top:8px">+ Gün Ekle</button>
+      </div>
+      <button onclick="savePlan()" style="width:100%">Programı Kaydet</button>
+      <div id="planMsg" style="text-align:center"></div>
+    </div>
   </div>
 </div>
 <script>
@@ -2811,8 +2827,65 @@ app.get('/coach', (req, res) => {
     const show=p.classList.contains('hidden');
     p.classList.toggle('hidden',!show); m.classList.toggle('hidden',show);
   }
-  function openStudent(id,name){
-    alert((name||'Öğrenci')+' — program & ilerleme ekranı çok yakında (Faz 2).');
+  let _plan=[], _exGroups={}, _curUser=null;
+  async function openStudent(id,name){
+    _curUser=id;
+    document.getElementById('mainView').classList.add('hidden');
+    document.getElementById('profileMenu').classList.add('hidden');
+    document.getElementById('studentView').classList.remove('hidden');
+    document.getElementById('sName').textContent=name||'Öğrenci';
+    document.getElementById('planMsg').textContent='';
+    if(!Object.keys(_exGroups).length){
+      const er=await fetch('/coach/exercises',{headers:H()}); _exGroups=await er.json();
+    }
+    const r=await fetch('/coach/students/'+id,{headers:H()});
+    const d=await r.json();
+    if(!r.ok){alert(d.error||'Yüklenemedi');closeStudent();return;}
+    document.getElementById('sInfo').textContent=[d.weight?d.weight+' kg':'',d.height?d.height+' cm':''].filter(Boolean).join(' · ');
+    const bs=d.bodyStats&&d.bodyStats[0];
+    document.getElementById('sProgress').innerHTML='<div class="muted" style="margin-bottom:6px">📊 İlerleme</div>'+
+      (bs?('<div class="stat"><span>Güncel kilo</span><b>'+(bs.weight||d.weight||'—')+' kg</b></div>'+
+      (bs.waist?'<div class="stat"><span>Bel</span><b>'+bs.waist+' cm</b></div>':'')+
+      (bs.shoulder?'<div class="stat"><span>Omuz</span><b>'+bs.shoulder+' cm</b></div>':''))
+      :'<div class="muted">Henüz ölçü kaydı yok.</div>');
+    _plan=(d.workoutPlan&&d.workoutPlan.length)?JSON.parse(JSON.stringify(d.workoutPlan)):[];
+    renderPlan();
+  }
+  function closeStudent(){
+    document.getElementById('studentView').classList.add('hidden');
+    document.getElementById('mainView').classList.remove('hidden');
+  }
+  function renderPlan(){
+    const c=document.getElementById('planDays');
+    if(!_plan.length){c.innerHTML='<div class="muted">Henüz gün yok. "Gün Ekle" ile başla.</div>';return;}
+    c.innerHTML=_plan.map(function(day,di){return ''+
+      '<div style="border:1px solid #262C3A;border-radius:10px;padding:10px;margin-bottom:8px">'+
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'+
+      '<input value="'+(day.focus||'').replace(/"/g,'&quot;')+'" placeholder="Gün '+(di+1)+' — örn. Göğüs & Kol" onchange="_plan['+di+'].focus=this.value" style="flex:1">'+
+      '<button class="danger" onclick="rmDay('+di+')">Sil</button></div>'+
+      (day.exercises||[]).map(function(ex,ei){return '<div class="row"><span><b>'+ex.name+'</b> <span class="muted">'+ex.sets+'</span></span><button class="danger" onclick="rmEx('+di+','+ei+')">×</button></div>';}).join('')+
+      '<button class="ghost" onclick="addEx('+di+')" style="width:100%;margin-top:6px;padding:8px">+ Egzersiz</button>'+
+      '</div>';}).join('');
+  }
+  function addDay(){_plan.push({dayNumber:_plan.length+1,focus:'',exercises:[]});renderPlan();}
+  function rmDay(i){_plan.splice(i,1);_plan.forEach(function(d,x){d.dayNumber=x+1;});renderPlan();}
+  function rmEx(di,ei){_plan[di].exercises.splice(ei,1);renderPlan();}
+  function addEx(di){
+    const groups=Object.keys(_exGroups);
+    if(!groups.length){alert('Egzersiz listesi yüklenemedi');return;}
+    const g=prompt('Kas grubu (numara gir):\\n'+groups.map(function(x,i){return (i+1)+'. '+x;}).join('\\n'));
+    if(!g)return; const grp=groups[parseInt(g)-1]; if(!grp){alert('Geçersiz');return;}
+    const exs=_exGroups[grp];
+    const e=prompt(grp+' egzersizleri (numara gir):\\n'+exs.map(function(x,i){return (i+1)+'. '+x.name;}).join('\\n'));
+    if(!e)return; const ex=exs[parseInt(e)-1]; if(!ex){alert('Geçersiz');return;}
+    const sets=prompt('Set x Tekrar:','4x10'); if(!sets)return;
+    _plan[di].exercises.push({name:ex.name,sets:sets,gifUrl:ex.gifUrl}); renderPlan();
+  }
+  async function savePlan(){
+    const m=document.getElementById('planMsg'); m.textContent='';m.className='';
+    if(!_plan.length){m.textContent='Program boş, en az bir gün ekle.';m.className='err';return;}
+    const r=await fetch('/coach/students/'+_curUser+'/program',{method:'POST',headers:H(),body:JSON.stringify({workoutPlan:_plan})});
+    const d=await r.json(); m.textContent=d.message||d.error; m.className=r.ok?'ok':'err';
   }
   async function load(){
     const r=await fetch('/coach/dashboard',{headers:H()});
