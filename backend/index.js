@@ -2735,8 +2735,8 @@ app.get('/coach', (req, res) => {
   .day-card{border:1px solid #262C3A;border-radius:14px;padding:14px;margin-bottom:10px;background:#10141C}
   .day-head{display:flex;gap:8px;align-items:center;margin-bottom:10px}
   .ex-row{display:flex;justify-content:space-between;align-items:center;padding:10px;background:#0B0D12;border-radius:8px;margin-bottom:6px}
-  .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;z-index:50}
-  .modal-bx{background:#141821;border-radius:22px 22px 0 0;width:100%;max-width:680px;max-height:88vh;overflow-y:auto;padding:22px;border-top:2px solid #FF9F1C}
+  .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .modal-bx{background:#141821;border-radius:18px;width:100%;max-width:640px;max-height:88vh;overflow-y:auto;padding:22px;border:1px solid #FF9F1C}
   .grp-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
   .grp-chip{padding:9px 15px;border-radius:22px;background:#1C2230;color:#E7EAF0;cursor:pointer;font-size:14px;font-weight:600;border:1px solid #262C3A}
   .grp-chip.on{background:#FF9F1C;color:#0B0D12;border-color:#FF9F1C}
