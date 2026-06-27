@@ -2008,6 +2008,74 @@ app.post('/coach/students/remove', coachMiddleware, async (req, res) => {
   }
 });
 
+// Yardımcı: öğrenci bu hocanın salonunda mı? (gymCode bazlı erişim — güvenlik)
+async function studentInCoachGym(coachId, userId) {
+  const coach = await Coach.findById(coachId);
+  if (!coach) return false;
+  if (coach.referredUsers.some(id => id.equals(userId))) return true; // kendi öğrencisi
+  if (coach.gymCode) {
+    const user = await User.findById(userId, 'referredBy');
+    if (user && user.referredBy) {
+      const refCoach = await Coach.findById(user.referredBy, 'gymCode');
+      if (refCoach && refCoach.gymCode === coach.gymCode) return true; // aynı salon
+    }
+  }
+  return false;
+}
+
+// Kas grubuna göre egzersiz listesi (program editörü — hoca buradan seçer)
+app.get('/coach/exercises', coachMiddleware, async (req, res) => {
+  try {
+    const exs = await ExerciseGif.find({}, 'name gifUrl bodyPart').sort({ name: 1 });
+    const grouped = {};
+    for (const e of exs) {
+      const p = e.bodyPart || 'Diğer';
+      (grouped[p] = grouped[p] || []).push({ name: e.name, gifUrl: e.gifUrl });
+    }
+    res.json(grouped);
+  } catch (err) { res.status(500).json({ error: "Egzersizler yüklenemedi." }); }
+});
+
+// Öğrenci detayı — ilerleme + mevcut program
+app.get('/coach/students/:userId', coachMiddleware, async (req, res) => {
+  try {
+    if (!(await studentInCoachGym(req.coachId, req.params.userId)))
+      return res.status(403).json({ error: "Bu öğrenciye erişimin yok." });
+    const user = await User.findById(req.params.userId, 'name email weight height gender weeklyPlan lifts');
+    if (!user) return res.status(404).json({ error: "Öğrenci bulunamadı." });
+    const stats = await BodyStat.find({ userId: user._id }).sort({ date: -1 }).limit(8);
+    res.json({
+      name: user.name, email: user.email, weight: user.weight, height: user.height, gender: user.gender,
+      workoutPlan: user.weeklyPlan?.workoutPlan || [],
+      lifts: user.lifts || {},
+      bodyStats: stats,
+    });
+  } catch (err) { res.status(500).json({ error: "Öğrenci yüklenemedi." }); }
+});
+
+// Hoca öğrenciye program kaydeder (uygulama formatıyla birebir: workoutPlan)
+app.post('/coach/students/:userId/program', coachMiddleware, async (req, res) => {
+  try {
+    if (!(await studentInCoachGym(req.coachId, req.params.userId)))
+      return res.status(403).json({ error: "Bu öğrenciye erişimin yok." });
+    const { workoutPlan } = req.body;
+    if (!Array.isArray(workoutPlan) || !workoutPlan.length) return res.status(400).json({ error: "Program boş olamaz." });
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: "Öğrenci bulunamadı." });
+    user.weeklyPlan = user.weeklyPlan || {};
+    user.weeklyPlan.workoutPlan = workoutPlan;
+    user.weeklyPlan.generatedAt = new Date();
+    user.weeklyPlan.completedFully = false;
+    user.weeklyPlan.currentDay = 1;
+    user.weeklyPlan.totalDays = workoutPlan.length;
+    user.weeklyPlan.started = true;
+    user.markModified('weeklyPlan');
+    await user.save();
+    console.log(`📋 Hoca programı kaydedildi → ${user.name} (${workoutPlan.length} gün)`);
+    res.json({ message: "Program kaydedildi ✓" });
+  } catch (err) { console.error("Program kaydetme hatası:", err); res.status(500).json({ error: "Program kaydedilemedi." }); }
+});
+
 // Hoca kendi şifresini değiştirir
 app.post('/coach/change-password', coachMiddleware, async (req, res) => {
   try {
