@@ -1909,8 +1909,29 @@ app.get('/coach/dashboard', coachMiddleware, async (req, res) => {
       joinedAt: u.createdAt,
     }));
 
+    // Salon geneli öğrenciler — aynı gymCode'daki TÜM hocaların öğrencileri (ortak havuz).
+    // Salon ekibindeki her hoca tüm öğrencileri görür/yönetir.
+    let gymStudents = [];
+    if (coach.gymCode) {
+      const gymCoaches = await Coach.find({ gymCode: coach.gymCode })
+        .populate('referredUsers', 'name email isVip vipExpiresAt createdAt');
+      const seen = new Set();
+      for (const gc of gymCoaches) {
+        for (const u of (gc.referredUsers || [])) {
+          if (seen.has(String(u._id))) continue;
+          seen.add(String(u._id));
+          gymStudents.push({
+            _id: u._id, name: u.name, email: u.email,
+            isVip: u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now),
+            coachName: gc.name, coachId: gc._id,
+          });
+        }
+      }
+    }
+
     res.json({
       name: coach.name,
+      coachId: coach._id,
       referralCode: coach.referralCode,
       gymCode: coach.gymCode || null,
       discountRate: coach.discountRate,
@@ -1919,6 +1940,7 @@ app.get('/coach/dashboard', coachMiddleware, async (req, res) => {
       totalEarned: coach.totalEarned,
       referredCount: students.length,
       students,
+      gymStudents,
       recentCommissions,
       withdrawals: coach.withdrawals.slice(-20).reverse(),
     });
@@ -2638,33 +2660,20 @@ app.get('/coach', (req, res) => {
 
   <!-- DASHBOARD -->
   <div id="dash" class="hidden">
-    <div class="card">
-      <div class="row"><div><b id="cName"></b><div class="muted">Salon: <span id="cGym" class="pill">—</span> · Kod: <span id="cRef" class="pill">—</span></div></div>
-        <button class="ghost" onclick="logout()" style="margin:0;padding:6px 12px;font-size:13px">Çıkış</button></div>
-    </div>
-    <div class="tabs">
-      <div class="tab active" id="tabS" onclick="showTab('students')">Öğrencilerim</div>
-      <div class="tab" id="tabP" onclick="showTab('profile')">Profil & Kazanç</div>
+    <!-- üst bar: hoca + salon + profil ikonu -->
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+      <div><b id="cName"></b><div class="muted">🏋️ Salon: <span id="cGym" class="pill">—</span></div></div>
+      <button onclick="toggleProfile()" title="Profil" style="background:#1C2230;color:#C6FF3D;border-radius:50%;width:46px;height:46px;font-size:20px;margin:0;padding:0">👤</button>
     </div>
 
-    <!-- ÖĞRENCİLER -->
-    <div id="students">
-      <div class="card">
-        <label>Öğrenci ekle (kayıtlı e-posta)</label>
-        <input id="newStudent" type="email" placeholder="ornek@mail.com">
-        <button onclick="addStudent()">Ekle</button>
-        <div id="addMsg"></div>
-      </div>
-      <div class="card"><div id="studentList"></div></div>
-    </div>
-
-    <!-- PROFİL -->
-    <div id="profile" class="hidden">
+    <!-- PROFİL (gizli, ikona tıkla) -->
+    <div id="profileMenu" class="hidden">
       <div class="card">
         <div class="stat"><span>Bakiye</span><b id="pBal">—</b></div>
         <div class="stat"><span>Toplam Kazanç</span><b id="pEarn">—</b></div>
         <div class="stat"><span>Komisyon Oranı</span><span id="pComm" class="pill">—</span></div>
         <div class="stat"><span>Öğrenci İndirimi</span><span id="pDisc" class="pill">—</span></div>
+        <div class="stat"><span>Referans Kodun</span><span id="cRef" class="pill">—</span></div>
       </div>
       <div class="card">
         <label>Para çekme — Tutar (TL)</label><input id="wAmount" type="number" placeholder="min 50">
@@ -2673,6 +2682,21 @@ app.get('/coach', (req, res) => {
         <div id="wMsg"></div>
       </div>
       <div class="card"><div class="muted" style="margin-bottom:8px">Geçmiş çekimler</div><div id="wList"></div></div>
+      <button class="ghost" onclick="logout()" style="width:100%">Çıkış Yap</button>
+    </div>
+
+    <!-- ÖĞRENCİLER (salon geneli) -->
+    <div id="mainView">
+      <div class="card">
+        <label>Öğrenci ekle (kayıtlı e-posta)</label>
+        <input id="newStudent" type="email" placeholder="ornek@mail.com">
+        <button onclick="addStudent()">Ekle</button>
+        <div id="addMsg"></div>
+      </div>
+      <div class="card">
+        <div class="muted" style="margin-bottom:8px">👥 Salondaki öğrenciler — tıkla: program & ilerleme</div>
+        <div id="gymList"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -2690,11 +2714,13 @@ app.get('/coach', (req, res) => {
     }catch(_){e.textContent='Bağlantı hatası';}
   }
   function logout(){localStorage.removeItem('coachToken');location.reload();}
-  function showTab(t){
-    document.getElementById('students').classList.toggle('hidden',t!=='students');
-    document.getElementById('profile').classList.toggle('hidden',t!=='profile');
-    document.getElementById('tabS').classList.toggle('active',t==='students');
-    document.getElementById('tabP').classList.toggle('active',t==='profile');
+  function toggleProfile(){
+    const p=document.getElementById('profileMenu'), m=document.getElementById('mainView');
+    const show=p.classList.contains('hidden');
+    p.classList.toggle('hidden',!show); m.classList.toggle('hidden',show);
+  }
+  function openStudent(id,name){
+    alert((name||'Öğrenci')+' — program & ilerleme ekranı çok yakında (Faz 2).');
   }
   async function load(){
     const r=await fetch('/coach/dashboard',{headers:H()});
@@ -2709,12 +2735,15 @@ app.get('/coach', (req, res) => {
     document.getElementById('pEarn').textContent=(d.totalEarned||0)+' TL';
     document.getElementById('pComm').textContent='%'+d.commissionRate;
     document.getElementById('pDisc').textContent='%'+d.discountRate;
-    // öğrenciler
-    const sl=document.getElementById('studentList');
-    if(!d.students||!d.students.length){sl.innerHTML='<div class="muted">Henüz öğrencin yok. Yukarıdan e-posta ile ekle.</div>';}
-    else{sl.innerHTML=d.students.map(s=>
-      '<div class="row"><div><b>'+s.name+'</b> <span class="'+(s.isVip?'vip':'novip')+'">'+(s.isVip?'VIP':'')+'</span><div class="muted">'+s.email+'</div></div>'+
-      '<button class="danger" onclick="rmStudent(\\''+s._id+'\\')">Çıkar</button></div>').join('');}
+    // salon öğrencileri (varsa salon geneli ortak havuz, yoksa kendi öğrencileri)
+    const list=(d.gymStudents&&d.gymStudents.length)?d.gymStudents:(d.students||[]);
+    const gl=document.getElementById('gymList');
+    if(!list.length){gl.innerHTML='<div class="muted">Henüz öğrenci yok. Yukarıdan e-posta ile ekle.</div>';}
+    else{gl.innerHTML=list.map(s=>
+      '<div class="row" style="cursor:pointer" onclick="openStudent(\\''+s._id+'\\',\\''+(s.name||'').replace(/[^\\w çğıöşüÇĞİÖŞÜ]/g,'')+'\\')">'+
+      '<div><b>'+s.name+'</b> <span class="'+(s.isVip?'vip':'novip')+'">'+(s.isVip?'VIP':'')+'</span>'+
+      '<div class="muted">'+(s.coachName?('Hoca: '+s.coachName):(s.email||''))+'</div></div>'+
+      '<span style="color:#C6FF3D;font-size:20px">›</span></div>').join('');}
     // çekimler
     const wl=document.getElementById('wList');
     wl.innerHTML=(d.withdrawals&&d.withdrawals.length)?d.withdrawals.map(w=>
