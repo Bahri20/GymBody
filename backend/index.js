@@ -2629,47 +2629,47 @@ app.get('/coach', (req, res) => {
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#0B0D12;color:#E7EAF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.5}
   .wrap{max-width:680px;margin:0 auto;padding:24px 16px 60px}
-  h1{color:#C6FF3D;font-size:22px;margin-bottom:2px}
+  h1{color:#FF9F1C;font-size:22px;margin-bottom:2px}
   .sub{color:#6B7384;font-size:13px;margin-bottom:22px}
   .card{background:#141821;border:1px solid #1C2230;border-radius:14px;padding:18px;margin-bottom:14px}
   label{display:block;font-size:13px;color:#9AA3B2;margin:10px 0 4px}
   input{width:100%;background:#0B0D12;border:1px solid #262C3A;border-radius:10px;padding:12px;color:#E7EAF0;font-size:15px}
-  button{background:#C6FF3D;color:#0B0D12;border:none;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;margin-top:12px}
-  button.ghost{background:transparent;color:#C6FF3D;border:1px solid #C6FF3D}
+  button{background:#FF9F1C;color:#0B0D12;border:none;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;margin-top:12px}
+  button.ghost{background:transparent;color:#FF9F1C;border:1px solid #FF9F1C}
   button.danger{background:transparent;color:#FF5C5C;border:1px solid #FF5C5C;padding:6px 12px;font-size:13px;margin:0}
   .tabs{display:flex;gap:8px;margin-bottom:14px}
   .tab{flex:1;text-align:center;padding:10px;border-radius:10px;background:#141821;border:1px solid #1C2230;cursor:pointer;font-weight:600;font-size:14px}
-  .tab.active{background:#C6FF3D;color:#0B0D12}
+  .tab.active{background:#FF9F1C;color:#0B0D12}
   .row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #1C2230}
   .row:last-child{border-bottom:none}
   .muted{color:#6B7384;font-size:12px}
   .stat{display:flex;justify-content:space-between;padding:8px 0}
-  .stat b{color:#C6FF3D;font-size:18px}
-  .pill{display:inline-block;background:#1C2230;color:#C6FF3D;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700}
+  .stat b{color:#FF9F1C;font-size:18px}
+  .pill{display:inline-block;background:#1C2230;color:#FF9F1C;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700}
   .err{color:#FF5C5C;font-size:13px;margin-top:8px}
-  .ok{color:#C6FF3D;font-size:13px;margin-top:8px}
+  .ok{color:#FF9F1C;font-size:13px;margin-top:8px}
   .hidden{display:none}
-  .vip{color:#C6FF3D} .novip{color:#6B7384}
+  .vip{color:#FF9F1C} .novip{color:#6B7384}
   /* Login ekranı */
-  input:focus{outline:none;border-color:#C6FF3D;box-shadow:0 0 0 3px rgba(198,255,61,.12)}
+  input:focus{outline:none;border-color:#FF9F1C;box-shadow:0 0 0 3px rgba(255,159,28,.12)}
   button:hover{filter:brightness(1.08)}
   #loginBox{max-width:380px;margin:48px auto 0;padding:32px 26px;border-radius:20px;
-    box-shadow:0 12px 48px rgba(0,0,0,.45),0 0 0 1px rgba(198,255,61,.06);
+    box-shadow:0 12px 48px rgba(0,0,0,.45),0 0 0 1px rgba(255,159,28,.06);
     background:linear-gradient(180deg,#161B26,#10141C)}
   .login-logo{width:64px;height:64px;margin:0 auto 14px;border-radius:18px;display:flex;
     align-items:center;justify-content:center;font-size:32px;
-    background:linear-gradient(135deg,#C6FF3D,#8Fd420);box-shadow:0 8px 24px rgba(198,255,61,.25)}
+    background:linear-gradient(135deg,#FF9F1C,#D97200);box-shadow:0 8px 24px rgba(255,159,28,.25)}
   .login-title{text-align:center;font-size:22px;font-weight:800;color:#fff;margin-bottom:4px}
   .login-desc{text-align:center;color:#6B7384;font-size:13px;margin-bottom:22px}
   #loginBox button{width:100%;padding:14px;font-size:16px;margin-top:20px;
-    background:linear-gradient(135deg,#C6FF3D,#A6E82C)}
+    background:linear-gradient(135deg,#FF9F1C,#F08800)}
 </style></head>
 <body><div class="wrap">
   <!-- LOGIN -->
   <div id="loginBox" class="card">
     <div class="login-logo">🏋️</div>
     <div class="login-title">Hoca Paneli</div>
-    <div class="login-desc">GymBody<span style="color:#C6FF3D">AI</span> — öğrencilerini ve kazancını yönet</div>
+    <div class="login-desc">GymBody<span style="color:#FF9F1C">AI</span> — öğrencilerini ve kazancını yönet</div>
     <label>E-posta</label><input id="email" type="email" autocomplete="username" placeholder="hoca@email.com">
     <label>Şifre</label><input id="pass" type="password" autocomplete="current-password" placeholder="••••••••">
     <button onclick="login()">Giriş Yap →</button>
@@ -2681,7 +2681,7 @@ app.get('/coach', (req, res) => {
     <!-- üst bar: hoca + salon + profil ikonu -->
     <div class="card" style="display:flex;justify-content:space-between;align-items:center">
       <div><b id="cName"></b><div class="muted">🏋️ Salon: <span id="cGym" class="pill">—</span></div></div>
-      <button onclick="toggleProfile()" title="Profil" style="background:#1C2230;color:#C6FF3D;border-radius:50%;width:46px;height:46px;font-size:20px;margin:0;padding:0">👤</button>
+      <button onclick="toggleProfile()" title="Profil" style="background:#1C2230;color:#FF9F1C;border-radius:50%;width:46px;height:46px;font-size:20px;margin:0;padding:0">👤</button>
     </div>
 
     <!-- PROFİL (gizli, ikona tıkla) -->
@@ -2766,7 +2766,7 @@ app.get('/coach', (req, res) => {
       '<div class="row" style="cursor:pointer" onclick="openStudent(\\''+s._id+'\\',\\''+(s.name||'').replace(/[^\\w çğıöşüÇĞİÖŞÜ]/g,'')+'\\')">'+
       '<div><b>'+s.name+'</b> <span class="'+(s.isVip?'vip':'novip')+'">'+(s.isVip?'VIP':'')+'</span>'+
       '<div class="muted">'+(s.coachName?('Hoca: '+s.coachName):(s.email||''))+'</div></div>'+
-      '<span style="color:#C6FF3D;font-size:20px">›</span></div>').join('');}
+      '<span style="color:#FF9F1C;font-size:20px">›</span></div>').join('');}
     // çekimler
     const wl=document.getElementById('wList');
     wl.innerHTML=(d.withdrawals&&d.withdrawals.length)?d.withdrawals.map(w=>
