@@ -2503,7 +2503,7 @@ app.delete('/account', authMiddleware, async (req, res) => {
     res.json({ ok: true, message: 'Hesabın ve tüm verilerin kalıcı olarak silindi.' });
   } catch (err) {
     console.error('🔥 Hesap silme hatası:', err);
-    res.status(500).json({ error: 'Hesap silinemedi, tekrar dene.' });
+    res.status(500).json({ error: 'Hesap silinemedi, tekrar dene.', detail: err.message });
   }
 });
 
