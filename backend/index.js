@@ -2790,34 +2790,44 @@ app.get('/coach', (req, res) => {
       <button class="ghost" onclick="logout()" style="width:100%">Çıkış Yap</button>
     </div>
 
-    <!-- ÖĞRENCİLER (salon geneli) -->
-    <div id="mainView">
-      <div class="card">
-        <label>Öğrenci ekle (kayıtlı e-posta)</label>
-        <input id="newStudent" type="email" placeholder="ornek@mail.com">
-        <button onclick="addStudent()">Ekle</button>
-        <div id="addMsg"></div>
+    <!-- TABS + İÇERİK -->
+    <div id="mainContent">
+      <div class="tabs">
+        <div class="tab active" id="tab1" onclick="switchTab(1)">👥 Öğrenciler</div>
+        <div class="tab" id="tab2" onclick="switchTab(2)">📋 Program</div>
       </div>
-      <div class="card">
-        <div class="muted" style="margin-bottom:8px">👥 Salondaki öğrenciler — tıkla: program & ilerleme</div>
-        <div id="gymList"></div>
-      </div>
-    </div>
 
-    <!-- ÖĞRENCİ DETAY + PROGRAM EDİTÖRÜ -->
-    <div id="studentView" class="hidden">
-      <div class="card" style="display:flex;justify-content:space-between;align-items:center">
-        <div><b id="sName"></b><div class="muted" id="sInfo"></div></div>
-        <button onclick="closeStudent()" style="background:#1C2230;color:#FF9F1C;margin:0;padding:8px 14px">← Geri</button>
+      <!-- TAB 1: Öğrenciler -->
+      <div id="view1">
+        <div class="card">
+          <label>Öğrenci ekle (kayıtlı e-posta)</label>
+          <input id="newStudent" type="email" placeholder="ornek@mail.com">
+          <button onclick="addStudent()">Ekle</button>
+          <div id="addMsg"></div>
+        </div>
+        <div class="card">
+          <div class="muted" style="margin-bottom:8px">👥 Salondaki öğrenciler — tıkla: programı düzenle</div>
+          <div id="gymList"></div>
+        </div>
       </div>
-      <div class="card" id="sProgress"></div>
-      <div class="card">
-        <div class="muted" style="margin-bottom:8px">📋 Antrenman Programı</div>
-        <div id="planDays"></div>
-        <button class="ghost" onclick="addDay()" style="width:100%;margin-top:8px">+ Gün Ekle</button>
+
+      <!-- TAB 2: Program Editörü -->
+      <div id="view2" class="hidden">
+        <div id="noStudentMsg" class="card">
+          <div class="muted" style="text-align:center;padding:12px">← Öğrenciler sekmesinden bir öğrenci seç</div>
+        </div>
+        <div id="studentView" class="hidden">
+          <div class="card"><div><b id="sName"></b><div class="muted" id="sInfo"></div></div></div>
+          <div class="card" id="sProgress"></div>
+          <div class="card">
+            <div class="muted" style="margin-bottom:8px">📋 Antrenman Programı</div>
+            <div id="planDays"></div>
+            <button class="ghost" onclick="addDay()" style="width:100%;margin-top:8px">+ Gün Ekle</button>
+          </div>
+          <button onclick="savePlan()" style="width:100%">Programı Kaydet</button>
+          <div id="planMsg" style="text-align:center"></div>
+        </div>
       </div>
-      <button onclick="savePlan()" style="width:100%">Programı Kaydet</button>
-      <div id="planMsg" style="text-align:center"></div>
     </div>
 
     <!-- Egzersiz seçme modalı -->
@@ -2856,16 +2866,24 @@ app.get('/coach', (req, res) => {
     }catch(_){e.textContent='Bağlantı hatası';}
   }
   function logout(){localStorage.removeItem('coachToken');location.reload();}
+  function switchTab(n){
+    document.getElementById('view1').classList.toggle('hidden',n!==1);
+    document.getElementById('view2').classList.toggle('hidden',n!==2);
+    document.getElementById('tab1').classList.toggle('active',n===1);
+    document.getElementById('tab2').classList.toggle('active',n===2);
+  }
   function toggleProfile(){
-    const p=document.getElementById('profileMenu'), m=document.getElementById('mainView');
+    const p=document.getElementById('profileMenu'), m=document.getElementById('mainContent');
     const show=p.classList.contains('hidden');
     p.classList.toggle('hidden',!show); m.classList.toggle('hidden',show);
   }
   let _plan=[], _exGroups={}, _curUser=null;
   async function openStudent(id,name){
     _curUser=id;
-    document.getElementById('mainView').classList.add('hidden');
     document.getElementById('profileMenu').classList.add('hidden');
+    document.getElementById('mainContent').classList.remove('hidden');
+    switchTab(2);
+    document.getElementById('noStudentMsg').classList.add('hidden');
     document.getElementById('studentView').classList.remove('hidden');
     document.getElementById('sName').textContent=name||'Öğrenci';
     document.getElementById('planMsg').textContent='';
@@ -2887,7 +2905,8 @@ app.get('/coach', (req, res) => {
   }
   function closeStudent(){
     document.getElementById('studentView').classList.add('hidden');
-    document.getElementById('mainView').classList.remove('hidden');
+    document.getElementById('noStudentMsg').classList.remove('hidden');
+    switchTab(1);
   }
   function renderPlan(){
     const c=document.getElementById('planDays');
