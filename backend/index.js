@@ -2764,6 +2764,10 @@ app.get('/', (req, res) => {
       <div class="feat"><div class="e">🏆</div><div class="t">Güç Sıralaması</div><div class="d">Ranklar, rozetler, liderlik</div></div>
       <div class="feat"><div class="e">📸</div><div class="t">Gelişim Analizi</div><div class="d">AI ile yağ oranı & fotoğraf</div></div>
     </div>
+    <div style="margin-top:36px">
+      <a href="/coach" style="display:inline-block;background:#C6FF3D;color:#0B0D12;font-weight:700;text-decoration:none;padding:12px 22px;border-radius:10px;margin:6px">🏋️ Hoca Girişi</a>
+      <a href="/admin-panel.html" style="display:inline-block;background:transparent;color:#C6FF3D;border:1px solid #C6FF3D;font-weight:700;text-decoration:none;padding:12px 22px;border-radius:10px;margin:6px">⚙️ Yönetim</a>
+    </div>
     <div class="links">
       <a href="/privacy">Gizlilik Politikası</a> ·
       <a href="/terms">Kullanım Koşulları</a> ·
