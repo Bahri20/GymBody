@@ -1894,22 +1894,33 @@ function coachMiddleware(req, res, next) {
 // PT Dashboard
 app.get('/coach/dashboard', coachMiddleware, async (req, res) => {
   try {
-    const coach = await Coach.findById(req.coachId);
+    const coach = await Coach.findById(req.coachId)
+      .populate('referredUsers', 'name email isVip vipExpiresAt createdAt');
     if (!coach) return res.status(404).json({ error: "Koç bulunamadı." });
 
     const recentCommissions = coach.commissions.slice(-20).reverse();
-    const pendingWithdrawals = coach.withdrawals.filter(w => w.status === 'pending');
+    const now = new Date();
+    // Öğrenci listesi (program yazılacak üyeler)
+    const students = (coach.referredUsers || []).map(u => ({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      isVip: u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now),
+      joinedAt: u.createdAt,
+    }));
 
     res.json({
       name: coach.name,
       referralCode: coach.referralCode,
+      gymCode: coach.gymCode || null,
       discountRate: coach.discountRate,
       commissionRate: coach.commissionRate,
       balance: coach.balance,
       totalEarned: coach.totalEarned,
-      referredCount: coach.referredUsers.length,
+      referredCount: students.length,
+      students,
       recentCommissions,
-      pendingWithdrawals
+      withdrawals: coach.withdrawals.slice(-20).reverse(),
     });
   } catch (err) {
     res.status(500).json({ error: "Dashboard yüklenemedi." });
@@ -1934,6 +1945,44 @@ app.post('/coach/withdraw', coachMiddleware, async (req, res) => {
     res.json({ message: "Para çekme talebiniz alındı. 1-3 iş günü içinde hesabınıza aktarılacaktır.", balance: coach.balance });
   } catch (err) {
     res.status(500).json({ error: "Para çekme talebi oluşturulamadı." });
+  }
+});
+
+// Öğrenci ekle (hoca, e-posta ile) — kendi öğrenci listesine alır
+app.post('/coach/students/add', coachMiddleware, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Öğrencinin e-postasını gir." });
+    const user = await User.findOne({ email: email.trim() });
+    if (!user) return res.status(404).json({ error: "Bu e-posta ile kayıtlı kullanıcı yok." });
+    const coach = await Coach.findById(req.coachId);
+    if (coach.referredUsers.some(id => id.equals(user._id))) {
+      return res.status(400).json({ error: "Bu öğrenci zaten listende." });
+    }
+    coach.referredUsers.push(user._id);
+    await coach.save();
+    user.referredBy = coach._id;
+    await user.save();
+    res.json({ message: `${user.name} öğrenci listene eklendi.`, student: { _id: user._id, name: user.name, email: user.email } });
+  } catch (err) {
+    console.error("Öğrenci ekleme hatası:", err);
+    res.status(500).json({ error: "Öğrenci eklenemedi." });
+  }
+});
+
+// Öğrenci çıkar (hoca)
+app.post('/coach/students/remove', coachMiddleware, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: "userId gerekli." });
+    const coach = await Coach.findById(req.coachId);
+    coach.referredUsers = coach.referredUsers.filter(id => !id.equals(userId));
+    await coach.save();
+    await User.updateOne({ _id: userId, referredBy: coach._id }, { $unset: { referredBy: 1 } });
+    res.json({ message: "Öğrenci listenden çıkarıldı." });
+  } catch (err) {
+    console.error("Öğrenci çıkarma hatası:", err);
+    res.status(500).json({ error: "Öğrenci çıkarılamadı." });
   }
 });
 
@@ -1976,7 +2025,7 @@ app.delete('/admin/coach/:id', adminMiddleware, async (req, res) => {
 // Koç oluştur (admin)
 app.post('/admin/coach', adminMiddleware, async (req, res) => {
   try {
-    const { name, email, password, phone, referralCode, discountRate, commissionRate, notes } = req.body;
+    const { name, email, password, phone, referralCode, gymCode, discountRate, commissionRate, notes } = req.body;
     if (!name || !email || !password || !referralCode) {
       return res.status(400).json({ error: "İsim, email, şifre ve referral kodu zorunlu." });
     }
@@ -1988,6 +2037,7 @@ app.post('/admin/coach', adminMiddleware, async (req, res) => {
       name, email, phone, notes,
       password: hashedPassword,
       referralCode: referralCode.toLowerCase().trim(),
+      gymCode: gymCode ? gymCode.toUpperCase().trim() : undefined, // salon kodu (ör. MLFT2)
       discountRate: discountRate || 10,
       commissionRate: commissionRate || 15
     });
@@ -2529,6 +2579,158 @@ const LEGAL_PAGE = (title, bodyHtml) => `<!DOCTYPE html>
 </div></body></html>`;
 
 // Ana sayfa — basit tanıtım (mağaza web sitesi alanı için)
+// ─── HOCA WEB PANELİ (PT) — login + öğrenci yönetimi + komisyon/para çekme ───
+app.get('/coach', (req, res) => {
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hoca Paneli — GymBodyAI</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0B0D12;color:#E7EAF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.5}
+  .wrap{max-width:680px;margin:0 auto;padding:24px 16px 60px}
+  h1{color:#C6FF3D;font-size:22px;margin-bottom:2px}
+  .sub{color:#6B7384;font-size:13px;margin-bottom:22px}
+  .card{background:#141821;border:1px solid #1C2230;border-radius:14px;padding:18px;margin-bottom:14px}
+  label{display:block;font-size:13px;color:#9AA3B2;margin:10px 0 4px}
+  input{width:100%;background:#0B0D12;border:1px solid #262C3A;border-radius:10px;padding:12px;color:#E7EAF0;font-size:15px}
+  button{background:#C6FF3D;color:#0B0D12;border:none;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;margin-top:12px}
+  button.ghost{background:transparent;color:#C6FF3D;border:1px solid #C6FF3D}
+  button.danger{background:transparent;color:#FF5C5C;border:1px solid #FF5C5C;padding:6px 12px;font-size:13px;margin:0}
+  .tabs{display:flex;gap:8px;margin-bottom:14px}
+  .tab{flex:1;text-align:center;padding:10px;border-radius:10px;background:#141821;border:1px solid #1C2230;cursor:pointer;font-weight:600;font-size:14px}
+  .tab.active{background:#C6FF3D;color:#0B0D12}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #1C2230}
+  .row:last-child{border-bottom:none}
+  .muted{color:#6B7384;font-size:12px}
+  .stat{display:flex;justify-content:space-between;padding:8px 0}
+  .stat b{color:#C6FF3D;font-size:18px}
+  .pill{display:inline-block;background:#1C2230;color:#C6FF3D;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700}
+  .err{color:#FF5C5C;font-size:13px;margin-top:8px}
+  .ok{color:#C6FF3D;font-size:13px;margin-top:8px}
+  .hidden{display:none}
+  .vip{color:#C6FF3D} .novip{color:#6B7384}
+</style></head>
+<body><div class="wrap">
+  <h1>🏋️ Hoca Paneli</h1>
+  <div class="sub">GymBodyAI — öğrencilerini ve kazancını yönet</div>
+
+  <!-- LOGIN -->
+  <div id="loginBox" class="card">
+    <label>E-posta</label><input id="email" type="email" autocomplete="username">
+    <label>Şifre</label><input id="pass" type="password" autocomplete="current-password">
+    <button onclick="login()">Giriş Yap</button>
+    <div id="loginErr" class="err"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dash" class="hidden">
+    <div class="card">
+      <div class="row"><div><b id="cName"></b><div class="muted">Salon: <span id="cGym" class="pill">—</span> · Kod: <span id="cRef" class="pill">—</span></div></div>
+        <button class="ghost" onclick="logout()" style="margin:0;padding:6px 12px;font-size:13px">Çıkış</button></div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" id="tabS" onclick="showTab('students')">Öğrencilerim</div>
+      <div class="tab" id="tabP" onclick="showTab('profile')">Profil & Kazanç</div>
+    </div>
+
+    <!-- ÖĞRENCİLER -->
+    <div id="students">
+      <div class="card">
+        <label>Öğrenci ekle (kayıtlı e-posta)</label>
+        <input id="newStudent" type="email" placeholder="ornek@mail.com">
+        <button onclick="addStudent()">Ekle</button>
+        <div id="addMsg"></div>
+      </div>
+      <div class="card"><div id="studentList"></div></div>
+    </div>
+
+    <!-- PROFİL -->
+    <div id="profile" class="hidden">
+      <div class="card">
+        <div class="stat"><span>Bakiye</span><b id="pBal">—</b></div>
+        <div class="stat"><span>Toplam Kazanç</span><b id="pEarn">—</b></div>
+        <div class="stat"><span>Komisyon Oranı</span><span id="pComm" class="pill">—</span></div>
+        <div class="stat"><span>Öğrenci İndirimi</span><span id="pDisc" class="pill">—</span></div>
+      </div>
+      <div class="card">
+        <label>Para çekme — Tutar (TL)</label><input id="wAmount" type="number" placeholder="min 50">
+        <label>IBAN</label><input id="wIban" placeholder="TR...">
+        <button onclick="withdraw()">Para Çek</button>
+        <div id="wMsg"></div>
+      </div>
+      <div class="card"><div class="muted" style="margin-bottom:8px">Geçmiş çekimler</div><div id="wList"></div></div>
+    </div>
+  </div>
+</div>
+<script>
+  const T = () => localStorage.getItem('coachToken');
+  const H = () => ({ 'Content-Type':'application/json', 'Authorization':'Bearer '+T() });
+  async function login(){
+    const email=document.getElementById('email').value.trim(), password=document.getElementById('pass').value;
+    const e=document.getElementById('loginErr'); e.textContent='';
+    try{
+      const r=await fetch('/coach/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+      const d=await r.json();
+      if(!r.ok){e.textContent=d.error||'Giriş başarısız';return;}
+      localStorage.setItem('coachToken',d.token); load();
+    }catch(_){e.textContent='Bağlantı hatası';}
+  }
+  function logout(){localStorage.removeItem('coachToken');location.reload();}
+  function showTab(t){
+    document.getElementById('students').classList.toggle('hidden',t!=='students');
+    document.getElementById('profile').classList.toggle('hidden',t!=='profile');
+    document.getElementById('tabS').classList.toggle('active',t==='students');
+    document.getElementById('tabP').classList.toggle('active',t==='profile');
+  }
+  async function load(){
+    const r=await fetch('/coach/dashboard',{headers:H()});
+    if(!r.ok){logout();return;}
+    const d=await r.json();
+    document.getElementById('loginBox').classList.add('hidden');
+    document.getElementById('dash').classList.remove('hidden');
+    document.getElementById('cName').textContent=d.name;
+    document.getElementById('cGym').textContent=d.gymCode||'—';
+    document.getElementById('cRef').textContent=d.referralCode;
+    document.getElementById('pBal').textContent=(d.balance||0)+' TL';
+    document.getElementById('pEarn').textContent=(d.totalEarned||0)+' TL';
+    document.getElementById('pComm').textContent='%'+d.commissionRate;
+    document.getElementById('pDisc').textContent='%'+d.discountRate;
+    // öğrenciler
+    const sl=document.getElementById('studentList');
+    if(!d.students||!d.students.length){sl.innerHTML='<div class="muted">Henüz öğrencin yok. Yukarıdan e-posta ile ekle.</div>';}
+    else{sl.innerHTML=d.students.map(s=>
+      '<div class="row"><div><b>'+s.name+'</b> <span class="'+(s.isVip?'vip':'novip')+'">'+(s.isVip?'VIP':'')+'</span><div class="muted">'+s.email+'</div></div>'+
+      '<button class="danger" onclick="rmStudent(\\''+s._id+'\\')">Çıkar</button></div>').join('');}
+    // çekimler
+    const wl=document.getElementById('wList');
+    wl.innerHTML=(d.withdrawals&&d.withdrawals.length)?d.withdrawals.map(w=>
+      '<div class="row"><span>'+w.amount+' TL</span><span class="pill">'+w.status+'</span></div>').join(''):'<div class="muted">Henüz çekim yok.</div>';
+  }
+  async function addStudent(){
+    const email=document.getElementById('newStudent').value.trim();
+    const m=document.getElementById('addMsg'); m.textContent='';m.className='';
+    const r=await fetch('/coach/students/add',{method:'POST',headers:H(),body:JSON.stringify({email})});
+    const d=await r.json();
+    if(!r.ok){m.textContent=d.error;m.className='err';return;}
+    m.textContent=d.message;m.className='ok';document.getElementById('newStudent').value='';load();
+  }
+  async function rmStudent(userId){
+    if(!confirm('Öğrenciyi listenden çıkar?'))return;
+    await fetch('/coach/students/remove',{method:'POST',headers:H(),body:JSON.stringify({userId})});load();
+  }
+  async function withdraw(){
+    const amount=+document.getElementById('wAmount').value, iban=document.getElementById('wIban').value.trim();
+    const m=document.getElementById('wMsg'); m.textContent='';m.className='';
+    const r=await fetch('/coach/withdraw',{method:'POST',headers:H(),body:JSON.stringify({amount,iban})});
+    const d=await r.json();
+    m.textContent=d.message||d.error;m.className=r.ok?'ok':'err';if(r.ok)load();
+  }
+  if(T())load();
+</script>
+</body></html>`);
+});
+
 app.get('/', (req, res) => {
   res.type('html').send(`<!DOCTYPE html>
 <html lang="tr"><head><meta charset="utf-8">
