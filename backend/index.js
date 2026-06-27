@@ -2477,8 +2477,9 @@ app.delete('/account', authMiddleware, async (req, res) => {
     const user = await User.findById(myId);
     if (!user) return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
 
-    // Şifre gönderilmişse doğrula (ekstra güvenlik); gönderilmediyse token yeterli (kullanıcı zaten oturum açmış)
-    if (user.password && req.body.password) {
+    // Şifre gönderilmişse doğrula (ekstra güvenlik); gönderilmediyse token yeterli (kullanıcı zaten oturum açmış).
+    // NOT: req.body body'siz DELETE isteğinde undefined olabilir → optional chaining ile güvenli.
+    if (user.password && req.body?.password) {
       const ok = await bcrypt.compare(req.body.password, user.password);
       if (!ok) return res.status(400).json({ error: 'Şifre hatalı.' });
     }
@@ -2503,7 +2504,7 @@ app.delete('/account', authMiddleware, async (req, res) => {
     res.json({ ok: true, message: 'Hesabın ve tüm verilerin kalıcı olarak silindi.' });
   } catch (err) {
     console.error('🔥 Hesap silme hatası:', err);
-    res.status(500).json({ error: 'Hesap silinemedi, tekrar dene.', detail: err.message });
+    res.status(500).json({ error: 'Hesap silinemedi, tekrar dene.' });
   }
 });
 
