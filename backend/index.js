@@ -2610,17 +2610,30 @@ app.get('/coach', (req, res) => {
   .ok{color:#C6FF3D;font-size:13px;margin-top:8px}
   .hidden{display:none}
   .vip{color:#C6FF3D} .novip{color:#6B7384}
+  /* Login ekranı */
+  input:focus{outline:none;border-color:#C6FF3D;box-shadow:0 0 0 3px rgba(198,255,61,.12)}
+  button:hover{filter:brightness(1.08)}
+  #loginBox{max-width:380px;margin:48px auto 0;padding:32px 26px;border-radius:20px;
+    box-shadow:0 12px 48px rgba(0,0,0,.45),0 0 0 1px rgba(198,255,61,.06);
+    background:linear-gradient(180deg,#161B26,#10141C)}
+  .login-logo{width:64px;height:64px;margin:0 auto 14px;border-radius:18px;display:flex;
+    align-items:center;justify-content:center;font-size:32px;
+    background:linear-gradient(135deg,#C6FF3D,#8Fd420);box-shadow:0 8px 24px rgba(198,255,61,.25)}
+  .login-title{text-align:center;font-size:22px;font-weight:800;color:#fff;margin-bottom:4px}
+  .login-desc{text-align:center;color:#6B7384;font-size:13px;margin-bottom:22px}
+  #loginBox button{width:100%;padding:14px;font-size:16px;margin-top:20px;
+    background:linear-gradient(135deg,#C6FF3D,#A6E82C)}
 </style></head>
 <body><div class="wrap">
-  <h1>🏋️ Hoca Paneli</h1>
-  <div class="sub">GymBodyAI — öğrencilerini ve kazancını yönet</div>
-
   <!-- LOGIN -->
   <div id="loginBox" class="card">
-    <label>E-posta</label><input id="email" type="email" autocomplete="username">
-    <label>Şifre</label><input id="pass" type="password" autocomplete="current-password">
-    <button onclick="login()">Giriş Yap</button>
-    <div id="loginErr" class="err"></div>
+    <div class="login-logo">🏋️</div>
+    <div class="login-title">Hoca Paneli</div>
+    <div class="login-desc">GymBody<span style="color:#C6FF3D">AI</span> — öğrencilerini ve kazancını yönet</div>
+    <label>E-posta</label><input id="email" type="email" autocomplete="username" placeholder="hoca@email.com">
+    <label>Şifre</label><input id="pass" type="password" autocomplete="current-password" placeholder="••••••••">
+    <button onclick="login()">Giriş Yap →</button>
+    <div id="loginErr" class="err" style="text-align:center"></div>
   </div>
 
   <!-- DASHBOARD -->
