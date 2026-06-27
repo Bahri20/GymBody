@@ -2672,7 +2672,6 @@ app.get('/coach', (req, res) => {
         <div class="stat"><span>Bakiye</span><b id="pBal">—</b></div>
         <div class="stat"><span>Toplam Kazanç</span><b id="pEarn">—</b></div>
         <div class="stat"><span>Komisyon Oranı</span><span id="pComm" class="pill">—</span></div>
-        <div class="stat"><span>Öğrenci İndirimi</span><span id="pDisc" class="pill">—</span></div>
         <div class="stat"><span>Referans Kodun</span><span id="cRef" class="pill">—</span></div>
       </div>
       <div class="card">
@@ -2734,7 +2733,6 @@ app.get('/coach', (req, res) => {
     document.getElementById('pBal').textContent=(d.balance||0)+' TL';
     document.getElementById('pEarn').textContent=(d.totalEarned||0)+' TL';
     document.getElementById('pComm').textContent='%'+d.commissionRate;
-    document.getElementById('pDisc').textContent='%'+d.discountRate;
     // salon öğrencileri (varsa salon geneli ortak havuz, yoksa kendi öğrencileri)
     const list=(d.gymStudents&&d.gymStudents.length)?d.gymStudents:(d.students||[]);
     const gl=document.getElementById('gymList');

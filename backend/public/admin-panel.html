@@ -133,10 +133,6 @@
         <input type="text" id="newGym" placeholder="MLFT2" />
       </div>
       <div class="form-group">
-        <label>Kullanıcı İndirimi %</label>
-        <input type="number" id="newDiscount" value="10" min="0" max="100" />
-      </div>
-      <div class="form-group">
         <label>Komisyon Oranı %</label>
         <input type="number" id="newCommission" value="15" min="0" max="100" />
       </div>
@@ -335,7 +331,7 @@
       phone: document.getElementById('newPhone').value.trim(),
       referralCode: document.getElementById('newCode').value.trim(),
       gymCode: document.getElementById('newGym').value.trim(),
-      discountRate: parseInt(document.getElementById('newDiscount').value),
+      discountRate: 0,
       commissionRate: parseInt(document.getElementById('newCommission').value),
       notes: document.getElementById('newNotes').value.trim()
     };
