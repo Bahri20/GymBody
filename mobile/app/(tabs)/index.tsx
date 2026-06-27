@@ -1516,8 +1516,14 @@ const handleCompleteDay = async (feedback?: string) => {
       }
     } catch (err: any) {
       console.log("🔥 AUTH HATASI:", err);
+      const status = err.response?.status;
       const errorMsg = err.response?.data?.error || err.userMessage || err.message || "Sunucuya bağlanılamadı kanka";
-      showToast(errorMsg, 'error');
+      // Giriş başarısız (hesap yok / silinmiş / şifre hatalı) → net, görünür uyarı
+      if (!isRegister && (status === 400 || status === 401)) {
+        Alert.alert('Giriş yapılamadı', 'Böyle bir hesap bulunamadı veya şifre hatalı. Bilgileri kontrol et ya da yeni bir hesap oluştur.');
+      } else {
+        showToast(errorMsg, 'error');
+      }
     } finally {
       setLoading(false);
     }
