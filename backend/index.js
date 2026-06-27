@@ -2008,6 +2008,24 @@ app.post('/coach/students/remove', coachMiddleware, async (req, res) => {
   }
 });
 
+// Hoca kendi şifresini değiştirir
+app.post('/coach/change-password', coachMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: "Yeni şifre en az 6 karakter olmalı." });
+    const coach = await Coach.findById(req.coachId);
+    if (!coach) return res.status(404).json({ error: "Koç bulunamadı." });
+    const ok = await bcrypt.compare(currentPassword || '', coach.password);
+    if (!ok) return res.status(400).json({ error: "Mevcut şifren hatalı." });
+    coach.password = await bcrypt.hash(newPassword, 10);
+    await coach.save();
+    res.json({ message: "Şifren güncellendi ✓" });
+  } catch (err) {
+    console.error("Şifre değiştirme hatası:", err);
+    res.status(500).json({ error: "Şifre güncellenemedi." });
+  }
+});
+
 // ---- ADMIN GİRİŞ + MIDDLEWARE ----
 app.post('/admin/login', async (req, res) => {
   try {
@@ -2681,6 +2699,13 @@ app.get('/coach', (req, res) => {
         <div id="wMsg"></div>
       </div>
       <div class="card"><div class="muted" style="margin-bottom:8px">Geçmiş çekimler</div><div id="wList"></div></div>
+      <div class="card">
+        <div class="muted" style="margin-bottom:6px">🔒 Şifre Değiştir</div>
+        <label>Mevcut şifre</label><input id="curPass" type="password">
+        <label>Yeni şifre</label><input id="newPass" type="password" placeholder="en az 6 karakter">
+        <button onclick="changePass()">Şifreyi Güncelle</button>
+        <div id="passMsg"></div>
+      </div>
       <button class="ghost" onclick="logout()" style="width:100%">Çıkış Yap</button>
     </div>
 
@@ -2765,6 +2790,14 @@ app.get('/coach', (req, res) => {
     const r=await fetch('/coach/withdraw',{method:'POST',headers:H(),body:JSON.stringify({amount,iban})});
     const d=await r.json();
     m.textContent=d.message||d.error;m.className=r.ok?'ok':'err';if(r.ok)load();
+  }
+  async function changePass(){
+    const currentPassword=document.getElementById('curPass').value, newPassword=document.getElementById('newPass').value;
+    const m=document.getElementById('passMsg'); m.textContent='';m.className='';
+    const r=await fetch('/coach/change-password',{method:'POST',headers:H(),body:JSON.stringify({currentPassword,newPassword})});
+    const d=await r.json();
+    m.textContent=d.message||d.error;m.className=r.ok?'ok':'err';
+    if(r.ok){document.getElementById('curPass').value='';document.getElementById('newPass').value='';}
   }
   if(T())load();
 </script>
