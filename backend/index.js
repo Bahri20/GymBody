@@ -2909,6 +2909,7 @@ app.get('/coach', (req, res) => {
     _exDay=di;_exSel=null;
     document.getElementById('exConfirm').classList.add('hidden');
     document.getElementById('exItems').innerHTML='';
+    document.getElementById('grpChips').classList.remove('hidden');
     document.getElementById('exHint').textContent='';
     var groups=Object.keys(_exGroups);
     if(!groups.length){alert('Egzersiz listesi yüklenemedi');return;}
@@ -2923,9 +2924,18 @@ app.get('/coach', (req, res) => {
     document.getElementById('exItems').innerHTML=_exGroups[g].map(function(x,i){return '<div class="ex-item" onclick="pickEx(this,\\''+g+'\\','+i+')"><span>'+x.name+'</span><span style="color:#FF9F1C;font-size:18px">+</span></div>';}).join('');
   }
   function pickEx(el,g,i){
-    var it=document.querySelectorAll('.ex-item');for(var k=0;k<it.length;k++)it[k].classList.remove('on');
-    el.classList.add('on');_exSel=_exGroups[g][i];
+    _exSel=_exGroups[g][i];
+    // listeyi ve grupları gizle, sadece set/tekrar göster (aşağıda kalma sorunu çözümü)
+    document.getElementById('exItems').innerHTML='';
+    document.getElementById('grpChips').classList.add('hidden');
+    document.getElementById('exHint').innerHTML='Seçilen: <b style="color:#FF9F1C">'+_exSel.name+'</b> &nbsp; <a href="#" onclick="backToList();return false" style="color:#5B8DEF">← değiştir</a>';
     document.getElementById('exConfirm').classList.remove('hidden');
+  }
+  function backToList(){
+    _exSel=null;
+    document.getElementById('exConfirm').classList.add('hidden');
+    document.getElementById('grpChips').classList.remove('hidden');
+    document.getElementById('exHint').textContent='Kas grubu seç';
   }
   function confirmEx(){
     if(!_exSel)return;
