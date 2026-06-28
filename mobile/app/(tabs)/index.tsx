@@ -3306,8 +3306,8 @@ const pickAndUploadProfilePhoto = async () => {
     <View style={{ flexDirection: 'row', gap: 8, marginTop: 18, marginBottom: 14 }}>
       {[
         { id: '$rc_monthly', label: 'Aylık', price: '₺149', period: '/ay', badge: null },
-        { id: '$rc_six_month', label: '6 Aylık', price: '₺559', period: '/6ay', badge: '%38' },
-        { id: '$rc_annual', label: 'Yıllık', price: '₺849', period: '/yıl', badge: '%53' },
+        { id: '$rc_six_month', label: '6 Aylık', price: '₺599', period: '/6ay', badge: '%33' },
+        { id: '$rc_annual', label: 'Yıllık', price: '₺899', period: '/yıl', badge: '%50' },
       ].map(plan => {
         const selected = selectedVipPlan === plan.id;
         return (
