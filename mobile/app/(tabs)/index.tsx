@@ -2192,19 +2192,25 @@ const pickAndUploadProfilePhoto = async () => {
           </Text>
 
           <View style={styles.gymLockStats}>
-            <View style={styles.gymLockStatItem}>
-              <Ionicons name="diamond" size={16} color={C.lime} />
-              <Text style={styles.gymLockStatText}>{userStats.tokens} / 200 Token</Text>
-            </View>
+            {/* Token göstergesi iOS'ta gizli — token sistemi iOS'ta yok (Apple 3.1.1) */}
+            {Platform.OS !== 'ios' && (
+              <View style={styles.gymLockStatItem}>
+                <Ionicons name="diamond" size={16} color={C.lime} />
+                <Text style={styles.gymLockStatText}>{userStats.tokens} / 200 Token</Text>
+              </View>
+            )}
             <View style={styles.gymLockStatItem}>
               <Ionicons name="flame" size={16} color={C.orange} />
               <Text style={styles.gymLockStatText}>{userStats.streak} Günlük Seri</Text>
             </View>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.min(100, (userStats.tokens / 200) * 100)}%`, backgroundColor: '#FF9F1C' }]} />
-          </View>
+          {/* Token→VIP ilerleme çubuğu iOS'ta gizli */}
+          {Platform.OS !== 'ios' && (
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.min(100, (userStats.tokens / 200) * 100)}%`, backgroundColor: '#FF9F1C' }]} />
+            </View>
+          )}
 
           <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={{ borderRadius: 14, paddingVertical: 13, paddingHorizontal: 32, marginTop: 16, alignItems: 'center' }}>
@@ -3216,11 +3222,16 @@ const pickAndUploadProfilePhoto = async () => {
           <Text style={{ color: C.orange, fontWeight: '900', fontSize: 24 }}>{userStats.streak}</Text>
           <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>🔥 Seri</Text>
         </View>
-        <View style={{ width: 1, height: 32, backgroundColor: C.border }} />
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ color: C.lime, fontWeight: '900', fontSize: 24 }}>{userStats.tokens}</Text>
-          <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>💎 Token</Text>
-        </View>
+        {/* Token sayacı iOS'ta gizli — token sistemi iOS'ta kullanılmıyor (Apple 3.1.1) */}
+        {Platform.OS !== 'ios' && (
+          <>
+            <View style={{ width: 1, height: 32, backgroundColor: C.border }} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: C.lime, fontWeight: '900', fontSize: 24 }}>{userStats.tokens}</Text>
+              <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>💎 Token</Text>
+            </View>
+          </>
+        )}
         {userStats.isVip && (
           <>
             <View style={{ width: 1, height: 32, backgroundColor: C.border }} />
@@ -3359,7 +3370,8 @@ const pickAndUploadProfilePhoto = async () => {
             <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: '600' }}>🎯 Referans kodu gir</Text>
           </TouchableOpacity>
         )}
-        {(userStats.adRewardsRemaining ?? 0) > 0 && (
+        {/* Reklamla token kazanma iOS'ta gizli — token sistemi iOS'ta yok (Apple 3.1.1) */}
+        {Platform.OS !== 'ios' && (userStats.adRewardsRemaining ?? 0) > 0 && (
           <TouchableOpacity activeOpacity={0.85} onPress={showRewardedAd} disabled={adLoading} style={{ marginTop: 12 }}>
             <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(198,255,61,0.12)', borderWidth: 1, borderColor: C.lime }}>
               {adLoading ? <ActivityIndicator color={C.lime} /> : <Ionicons name="play-circle" size={18} color={C.lime} />}
@@ -3764,8 +3776,11 @@ const pickAndUploadProfilePhoto = async () => {
                   GymBody AI, fitness takibi ve yapay zeka destekli beslenme önerileri sunan bir mobil uygulamadır. Sağlık tavsiyeleri için doktora danışınız.{'\n\n'}
                   <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>3. Hesap{'\n'}</Text>
                   Hesap güvenliğinden kullanıcı sorumludur. Şifrenizi kimseyle paylaşmayınız.{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>4. Token ve VIP{'\n'}</Text>
-                  Tokenlar uygulama içi sanal birimdir, para değeri taşımaz ve iade edilemez. VIP üyelik aktif dönem boyunca geçerlidir.{'\n\n'}
+                  {Platform.OS === 'ios' ? (
+                    <><Text style={{ color: '#C6FF3D', fontWeight: '600' }}>4. VIP{'\n'}</Text>VIP üyelik aktif dönem boyunca geçerlidir; satın alma ve iade işlemleri App Store kurallarına tabidir.{'\n\n'}</>
+                  ) : (
+                    <><Text style={{ color: '#C6FF3D', fontWeight: '600' }}>4. Token ve VIP{'\n'}</Text>Tokenlar uygulama içi sanal birimdir, para değeri taşımaz ve iade edilemez. VIP üyelik aktif dönem boyunca geçerlidir.{'\n\n'}</>
+                  )}
                   <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>5. Yasaklı Kullanım{'\n'}</Text>
                   Uygulamayı kötüye kullanmak, sistemi manipüle etmek veya başkalarının hesaplarına erişmeye çalışmak yasaktır.{'\n\n'}
                   <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>6. Değişiklikler{'\n'}</Text>
@@ -4123,7 +4138,7 @@ const pickAndUploadProfilePhoto = async () => {
                       </View>
                     );
                   })}
-                  <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 14 }}>+{newBadges.length * 10} token kazandın!</Text>
+                  {Platform.OS !== 'ios' && <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 14 }}>+{newBadges.length * 10} token kazandın!</Text>}
                   <TouchableOpacity onPress={() => setNewBadgeVisible(false)}
                     style={{ marginTop: 20, backgroundColor: topBadge?.color || C.orange, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 36 }}>
                     <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>HARİKA! 🎉</Text>
