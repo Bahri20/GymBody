@@ -2024,12 +2024,17 @@ async function studentInCoachGym(coachId, userId) {
   return false;
 }
 
+// Hoca havuzundan gizlenecek egzersizler (yanlış gif eşleşmesi vb.)
+// "Front Raise" bozuk gif'e eşleşiyor; doğru "Barbell Front Raise" zaten havuzda.
+const COACH_EXERCISE_BLOCKLIST = new Set(['front raise']);
+
 // Kas grubuna göre egzersiz listesi (program editörü — hoca buradan seçer)
 app.get('/coach/exercises', coachMiddleware, async (req, res) => {
   try {
     const exs = await ExerciseGif.find({}, 'name gifUrl bodyPart').sort({ name: 1 });
     const grouped = {};
     for (const e of exs) {
+      if (COACH_EXERCISE_BLOCKLIST.has((e.name || '').toLowerCase().trim())) continue;
       const p = e.bodyPart || 'Diğer';
       (grouped[p] = grouped[p] || []).push({ name: e.name, gifUrl: e.gifUrl });
     }
