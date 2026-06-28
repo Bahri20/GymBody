@@ -73,6 +73,14 @@
   .addbtn:hover{filter:brightness(1.15)}
   .addbtn.on{background:#FF9F1C;color:#0B0D12}
   .srin{width:46px;background:#0B0D12;border:1px solid #262C3A;border-radius:8px;padding:7px 4px;color:#E7EAF0;text-align:center;font-size:14px}
+  /* Beslenme (açılır) */
+  .collap-head{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+  .collap-head .arr{margin-left:auto;color:#FF9F1C;font-size:20px;transition:transform .2s}
+  .collap-head.open .arr{transform:rotate(90deg)}
+  .meal{background:#0B0D12;border:1px solid #262C3A;border-radius:10px;padding:10px;margin-bottom:8px}
+  .meal-top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .meal input{margin:0}
+  .meal .kcal{width:80px;flex:none;text-align:center}
   /* Yapışkan kaydet çubuğu */
   .savebar{position:sticky;bottom:0;z-index:5;padding:14px 0 4px;margin-top:4px;background:linear-gradient(180deg,rgba(11,13,18,0),#0B0D12 35%)}
   /* Sohbet */
@@ -179,6 +187,21 @@
             <div class="muted" style="margin:-6px 0 12px">Bölgeyi aç, hareketin yanındaki + ile seçili güne ekle</div>
             <div id="groupAcc"></div>
           </div>
+          <!-- BESLENME (açılır) -->
+          <div class="card">
+            <div class="collap-head" id="nutHead" onclick="toggleNut()">
+              <span class="ic" style="width:30px;height:30px;border-radius:9px;background:rgba(255,159,28,.14);display:flex;align-items:center;justify-content:center;font-size:16px">🥗</span>
+              <span style="font-size:15px;font-weight:800;color:#fff">Beslenme</span>
+              <span class="muted" style="margin-left:4px">— elle gün & öğün ekle</span>
+              <span class="arr">›</span>
+            </div>
+            <div id="nutBody" class="hidden" style="margin-top:14px">
+              <div class="daytabs" id="nutTabs"></div>
+              <div id="nutMeals"></div>
+              <button onclick="saveNutrition()" class="ghost" style="width:100%;margin-top:12px">🥗 Beslenmeyi Kaydet</button>
+              <div id="nutMsg" style="text-align:center"></div>
+            </div>
+          </div>
           <!-- SOHBET -->
           <div class="card">
             <div class="sec-title"><span class="ic">💬</span> Sohbet</div>
@@ -224,6 +247,7 @@
     p.classList.toggle('hidden',!show); m.classList.toggle('hidden',show);
   }
   let _plan=[], _exGroups={}, _curUser=null, _activeDay=0, _openGroups={};
+  let _nut=[], _nutDay=0;
   async function openStudent(id,name){
     _curUser=id;
     document.getElementById('profileMenu').classList.add('hidden');
@@ -249,6 +273,12 @@
     _plan=(d.workoutPlan&&d.workoutPlan.length)?JSON.parse(JSON.stringify(d.workoutPlan)):[];
     _activeDay=0;_openGroups={};
     renderPlan();
+    _nut=(d.nutritionPlan&&d.nutritionPlan.length)?JSON.parse(JSON.stringify(d.nutritionPlan)):[];
+    _nutDay=0;
+    document.getElementById('nutBody').classList.add('hidden');
+    document.getElementById('nutHead').classList.remove('open');
+    document.getElementById('nutMsg').textContent='';
+    renderNut();
     document.getElementById('chatBox').innerHTML='<div class="muted">Yükleniyor…</div>';
     startChatPoll();
   }
@@ -380,6 +410,46 @@
     if(!_plan.length){m.textContent='Program boş, en az bir gün ekle.';m.className='err';return;}
     const r=await fetch('/coach/students/'+_curUser+'/program',{method:'POST',headers:H(),body:JSON.stringify({workoutPlan:_plan})});
     const d=await r.json(); m.textContent=d.message||d.error; m.className=r.ok?'ok':'err';
+  }
+  // ---- Beslenme (açılır, elle) ----
+  function toggleNut(){
+    var b=document.getElementById('nutBody'),h=document.getElementById('nutHead');
+    var open=b.classList.contains('hidden');
+    b.classList.toggle('hidden',!open);
+    h.classList.toggle('open',open);
+  }
+  function renderNut(){
+    if(_nutDay>=_nut.length)_nutDay=Math.max(0,_nut.length-1);
+    var t=document.getElementById('nutTabs');
+    t.innerHTML=_nut.map(function(day,di){
+      return '<div class="daytab'+(di===_nutDay?' on':'')+'" onclick="nutSetDay('+di+')">Gün '+(di+1)+'</div>';
+    }).join('')+'<div class="daytab add" onclick="nutAddDay()">+ Gün</div>';
+    var c=document.getElementById('nutMeals');
+    if(!_nut.length){c.innerHTML='<div class="muted" style="padding:8px 0">Henüz gün yok. "+ Gün" ile başla.</div>';return;}
+    var day=_nut[_nutDay];
+    var head='<div class="day-head" style="margin:10px 0"><b style="flex:1">Gün '+(_nutDay+1)+'</b><button class="danger" onclick="nutRmDay('+_nutDay+')">Günü Sil</button></div>';
+    var meals=(day.meals||[]).map(function(m,mi){
+      return '<div class="meal"><div class="meal-top">'+
+        '<input class="nm" style="flex:1" placeholder="Öğün (örn. Kahvaltı)" value="'+(m.name||'').replace(/"/g,'&quot;')+'" onchange="nutSetMeal('+mi+',\'name\',this.value)">'+
+        '<input class="kcal" type="number" placeholder="kcal" value="'+(m.calories||'')+'" onchange="nutSetMeal('+mi+',\'calories\',this.value)">'+
+        '<button class="danger" onclick="nutRmMeal('+mi+')" style="flex:none">×</button></div>'+
+        '<input placeholder="İçerik — örn. Yulaf, yumurta, meyve" value="'+(m.items||'').replace(/"/g,'&quot;')+'" onchange="nutSetMeal('+mi+',\'items\',this.value)"></div>';
+    }).join('');
+    var tot=(day.meals||[]).reduce(function(s,m){return s+(Number(m.calories)||0);},0);
+    c.innerHTML=head+meals+
+      '<button class="ghost" onclick="nutAddMeal()" style="width:100%;margin-top:4px;padding:9px">+ Öğün Ekle</button>'+
+      (tot?'<div class="muted" style="text-align:right;margin-top:8px">Toplam: <b style="color:#FF9F1C">'+tot+' kcal</b></div>':'');
+  }
+  function nutSetDay(di){_nutDay=di;renderNut();}
+  function nutAddDay(){_nut.push({dayNumber:_nut.length+1,meals:[]});_nutDay=_nut.length-1;renderNut();}
+  function nutRmDay(i){_nut.splice(i,1);if(_nutDay>=_nut.length)_nutDay=Math.max(0,_nut.length-1);renderNut();}
+  function nutAddMeal(){if(!_nut.length)return;_nut[_nutDay].meals=_nut[_nutDay].meals||[];_nut[_nutDay].meals.push({name:'',items:'',calories:''});renderNut();}
+  function nutRmMeal(mi){_nut[_nutDay].meals.splice(mi,1);renderNut();}
+  function nutSetMeal(mi,field,val){_nut[_nutDay].meals[mi][field]=val;if(field==='calories')renderNut();}
+  async function saveNutrition(){
+    var m=document.getElementById('nutMsg');m.textContent='';m.className='';
+    var r=await fetch('/coach/students/'+_curUser+'/nutrition',{method:'POST',headers:H(),body:JSON.stringify({nutritionPlan:_nut})});
+    var d=await r.json();m.textContent=d.message||d.error;m.className=r.ok?'ok':'err';
   }
   async function load(){
     const r=await fetch('/coach/dashboard',{headers:H()});

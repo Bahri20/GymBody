@@ -2048,6 +2048,7 @@ app.get('/coach/students/:userId', coachMiddleware, async (req, res) => {
     res.json({
       name: user.name, email: user.email, weight: user.weight, height: user.height, gender: user.gender,
       workoutPlan: user.weeklyPlan?.workoutPlan || [],
+      nutritionPlan: user.weeklyPlan?.nutritionPlan || [],
       lifts: user.lifts || {},
       bodyStats: stats,
     });
@@ -2075,6 +2076,38 @@ app.post('/coach/students/:userId/program', coachMiddleware, async (req, res) =>
     console.log(`📋 Hoca programı kaydedildi → ${user.name} (${workoutPlan.length} gün)`);
     res.json({ message: "Program kaydedildi ✓" });
   } catch (err) { console.error("Program kaydetme hatası:", err); res.status(500).json({ error: "Program kaydedilemedi." }); }
+});
+
+// Hoca öğrenciye beslenme planı kaydeder (uygulama formatı: weeklyPlan.nutritionPlan)
+app.post('/coach/students/:userId/nutrition', coachMiddleware, async (req, res) => {
+  try {
+    if (!(await studentInCoachGym(req.coachId, req.params.userId)))
+      return res.status(403).json({ error: "Bu öğrenciye erişimin yok." });
+    const { nutritionPlan } = req.body;
+    if (!Array.isArray(nutritionPlan)) return res.status(400).json({ error: "Geçersiz beslenme planı." });
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: "Öğrenci bulunamadı." });
+    // gün numaralarını ve toplam kaloriyi normalize et (uygulama bu alanları okur)
+    const clean = nutritionPlan.map((day, i) => {
+      const meals = (day.meals || []).map(m => ({
+        name: (m.name || '').trim() || 'Öğün',
+        items: (m.items || '').trim(),
+        calories: Number(m.calories) || 0,
+      }));
+      return {
+        dayNumber: i + 1,
+        meals,
+        totalCalories: meals.reduce((s, m) => s + (m.calories || 0), 0),
+        completed: false,
+      };
+    });
+    user.weeklyPlan = user.weeklyPlan || {};
+    user.weeklyPlan.nutritionPlan = clean;
+    user.markModified('weeklyPlan');
+    await user.save();
+    console.log(`🥗 Hoca beslenmesi kaydedildi → ${user.name} (${clean.length} gün)`);
+    res.json({ message: "Beslenme kaydedildi ✓" });
+  } catch (err) { console.error("Beslenme kaydetme hatası:", err); res.status(500).json({ error: "Beslenme kaydedilemedi." }); }
 });
 
 // Sohbet — mesajları getir (öğrenci mesajlarını okundu işaretle)
