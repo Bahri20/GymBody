@@ -2744,6 +2744,23 @@ app.get('/coach', (req, res) => {
   .ex-item.on{border-color:#FF9F1C;background:#1a1d12}
   .setrep{display:flex;gap:12px;margin:14px 0}
   .setrep>div{flex:1}
+  /* Gün tabları */
+  .daytabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
+  .daytab{flex:none;padding:10px 16px;border-radius:10px;background:#141821;border:1px solid #262C3A;cursor:pointer;font-weight:700;font-size:13px;white-space:nowrap;color:#E7EAF0}
+  .daytab.on{background:#FF9F1C;color:#0B0D12;border-color:#FF9F1C}
+  /* Bölge akordeon */
+  .acc{border:1px solid #262C3A;border-radius:12px;margin-bottom:8px;overflow:hidden;background:#10141C}
+  .acc-head{display:flex;justify-content:space-between;align-items:center;padding:14px;cursor:pointer;font-weight:700;font-size:15px;user-select:none}
+  .acc-head .arr{color:#FF9F1C;font-size:20px;transition:transform .2s;display:inline-block}
+  .acc.open .acc-head .arr{transform:rotate(90deg)}
+  .acc-body{display:none;padding:0 10px 10px}
+  .acc.open .acc-body{display:block}
+  .exrow2{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;background:#0B0D12;margin-bottom:6px}
+  .exrow2 img{width:46px;height:46px;border-radius:8px;object-fit:cover;background:#1C2230;flex:none}
+  .exrow2 .nm{flex:1;font-size:14px;font-weight:600}
+  .addbtn{width:34px;height:34px;border-radius:9px;background:#1C2230;color:#FF9F1C;font-size:20px;border:none;margin:0;padding:0;flex:none;line-height:1}
+  .addbtn.on{background:#FF9F1C;color:#0B0D12}
+  .srin{width:46px;background:#0B0D12;border:1px solid #262C3A;border-radius:8px;padding:7px 4px;color:#E7EAF0;text-align:center;font-size:14px}
 </style></head>
 <body><div class="wrap">
   <!-- LOGIN -->
@@ -2819,34 +2836,24 @@ app.get('/coach', (req, res) => {
         <div id="studentView" class="hidden">
           <div class="card"><div><b id="sName"></b><div class="muted" id="sInfo"></div></div></div>
           <div class="card" id="sProgress"></div>
+          <!-- Günler (tablo) -->
           <div class="card">
-            <div class="muted" style="margin-bottom:8px">📋 Antrenman Programı</div>
-            <div id="planDays"></div>
-            <button class="ghost" onclick="addDay()" style="width:100%;margin-top:8px">+ Gün Ekle</button>
+            <div class="muted" style="margin-bottom:8px">📅 Günler</div>
+            <div class="daytabs" id="dayTabs"></div>
+            <div id="dayFocus"></div>
+          </div>
+          <!-- Seçili günün hareketleri -->
+          <div class="card hidden" id="dayExCard">
+            <div class="muted" style="margin-bottom:8px">✅ Bu günün hareketleri</div>
+            <div id="dayExList"></div>
+          </div>
+          <!-- Bölgeye göre hareket ekle -->
+          <div class="card">
+            <div class="muted" style="margin-bottom:8px">➕ Hareket ekle — bölge seç, hareketin yanındaki + ile bugüne ata</div>
+            <div id="groupAcc"></div>
           </div>
           <button onclick="savePlan()" style="width:100%">Programı Kaydet</button>
           <div id="planMsg" style="text-align:center"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Egzersiz seçme modalı -->
-    <div id="exModal" class="modal-ov hidden">
-      <div class="modal-bx">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-          <b style="font-size:17px">Egzersiz Ekle</b>
-          <button onclick="closeExModal()" style="background:none;color:#FF9F1C;margin:0;padding:0;font-size:26px">×</button>
-        </div>
-        <div class="muted" style="margin-bottom:8px">1) Kas grubu seç</div>
-        <div class="grp-chips" id="grpChips"></div>
-        <div class="muted" id="exHint" style="margin-bottom:8px"></div>
-        <div id="exItems"></div>
-        <div id="exConfirm" class="hidden">
-          <div class="setrep">
-            <div><label>Set</label><input id="exSets" type="number" value="4"></div>
-            <div><label>Tekrar</label><input id="exReps" type="number" value="10"></div>
-          </div>
-          <button onclick="confirmEx()" style="width:100%">✓ Programa Ekle</button>
         </div>
       </div>
     </div>
@@ -2867,7 +2874,6 @@ app.get('/coach', (req, res) => {
   }
   function logout(){localStorage.removeItem('coachToken');location.reload();}
   function switchTab(n){
-    document.getElementById('exModal').classList.add('hidden');
     document.getElementById('view1').classList.toggle('hidden',n!==1);
     document.getElementById('view2').classList.toggle('hidden',n!==2);
     document.getElementById('tab1').classList.toggle('active',n===1);
@@ -2878,7 +2884,7 @@ app.get('/coach', (req, res) => {
     const show=p.classList.contains('hidden');
     p.classList.toggle('hidden',!show); m.classList.toggle('hidden',show);
   }
-  let _plan=[], _exGroups={}, _curUser=null;
+  let _plan=[], _exGroups={}, _curUser=null, _activeDay=0, _openGroups={};
   async function openStudent(id,name){
     _curUser=id;
     document.getElementById('profileMenu').classList.add('hidden');
@@ -2902,6 +2908,7 @@ app.get('/coach', (req, res) => {
       (bs.shoulder?'<div class="stat"><span>Omuz</span><b>'+bs.shoulder+' cm</b></div>':''))
       :'<div class="muted">Henüz ölçü kaydı yok.</div>');
     _plan=(d.workoutPlan&&d.workoutPlan.length)?JSON.parse(JSON.stringify(d.workoutPlan)):[];
+    _activeDay=0;_openGroups={};
     renderPlan();
   }
   function closeStudent(){
@@ -2909,59 +2916,96 @@ app.get('/coach', (req, res) => {
     document.getElementById('noStudentMsg').classList.remove('hidden');
     switchTab(1);
   }
-  function renderPlan(){
-    const c=document.getElementById('planDays');
-    if(!_plan.length){c.innerHTML='<div class="muted">Henüz gün yok. "Gün Ekle" ile başla.</div>';return;}
-    c.innerHTML=_plan.map(function(day,di){return ''+
-      '<div class="day-card">'+
-      '<div class="day-head">'+
-      '<input value="'+(day.focus||'').replace(/"/g,'&quot;')+'" placeholder="Gün '+(di+1)+' — örn. Göğüs & Triceps" onchange="_plan['+di+'].focus=this.value" style="flex:1">'+
-      '<button class="danger" onclick="rmDay('+di+')">Sil</button></div>'+
-      ((day.exercises||[]).length?day.exercises.map(function(ex,ei){return '<div class="ex-row"><span><b>'+ex.name+'</b> <span class="muted">'+ex.sets+'</span></span><button class="danger" onclick="rmEx('+di+','+ei+')">×</button></div>';}).join(''):'<div class="muted" style="padding:6px 0">Henüz egzersiz yok ↓</div>')+
-      '<button class="ghost" onclick="addEx('+di+')" style="width:100%;margin-top:6px;padding:9px">+ Egzersiz</button>'+
-      '</div>';}).join('');
+  // ---- Program editörü (gün tabları + bölge akordeon) ----
+  function GINFO(key){
+    var M={chest:['Göğüs','💪'],back:['Sırt','🔙'],legs:['Bacak','🦵'],shoulders:['Omuz','🏔️'],
+      biceps:['Biceps','💪'],triceps:['Triceps','🔧'],arms:['Kol','💪'],abs:['Karın','🎯'],core:['Karın','🎯'],
+      cardio:['Kardiyo','🏃'],glutes:['Kalça','🍑'],forearms:['Önkol','✊'],calves:['Baldır','🦿'],
+      traps:['Trapez','🔺'],neck:['Boyun','🧣'],fullbody:['Tüm Vücut','🏋️']};
+    var k=(key||'').toLowerCase().replace(/\\s+/g,'');
+    return M[k]?{tr:M[k][0],e:M[k][1]}:{tr:key||'Diğer',e:'🏋️'};
   }
-  function addDay(){_plan.push({dayNumber:_plan.length+1,focus:'',exercises:[]});renderPlan();}
-  function rmDay(i){_plan.splice(i,1);_plan.forEach(function(d,x){d.dayNumber=x+1;});renderPlan();}
-  function rmEx(di,ei){_plan[di].exercises.splice(ei,1);renderPlan();}
-  let _exDay=null,_exSel=null;
-  function addEx(di){
-    _exDay=di;_exSel=null;
-    document.getElementById('exConfirm').classList.add('hidden');
-    document.getElementById('exItems').innerHTML='';
-    document.getElementById('grpChips').classList.remove('hidden');
-    document.getElementById('exHint').textContent='';
-    var groups=Object.keys(_exGroups);
-    if(!groups.length){alert('Egzersiz listesi yüklenemedi');return;}
-    document.getElementById('grpChips').innerHTML=groups.map(function(g){return '<div class="grp-chip" onclick="pickGroup(this,\\''+g+'\\')">'+g+'</div>';}).join('');
-    document.getElementById('exModal').classList.remove('hidden');
+  function renderPlan(){ renderDays(); renderGroups(); }
+  function renderDays(){
+    if(_activeDay>=_plan.length)_activeDay=Math.max(0,_plan.length-1);
+    var t=document.getElementById('dayTabs');
+    t.innerHTML=_plan.map(function(day,di){
+      var lbl=day.focus?day.focus:'Gün '+(di+1);
+      return '<div class="daytab'+(di===_activeDay?' on':'')+'" onclick="setDay('+di+')">'+lbl+'</div>';
+    }).join('')+'<div class="daytab" onclick="addDay()" style="background:#1C2230;color:#FF9F1C;border-color:#FF9F1C">+ Gün</div>';
+    var f=document.getElementById('dayFocus'), exCard=document.getElementById('dayExCard');
+    if(!_plan.length){
+      f.innerHTML='<div class="muted" style="padding:8px 0">Henüz gün yok. "+ Gün" ile başla.</div>';
+      exCard.classList.add('hidden');
+    }else{
+      var day=_plan[_activeDay];
+      f.innerHTML='<div class="day-head" style="margin-top:10px">'+
+        '<input value="'+(day.focus||'').replace(/"/g,'&quot;')+'" placeholder="Gün '+(_activeDay+1)+' odak — örn. Göğüs & Triceps" onchange="_plan['+_activeDay+'].focus=this.value;renderDays()" style="flex:1">'+
+        '<button class="danger" onclick="rmDay('+_activeDay+')">Günü Sil</button></div>';
+      exCard.classList.remove('hidden');
+    }
+    renderDayEx();
   }
-  function closeExModal(){document.getElementById('exModal').classList.add('hidden');}
-  function pickGroup(el,g){
-    var ch=document.querySelectorAll('.grp-chip');for(var i=0;i<ch.length;i++)ch[i].classList.remove('on');
-    el.classList.add('on');_exSel=null;document.getElementById('exConfirm').classList.add('hidden');
-    document.getElementById('exHint').textContent='2) Egzersiz seç';
-    document.getElementById('exItems').innerHTML=_exGroups[g].map(function(x,i){return '<div class="ex-item" onclick="pickEx(this,\\''+g+'\\','+i+')"><span>'+x.name+'</span><span style="color:#FF9F1C;font-size:18px">+</span></div>';}).join('');
+  function renderDayEx(){
+    var c=document.getElementById('dayExList');
+    if(!_plan.length){c.innerHTML='';return;}
+    var day=_plan[_activeDay];
+    if(!day.exercises||!day.exercises.length){c.innerHTML='<div class="muted" style="padding:6px 0">Henüz hareket yok. Aşağıdan bölge açıp + ile ekle.</div>';return;}
+    c.innerHTML=day.exercises.map(function(ex,ei){
+      var sr=(ex.sets||'4x10').split('x');
+      return '<div class="exrow2">'+
+        (ex.gifUrl?'<img src="'+ex.gifUrl+'" loading="lazy">':'<div style="width:46px;height:46px;border-radius:8px;background:#1C2230;flex:none"></div>')+
+        '<div class="nm">'+ex.name+'</div>'+
+        '<input class="srin" type="number" value="'+(sr[0]||'4')+'" onchange="setSR('+ei+',0,this.value)" title="Set">'+
+        '<span class="muted">x</span>'+
+        '<input class="srin" type="number" value="'+(sr[1]||'10')+'" onchange="setSR('+ei+',1,this.value)" title="Tekrar">'+
+        '<button class="danger" onclick="rmEx('+_activeDay+','+ei+')" style="margin:0">×</button>'+
+      '</div>';
+    }).join('');
   }
-  function pickEx(el,g,i){
-    _exSel=_exGroups[g][i];
-    // listeyi ve grupları gizle, sadece set/tekrar göster (aşağıda kalma sorunu çözümü)
-    document.getElementById('exItems').innerHTML='';
-    document.getElementById('grpChips').classList.add('hidden');
-    document.getElementById('exHint').innerHTML='Seçilen: <b style="color:#FF9F1C">'+_exSel.name+'</b> &nbsp; <a href="#" onclick="backToList();return false" style="color:#5B8DEF">← değiştir</a>';
-    document.getElementById('exConfirm').classList.remove('hidden');
+  function setSR(ei,idx,val){
+    var ex=_plan[_activeDay].exercises[ei], sr=(ex.sets||'4x10').split('x');
+    sr[idx]=(val||'0'); ex.sets=(sr[0]||'4')+'x'+(sr[1]||'10');
   }
-  function backToList(){
-    _exSel=null;
-    document.getElementById('exConfirm').classList.add('hidden');
-    document.getElementById('grpChips').classList.remove('hidden');
-    document.getElementById('exHint').textContent='Kas grubu seç';
+  function setDay(di){_activeDay=di;renderDays();renderGroups();}
+  function addDay(){_plan.push({dayNumber:_plan.length+1,focus:'',exercises:[]});_activeDay=_plan.length-1;renderDays();renderGroups();}
+  function rmDay(i){
+    _plan.splice(i,1);_plan.forEach(function(d,x){d.dayNumber=x+1;});
+    if(_activeDay>=_plan.length)_activeDay=Math.max(0,_plan.length-1);
+    renderDays();renderGroups();
   }
-  function confirmEx(){
-    if(!_exSel)return;
-    var s=document.getElementById('exSets').value||'4',r=document.getElementById('exReps').value||'10';
-    _plan[_exDay].exercises.push({name:_exSel.name,sets:s+'x'+r,gifUrl:_exSel.gifUrl});
-    closeExModal();renderPlan();
+  function rmEx(di,ei){_plan[di].exercises.splice(ei,1);renderDayEx();renderGroups();}
+  function isInDay(name){
+    return _plan.length && (_plan[_activeDay].exercises||[]).some(function(e){return e.name===name;});
+  }
+  function renderGroups(){
+    var c=document.getElementById('groupAcc'), groups=Object.keys(_exGroups);
+    if(!groups.length){c.innerHTML='<div class="muted">Egzersiz listesi yüklenemedi.</div>';return;}
+    c.innerHTML=groups.map(function(g){
+      var gi=GINFO(g), open=!!_openGroups[g];
+      var items=_exGroups[g].map(function(x,i){
+        var inn=isInDay(x.name);
+        return '<div class="exrow2">'+
+          (x.gifUrl?'<img src="'+x.gifUrl+'" loading="lazy">':'<div style="width:46px;height:46px;border-radius:8px;background:#1C2230;flex:none"></div>')+
+          '<div class="nm">'+x.name+'</div>'+
+          '<button class="addbtn'+(inn?' on':'')+'" onclick="toggleEx(\\''+g+'\\','+i+')">'+(inn?'✓':'+')+'</button>'+
+        '</div>';
+      }).join('');
+      return '<div class="acc'+(open?' open':'')+'">'+
+        '<div class="acc-head" onclick="toggleGroup(\\''+g+'\\')"><span>'+gi.e+' '+gi.tr+' <span class="muted" style="font-weight:400">('+_exGroups[g].length+')</span></span><span class="arr">›</span></div>'+
+        '<div class="acc-body">'+items+'</div>'+
+      '</div>';
+    }).join('');
+  }
+  function toggleGroup(g){_openGroups[g]=!_openGroups[g];renderGroups();}
+  function toggleEx(g,i){
+    if(!_plan.length){alert('Önce bir gün ekle (+ Gün).');return;}
+    var x=_exGroups[g][i], day=_plan[_activeDay];
+    day.exercises=day.exercises||[];
+    var at=day.exercises.findIndex(function(e){return e.name===x.name;});
+    if(at>=0)day.exercises.splice(at,1);
+    else day.exercises.push({name:x.name,sets:'4x10',gifUrl:x.gifUrl});
+    renderDayEx();renderGroups();
   }
   async function savePlan(){
     const m=document.getElementById('planMsg'); m.textContent='';m.className='';
