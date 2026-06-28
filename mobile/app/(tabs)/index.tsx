@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ViewShot from 'react-native-view-shot';
-import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated, Share, AppState } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated, Share } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image as ExpoImage } from 'expo-image';
@@ -13,9 +13,6 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import mobileAds, { BannerAd, BannerAdSize, TestIds, RewardedAd, RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
-// expo-tracking-transparency native module — yalnızca native build'de mevcut
-let requestTrackingPermissionsAsync: (() => Promise<any>) | undefined;
-try { requestTrackingPermissionsAsync = require('expo-tracking-transparency').requestTrackingPermissionsAsync; } catch {}
 
 WebBrowser.maybeCompleteAuthSession(); // Google girişi sonrası tarayıcı sekmesini kapat
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
@@ -762,32 +759,18 @@ export default function App() {
    AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => setAppleAvailable(false));
  }, []);
 
- // AdMob'u bir kez başlat
+ // AdMob'u bir kez başlat — kullanıcı TAKİP ETMİYORUZ:
+ // ATT yok, reklamlar kişiselleştirilmemiş (non-personalized) gösteriliyor (Apple 2.1).
  useEffect(() => {
-   (async () => {
-     // iOS'ta reklam tanımlayıcısı kullanmadan ÖNCE ATT izni iste (Apple zorunluluğu).
-     // iPad'de uygulama tam "active" olmadan istenirse iOS pencereyi sessizce atlıyor —
-     // önce aktif duruma gelmesini bekle, sonra kısa gecikmeyle iste.
-     if (Platform.OS === 'ios' && requestTrackingPermissionsAsync) {
-       if (AppState.currentState !== 'active') {
-         await new Promise<void>((resolve) => {
-           const sub = AppState.addEventListener('change', (s) => {
-             if (s === 'active') { sub.remove(); resolve(); }
-           });
-         });
-       }
-       await new Promise((r) => setTimeout(r, 600));
-       try { await requestTrackingPermissionsAsync(); } catch {}
-     }
-     mobileAds().initialize();
-   })();
+   mobileAds().initialize();
  }, []);
 
  // Ödüllü reklam göster → izlenince backend'den token al (VIP hariç, sunucu günlük sınırı uygular)
  const showRewardedAd = () => {
    if (userStats.isVip || adLoading) return;
    setAdLoading(true);
-   const rewarded = RewardedAd.createForAdRequest(TestIds.REWARDED);
+   // Takip yok → kişiselleştirilmemiş reklam iste (ATT gerekmez)
+   const rewarded = RewardedAd.createForAdRequest(TestIds.REWARDED, { requestNonPersonalizedAdsOnly: true });
    let earned = false;
    const subs: Array<() => void> = [];
    const cleanup = () => subs.forEach((u) => u());
