@@ -2760,6 +2760,11 @@ app.get('/coach', (req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'coach.html'));
 });
 
+// Yönetim paneli (coach ile aynı düzen: views/ + route). Eski /admin-panel.html linki de çalışsın.
+app.get(['/admin', '/admin-panel.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'admin-panel.html'));
+});
+
 app.get('/', (req, res) => {
   res.type('html').send(`<!DOCTYPE html>
 <html lang="tr"><head><meta charset="utf-8">
