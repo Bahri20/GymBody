@@ -3033,7 +3033,9 @@ app.get('/coach', (req, res) => {
       '<div class="row" style="cursor:pointer" onclick="openStudent(\\''+s._id+'\\',\\''+(s.name||'').replace(/[^\\w çğıöşüÇĞİÖŞÜ]/g,'')+'\\')">'+
       '<div><b>'+s.name+'</b> <span class="'+(s.isVip?'vip':'novip')+'">'+(s.isVip?'VIP':'')+'</span>'+
       '<div class="muted">'+(s.coachName?('Hoca: '+s.coachName):(s.email||''))+'</div></div>'+
-      '<span style="color:#FF9F1C;font-size:20px">›</span></div>').join('');}
+      '<div style="display:flex;align-items:center;gap:10px">'+
+      '<button class="danger" onclick="event.stopPropagation();rmStudent(\\''+s._id+'\\')" style="margin:0">Çıkar</button>'+
+      '<span style="color:#FF9F1C;font-size:20px">›</span></div></div>').join('');}
     // çekimler
     const wl=document.getElementById('wList');
     wl.innerHTML=(d.withdrawals&&d.withdrawals.length)?d.withdrawals.map(w=>
