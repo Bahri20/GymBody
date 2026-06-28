@@ -2703,6 +2703,8 @@ app.delete('/account', authMiddleware, async (req, res) => {
 const LEGAL_PAGE = (title, bodyHtml) => `<!DOCTYPE html>
 <html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>${title} — GymBodyAI</title>
 <style>
   body{margin:0;background:#0B0D12;color:#E7EAF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.7}
@@ -2729,6 +2731,8 @@ app.get('/', (req, res) => {
   res.type('html').send(`<!DOCTYPE html>
 <html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>GymBodyAI — Yapay Zeka Antrenörün</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
