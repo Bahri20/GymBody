@@ -125,10 +125,6 @@
         <input type="text" id="newPhone" placeholder="05xx xxx xx xx" />
       </div>
       <div class="form-group">
-        <label>Referral Kodu</label>
-        <input type="text" id="newCode" placeholder="arda10" />
-      </div>
-      <div class="form-group">
         <label>Salon Kodu (opsiyonel)</label>
         <input type="text" id="newGym" placeholder="MLFT2" />
       </div>
@@ -327,14 +323,13 @@
       email: document.getElementById('newEmail').value.trim(),
       password: document.getElementById('newPassword').value,
       phone: document.getElementById('newPhone').value.trim(),
-      referralCode: document.getElementById('newCode').value.trim(),
       gymCode: document.getElementById('newGym').value.trim(),
       discountRate: 0,
       commissionRate: parseInt(document.getElementById('newCommission').value),
       notes: document.getElementById('newNotes').value.trim()
     };
-    if (!body.name || !body.email || !body.password || !body.referralCode) {
-      showToast('Ad, email, şifre ve referral kodu zorunlu.', 'error'); return;
+    if (!body.name || !body.email || !body.password) {
+      showToast('Ad, email ve şifre zorunlu.', 'error'); return;
     }
     const r = await fetch(`${API}/admin/coach`, {
       method: 'POST',
@@ -344,7 +339,7 @@
     const data = await r.json();
     if (!r.ok) { showToast(data.error, 'error'); return; }
     showToast(`${body.name} eklendi! Kodu: ${data.referralCode}`, 'success');
-    ['newName','newEmail','newPassword','newPhone','newCode','newNotes'].forEach(id => document.getElementById(id).value = '');
+    ['newName','newEmail','newPassword','newPhone','newGym','newNotes'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('newCommission').value = 15;
     loadPanel();
   }

@@ -2197,20 +2197,34 @@ app.delete('/admin/coach/:id', adminMiddleware, async (req, res) => {
 });
 
 // Koç oluştur (admin)
+// Hoca için benzersiz referral kodu üret (ad → ascii slug + rakam)
+async function generateReferralCode(name) {
+  const map = { 'ç':'c','ğ':'g','ı':'i','ö':'o','ş':'s','ü':'u','İ':'i','Ç':'c','Ğ':'g','Ö':'o','Ş':'s','Ü':'u' };
+  const base = (name || 'coach').toLowerCase().replace(/[çğıöşüİÇĞÖŞÜ]/g, m => map[m] || m)
+    .replace(/[^a-z0-9]/g, '').slice(0, 10) || 'coach';
+  for (let i = 0; i < 25; i++) {
+    const code = base + Math.floor(10 + Math.random() * 990);
+    if (!(await Coach.findOne({ referralCode: code }))) return code;
+  }
+  return base + Date.now().toString().slice(-5);
+}
+
 app.post('/admin/coach', adminMiddleware, async (req, res) => {
   try {
     const { name, email, password, phone, referralCode, gymCode, discountRate, commissionRate, notes } = req.body;
-    if (!name || !email || !password || !referralCode) {
-      return res.status(400).json({ error: "İsim, email, şifre ve referral kodu zorunlu." });
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "İsim, email ve şifre zorunlu." });
     }
-    const existing = await Coach.findOne({ $or: [{ email }, { referralCode: referralCode.toLowerCase() }] });
+    // referral kodu opsiyonel: verilmezse otomatik üret (hoca öğrencilerini e-posta ile ekliyor)
+    const code = referralCode ? referralCode.toLowerCase().trim() : await generateReferralCode(name);
+    const existing = await Coach.findOne({ $or: [{ email }, { referralCode: code }] });
     if (existing) return res.status(400).json({ error: "Bu email veya referral kodu zaten kullanılıyor." });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const coach = await Coach.create({
       name, email, phone, notes,
       password: hashedPassword,
-      referralCode: referralCode.toLowerCase().trim(),
+      referralCode: code,
       gymCode: gymCode ? gymCode.toUpperCase().trim() : undefined, // salon kodu (ör. MLFT2)
       discountRate: discountRate || 10,
       commissionRate: commissionRate || 15
