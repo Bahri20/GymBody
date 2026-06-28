@@ -2716,7 +2716,7 @@ app.get('/coach', (req, res) => {
   .pill{display:inline-block;background:#1C2230;color:#FF9F1C;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700}
   .err{color:#FF5C5C;font-size:13px;margin-top:8px}
   .ok{color:#FF9F1C;font-size:13px;margin-top:8px}
-  .hidden{display:none}
+  .hidden{display:none!important}
   .vip{color:#FF9F1C} .novip{color:#6B7384}
   /* Login ekranı */
   input:focus{outline:none;border-color:#FF9F1C;box-shadow:0 0 0 3px rgba(255,159,28,.12)}
@@ -2867,6 +2867,7 @@ app.get('/coach', (req, res) => {
   }
   function logout(){localStorage.removeItem('coachToken');location.reload();}
   function switchTab(n){
+    document.getElementById('exModal').classList.add('hidden');
     document.getElementById('view1').classList.toggle('hidden',n!==1);
     document.getElementById('view2').classList.toggle('hidden',n!==2);
     document.getElementById('tab1').classList.toggle('active',n===1);
