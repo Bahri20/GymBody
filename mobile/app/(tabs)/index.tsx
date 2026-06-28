@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ViewShot from 'react-native-view-shot';
-import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated, Share } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated, Share, AppState } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image as ExpoImage } from 'expo-image';
@@ -765,9 +765,19 @@ export default function App() {
  // AdMob'u bir kez başlat
  useEffect(() => {
    (async () => {
-     // iOS'ta reklam tanımlayıcısı kullanmadan ÖNCE ATT izni iste (Apple zorunluluğu)
-     if (Platform.OS === 'ios') {
-       try { if (requestTrackingPermissionsAsync) await requestTrackingPermissionsAsync(); } catch {}
+     // iOS'ta reklam tanımlayıcısı kullanmadan ÖNCE ATT izni iste (Apple zorunluluğu).
+     // iPad'de uygulama tam "active" olmadan istenirse iOS pencereyi sessizce atlıyor —
+     // önce aktif duruma gelmesini bekle, sonra kısa gecikmeyle iste.
+     if (Platform.OS === 'ios' && requestTrackingPermissionsAsync) {
+       if (AppState.currentState !== 'active') {
+         await new Promise<void>((resolve) => {
+           const sub = AppState.addEventListener('change', (s) => {
+             if (s === 'active') { sub.remove(); resolve(); }
+           });
+         });
+       }
+       await new Promise((r) => setTimeout(r, 600));
+       try { await requestTrackingPermissionsAsync(); } catch {}
      }
      mobileAds().initialize();
    })();
@@ -905,7 +915,8 @@ const completeOnboarding = async () => {
     }, { headers: { Authorization: `Bearer ${token}` } });
   } catch {}
   setUser((prev: any) => prev ? { ...prev, onboarded: true } : prev);
-  if (!user?.referredBy) setTimeout(() => askReferralCode(), 400);
+  // iOS'ta referans/promo kodu ile içerik açma yasak (Apple 3.1.1) — sadece Android'de sor
+  if (Platform.OS !== 'ios' && !user?.referredBy) setTimeout(() => askReferralCode(), 400);
 };
 
 // GymBody sekmesine her geçişte mola durumunu sıfırla (yeni gün = antrenman zamanı)
@@ -1945,27 +1956,30 @@ const pickAndUploadProfilePhoto = async () => {
                     />
                   </View>
                 </View>
-                <View style={[styles.inputWrap, referralBonus ? { borderColor: '#4ade80' } : {}]}>
-                  <Ionicons name="pricetag-outline" size={18} color={referralBonus ? '#4ade80' : C.textMuted} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.inputWithIcon}
-                    placeholder="Referans kodu (opsiyonel)"
-                    placeholderTextColor={C.textMuted}
-                    value={referralCode}
-                    autoCapitalize="none"
-                    onChangeText={async (val) => {
-                      setReferralCode(val);
-                      setReferralBonus(null);
-                      if (val.trim().length >= 3) {
-                        try {
-                          const r = await axios.get(`${API_URL}/check-referral/${val.trim()}`);
-                          if (r.data.valid) setReferralBonus(r.data);
-                        } catch {}
-                      }
-                    }}
-                  />
-                </View>
-                {referralBonus && (
+                {/* Referans kodu girişi iOS'ta gizli — Apple 3.1.1 (IAP dışı indirim/içerik açma yasak) */}
+                {Platform.OS !== 'ios' && (
+                  <View style={[styles.inputWrap, referralBonus ? { borderColor: '#4ade80' } : {}]}>
+                    <Ionicons name="pricetag-outline" size={18} color={referralBonus ? '#4ade80' : C.textMuted} style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.inputWithIcon}
+                      placeholder="Referans kodu (opsiyonel)"
+                      placeholderTextColor={C.textMuted}
+                      value={referralCode}
+                      autoCapitalize="none"
+                      onChangeText={async (val) => {
+                        setReferralCode(val);
+                        setReferralBonus(null);
+                        if (val.trim().length >= 3) {
+                          try {
+                            const r = await axios.get(`${API_URL}/check-referral/${val.trim()}`);
+                            if (r.data.valid) setReferralBonus(r.data);
+                          } catch {}
+                        }
+                      }}
+                    />
+                  </View>
+                )}
+                {Platform.OS !== 'ios' && referralBonus && (
                   <Text style={{ color: '#4ade80', fontSize: 12, marginTop: -8, marginBottom: 8, marginLeft: 4 }}>
                     ✓ {referralBonus.coachName} referansı · %{referralBonus.discountRate} VIP indirimi
                   </Text>
