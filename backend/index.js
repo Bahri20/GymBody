@@ -2834,7 +2834,10 @@ app.get('/coach', (req, res) => {
           <div class="muted" style="text-align:center;padding:12px">← Öğrenciler sekmesinden bir öğrenci seç</div>
         </div>
         <div id="studentView" class="hidden">
-          <div class="card"><div><b id="sName"></b><div class="muted" id="sInfo"></div></div></div>
+          <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+            <div><b id="sName"></b><div class="muted" id="sInfo"></div></div>
+            <button onclick="closeStudent()" style="background:#1C2230;color:#FF9F1C;margin:0;padding:9px 14px;flex:none">← Geri</button>
+          </div>
           <div class="card" id="sProgress"></div>
           <!-- Günler (tablo) -->
           <div class="card">
