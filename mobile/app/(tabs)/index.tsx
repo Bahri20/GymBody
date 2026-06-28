@@ -1641,12 +1641,12 @@ const purchaseVip = async (packageId: string) => {
     try {
       offerings = await Purchases.getOfferings();
     } catch {
-      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak. Token ile VIP açabilirsin.');
+      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.' + (Platform.OS !== 'ios' ? ' Token ile VIP açabilirsin.' : ''));
       return;
     }
     const offering = offerings.all['gymvip'] ?? offerings.current;
     if (!offering || offering.availablePackages.length === 0) {
-      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak. Token ile VIP açabilirsin.');
+      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.' + (Platform.OS !== 'ios' ? ' Token ile VIP açabilirsin.' : ''));
       return;
     }
     const pkg = offering.availablePackages.find(p => p.identifier === packageId);
@@ -3331,17 +3331,21 @@ const pickAndUploadProfilePhoto = async () => {
           </LinearGradient>
         </TouchableOpacity>
 
-        <View style={{ height: 1, backgroundColor: C.border, marginVertical: 14 }} />
-
-        <TouchableOpacity activeOpacity={0.85} onPress={redeemVip} disabled={userStats.tokens < 200}>
-          <View style={{ borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1,
-            borderColor: userStats.tokens >= 200 ? '#4ade80' : C.border,
-            backgroundColor: userStats.tokens >= 200 ? '#4ade8015' : 'transparent' }}>
-            <Text style={{ color: userStats.tokens >= 200 ? '#4ade80' : C.textMuted, fontWeight: '700', fontSize: 13 }}>
-              {userStats.tokens >= 200 ? `Token ile aç (${userStats.tokens}/200)` : `${200 - userStats.tokens} token daha gerekiyor`}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        {/* Token ile VIP açma iOS'ta gizli — Apple 3.1.1 (IAP dışı dijital içerik açma yasak) */}
+        {Platform.OS !== 'ios' && (
+          <>
+            <View style={{ height: 1, backgroundColor: C.border, marginVertical: 14 }} />
+            <TouchableOpacity activeOpacity={0.85} onPress={redeemVip} disabled={userStats.tokens < 200}>
+              <View style={{ borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1,
+                borderColor: userStats.tokens >= 200 ? '#4ade80' : C.border,
+                backgroundColor: userStats.tokens >= 200 ? '#4ade8015' : 'transparent' }}>
+                <Text style={{ color: userStats.tokens >= 200 ? '#4ade80' : C.textMuted, fontWeight: '700', fontSize: 13 }}>
+                  {userStats.tokens >= 200 ? `Token ile aç (${userStats.tokens}/200)` : `${200 - userStats.tokens} token daha gerekiyor`}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </>
+        )}
 
         {/* Promosyon kodu yalnızca Android'de — Apple 3.1.1 gereği iOS'ta IAP dışı
             içerik açma (promo kod ile VIP/indirim) yasak. iOS'ta gizli. */}
