@@ -4,32 +4,38 @@
 <title>Hoca Paneli — GymBodyAI</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0B0D12;color:#E7EAF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.5}
+  body{background:#0B0D12;color:#E7EAF0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
   .wrap{max-width:680px;margin:0 auto;padding:24px 16px 60px}
   h1{color:#FF9F1C;font-size:22px;margin-bottom:2px}
   .sub{color:#6B7384;font-size:13px;margin-bottom:22px}
-  .card{background:#141821;border:1px solid #1C2230;border-radius:14px;padding:18px;margin-bottom:14px}
+  .card{background:#141821;border:1px solid #20283A;border-radius:16px;padding:18px;margin-bottom:14px}
   label{display:block;font-size:13px;color:#9AA3B2;margin:10px 0 4px}
   input{width:100%;background:#0B0D12;border:1px solid #262C3A;border-radius:10px;padding:12px;color:#E7EAF0;font-size:15px}
-  button{background:#FF9F1C;color:#0B0D12;border:none;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;margin-top:12px}
+  button{background:#FF9F1C;color:#0B0D12;border:none;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;margin-top:12px;transition:filter .15s,transform .05s}
+  button:active{transform:translateY(1px)}
+  button:hover{filter:brightness(1.08)}
   button.ghost{background:transparent;color:#FF9F1C;border:1px solid #FF9F1C}
-  button.danger{background:transparent;color:#FF5C5C;border:1px solid #FF5C5C;padding:6px 12px;font-size:13px;margin:0}
+  button.danger{background:transparent;color:#FF5C5C;border:1px solid rgba(255,92,92,.5);padding:5px 11px;font-size:12px;font-weight:600;margin:0}
+  button.danger:hover{background:rgba(255,92,92,.1);filter:none}
+  /* Bölüm başlığı */
+  .sec-title{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;color:#fff;margin-bottom:14px}
+  .sec-title .ic{width:30px;height:30px;border-radius:9px;background:rgba(255,159,28,.14);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
   .tabs{display:flex;gap:8px;margin-bottom:14px}
-  .tab{flex:1;text-align:center;padding:10px;border-radius:10px;background:#141821;border:1px solid #1C2230;cursor:pointer;font-weight:600;font-size:14px}
-  .tab.active{background:#FF9F1C;color:#0B0D12}
-  .row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #1C2230}
+  .tab{flex:1;text-align:center;padding:12px;border-radius:12px;background:#141821;border:1px solid #20283A;cursor:pointer;font-weight:700;font-size:14px;transition:all .15s}
+  .tab.active{background:#FF9F1C;color:#0B0D12;border-color:#FF9F1C}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 6px;border-bottom:1px solid #1C2230;border-radius:8px;transition:background .15s}
   .row:last-child{border-bottom:none}
+  .row:hover{background:#0F131B}
   .muted{color:#6B7384;font-size:12px}
   .stat{display:flex;justify-content:space-between;padding:8px 0}
   .stat b{color:#FF9F1C;font-size:18px}
   .pill{display:inline-block;background:#1C2230;color:#FF9F1C;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700}
   .err{color:#FF5C5C;font-size:13px;margin-top:8px}
-  .ok{color:#FF9F1C;font-size:13px;margin-top:8px}
+  .ok{color:#39D98A;font-size:13px;margin-top:8px}
   .hidden{display:none!important}
-  .vip{color:#FF9F1C} .novip{color:#6B7384}
-  /* Login ekranı */
+  .vip{color:#FF9F1C;font-weight:700;font-size:12px} .novip{color:#6B7384}
   input:focus{outline:none;border-color:#FF9F1C;box-shadow:0 0 0 3px rgba(255,159,28,.12)}
-  button:hover{filter:brightness(1.08)}
+  /* Login ekranı */
   #loginBox{max-width:380px;margin:48px auto 0;padding:32px 26px;border-radius:20px;
     box-shadow:0 12px 48px rgba(0,0,0,.45),0 0 0 1px rgba(255,159,28,.06);
     background:linear-gradient(180deg,#161B26,#10141C)}
@@ -40,26 +46,20 @@
   .login-desc{text-align:center;color:#6B7384;font-size:13px;margin-bottom:22px}
   #loginBox button{width:100%;padding:14px;font-size:16px;margin-top:20px;
     background:linear-gradient(135deg,#FF9F1C,#F08800)}
-  /* Program editörü */
-  .day-card{border:1px solid #262C3A;border-radius:14px;padding:14px;margin-bottom:10px;background:#10141C}
-  .day-head{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-  .ex-row{display:flex;justify-content:space-between;align-items:center;padding:10px;background:#0B0D12;border-radius:8px;margin-bottom:6px}
-  .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
-  .modal-bx{background:#141821;border-radius:18px;width:100%;max-width:640px;max-height:88vh;overflow-y:auto;padding:22px;border:1px solid #FF9F1C}
-  .grp-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
-  .grp-chip{padding:9px 15px;border-radius:22px;background:#1C2230;color:#E7EAF0;cursor:pointer;font-size:14px;font-weight:600;border:1px solid #262C3A}
-  .grp-chip.on{background:#FF9F1C;color:#0B0D12;border-color:#FF9F1C}
-  .ex-item{padding:13px;border-radius:10px;background:#0B0D12;border:1px solid #262C3A;margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-weight:600}
-  .ex-item.on{border-color:#FF9F1C;background:#1a1d12}
-  .setrep{display:flex;gap:12px;margin:14px 0}
-  .setrep>div{flex:1}
+  /* Gün başlığı (odak input + sil) */
+  .day-head{display:flex;gap:8px;align-items:center}
   /* Gün tabları */
-  .daytabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px}
-  .daytab{flex:none;padding:10px 16px;border-radius:10px;background:#141821;border:1px solid #262C3A;cursor:pointer;font-weight:700;font-size:13px;white-space:nowrap;color:#E7EAF0}
-  .daytab.on{background:#FF9F1C;color:#0B0D12;border-color:#FF9F1C}
+  .daytabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px}
+  .daytab{flex:none;padding:10px 16px;border-radius:11px;background:#0F131B;border:1px solid #262C3A;cursor:pointer;font-weight:700;font-size:13px;white-space:nowrap;color:#E7EAF0;transition:all .15s}
+  .daytab:hover{border-color:#3A4456}
+  .daytab.on{background:#FF9F1C;color:#0B0D12;border-color:#FF9F1C;box-shadow:0 4px 14px rgba(255,159,28,.22)}
+  .daytab.add{background:transparent;color:#FF9F1C;border:1px dashed #FF9F1C}
   /* Bölge akordeon */
-  .acc{border:1px solid #262C3A;border-radius:12px;margin-bottom:8px;overflow:hidden;background:#10141C}
-  .acc-head{display:flex;justify-content:space-between;align-items:center;padding:14px;cursor:pointer;font-weight:700;font-size:15px;user-select:none}
+  .acc{border:1px solid #262C3A;border-radius:12px;margin-bottom:8px;overflow:hidden;background:#0F131B;transition:border-color .15s}
+  .acc.open{border-color:#FF9F1C}
+  .acc-head{display:flex;justify-content:space-between;align-items:center;padding:14px;cursor:pointer;font-weight:700;font-size:15px;user-select:none;transition:background .15s}
+  .acc-head:hover{background:#141A24}
+  .acc-head .cnt{font-weight:600;color:#9AA3B2;font-size:12px;background:#1C2230;padding:1px 9px;border-radius:20px;margin-left:8px}
   .acc-head .arr{color:#FF9F1C;font-size:20px;transition:transform .2s;display:inline-block}
   .acc.open .acc-head .arr{transform:rotate(90deg)}
   .acc-body{display:none;padding:0 10px 10px}
@@ -67,9 +67,12 @@
   .exrow2{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;background:#0B0D12;margin-bottom:6px}
   .exrow2 img{width:46px;height:46px;border-radius:8px;object-fit:cover;background:#1C2230;flex:none}
   .exrow2 .nm{flex:1;font-size:14px;font-weight:600}
-  .addbtn{width:34px;height:34px;border-radius:9px;background:#1C2230;color:#FF9F1C;font-size:20px;border:none;margin:0;padding:0;flex:none;line-height:1}
+  .addbtn{width:34px;height:34px;border-radius:9px;background:#1C2230;color:#FF9F1C;font-size:20px;border:none;margin:0;padding:0;flex:none;line-height:1;transition:all .15s}
+  .addbtn:hover{filter:brightness(1.15)}
   .addbtn.on{background:#FF9F1C;color:#0B0D12}
   .srin{width:46px;background:#0B0D12;border:1px solid #262C3A;border-radius:8px;padding:7px 4px;color:#E7EAF0;text-align:center;font-size:14px}
+  /* Yapışkan kaydet çubuğu */
+  .savebar{position:sticky;bottom:0;z-index:5;padding:14px 0 4px;margin-top:4px;background:linear-gradient(180deg,rgba(11,13,18,0),#0B0D12 35%)}
   /* Sohbet */
   .chat-box{max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 2px}
   .msg{max-width:80%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.4;word-break:break-word}
@@ -135,13 +138,14 @@
       <!-- TAB 1: Öğrenciler -->
       <div id="view1">
         <div class="card">
-          <label>Öğrenci ekle (kayıtlı e-posta)</label>
-          <input id="newStudent" type="email" placeholder="ornek@mail.com">
-          <button onclick="addStudent()">Ekle</button>
+          <div class="sec-title"><span class="ic">➕</span> Öğrenci Ekle</div>
+          <input id="newStudent" type="email" placeholder="kayıtlı e-posta — ornek@mail.com">
+          <button onclick="addStudent()" style="width:100%">Ekle</button>
           <div id="addMsg"></div>
         </div>
         <div class="card">
-          <div class="muted" style="margin-bottom:8px">👥 Salondaki öğrenciler — tıkla: programı düzenle</div>
+          <div class="sec-title"><span class="ic">👥</span> Salondaki Öğrenciler</div>
+          <div class="muted" style="margin:-8px 0 10px">Programı düzenlemek için bir öğrenciye dokun</div>
           <div id="gymList"></div>
         </div>
       </div>
@@ -152,38 +156,41 @@
           <div class="muted" style="text-align:center;padding:12px">← Öğrenciler sekmesinden bir öğrenci seç</div>
         </div>
         <div id="studentView" class="hidden">
-          <div class="card" style="display:flex;justify-content:space-between;align-items:center">
-            <div><b id="sName"></b><div class="muted" id="sInfo"></div></div>
-            <button onclick="closeStudent()" style="background:#1C2230;color:#FF9F1C;margin:0;padding:9px 14px;flex:none">← Geri</button>
+          <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <div><b id="sName" style="font-size:17px"></b><div class="muted" id="sInfo" style="margin-top:2px"></div></div>
+            <button onclick="closeStudent()" class="ghost" style="margin:0;padding:9px 14px;flex:none">← Geri</button>
           </div>
           <div class="card" id="sProgress"></div>
-          <!-- Sohbet -->
+          <!-- PROGRAM: günler + seçili günün hareketleri -->
           <div class="card">
-            <div class="muted" style="margin-bottom:8px">💬 Sohbet</div>
+            <div class="sec-title"><span class="ic">📅</span> Program</div>
+            <div class="daytabs" id="dayTabs"></div>
+            <div id="dayFocus"></div>
+            <div id="dayExCard" class="hidden" style="margin-top:14px;border-top:1px solid #20283A;padding-top:14px">
+              <div class="muted" style="margin-bottom:8px">Bu günün hareketleri</div>
+              <div id="dayExList"></div>
+            </div>
+          </div>
+          <!-- HAREKET KÜTÜPHANESİ -->
+          <div class="card">
+            <div class="sec-title"><span class="ic">➕</span> Hareket Kütüphanesi</div>
+            <div class="muted" style="margin:-6px 0 12px">Bölgeyi aç, hareketin yanındaki + ile seçili güne ekle</div>
+            <div id="groupAcc"></div>
+          </div>
+          <!-- SOHBET -->
+          <div class="card">
+            <div class="sec-title"><span class="ic">💬</span> Sohbet</div>
             <div class="chat-box" id="chatBox"><div class="muted">Yükleniyor…</div></div>
             <div class="chat-input">
               <input id="chatText" placeholder="Mesaj yaz…" maxlength="2000" onkeydown="if(event.key==='Enter')sendMsg()">
               <button onclick="sendMsg()">Gönder</button>
             </div>
           </div>
-          <!-- Günler (tablo) -->
-          <div class="card">
-            <div class="muted" style="margin-bottom:8px">📅 Günler</div>
-            <div class="daytabs" id="dayTabs"></div>
-            <div id="dayFocus"></div>
+          <!-- YAPIŞKAN KAYDET -->
+          <div class="savebar">
+            <div id="planMsg" style="text-align:center;margin-bottom:8px"></div>
+            <button onclick="savePlan()" style="width:100%;margin:0">💾 Programı Kaydet</button>
           </div>
-          <!-- Seçili günün hareketleri -->
-          <div class="card hidden" id="dayExCard">
-            <div class="muted" style="margin-bottom:8px">✅ Bu günün hareketleri</div>
-            <div id="dayExList"></div>
-          </div>
-          <!-- Bölgeye göre hareket ekle -->
-          <div class="card">
-            <div class="muted" style="margin-bottom:8px">➕ Hareket ekle — bölge seç, hareketin yanındaki + ile bugüne ata</div>
-            <div id="groupAcc"></div>
-          </div>
-          <button onclick="savePlan()" style="width:100%">Programı Kaydet</button>
-          <div id="planMsg" style="text-align:center"></div>
         </div>
       </div>
     </div>
@@ -291,7 +298,7 @@
     t.innerHTML=_plan.map(function(day,di){
       var lbl=day.focus?day.focus:'Gün '+(di+1);
       return '<div class="daytab'+(di===_activeDay?' on':'')+'" onclick="setDay('+di+')">'+lbl+'</div>';
-    }).join('')+'<div class="daytab" onclick="addDay()" style="background:#1C2230;color:#FF9F1C;border-color:#FF9F1C">+ Gün</div>';
+    }).join('')+'<div class="daytab add" onclick="addDay()">+ Gün</div>';
     var f=document.getElementById('dayFocus'), exCard=document.getElementById('dayExCard');
     if(!_plan.length){
       f.innerHTML='<div class="muted" style="padding:8px 0">Henüz gün yok. "+ Gün" ile başla.</div>';
@@ -351,7 +358,7 @@
         '</div>';
       }).join('');
       return '<div class="acc'+(open?' open':'')+'">'+
-        '<div class="acc-head" onclick="toggleGroup(\''+g+'\')"><span>'+gi.e+' '+gi.tr+' <span class="muted" style="font-weight:400">('+_exGroups[g].length+')</span></span><span class="arr">›</span></div>'+
+        '<div class="acc-head" onclick="toggleGroup(\''+g+'\')"><span>'+gi.e+' '+gi.tr+'<span class="cnt">'+_exGroups[g].length+'</span></span><span class="arr">›</span></div>'+
         '<div class="acc-body">'+items+'</div>'+
       '</div>';
     }).join('');
