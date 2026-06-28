@@ -14,6 +14,7 @@ const Coach = require('./models/Coach');
 const PromoCode = require('./models/PromoCode');
 const ProgressPhoto = require('./models/ProgressPhoto');
 const MealLog = require('./models/MealLog');
+const CoachMessage = require('./models/CoachMessage');
 const sharp = require('sharp');
 const toDateString = (date) => date.toISOString().split('T')[0];
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -2076,6 +2077,38 @@ app.post('/coach/students/:userId/program', coachMiddleware, async (req, res) =>
   } catch (err) { console.error("Program kaydetme hatası:", err); res.status(500).json({ error: "Program kaydedilemedi." }); }
 });
 
+// Sohbet — mesajları getir (öğrenci mesajlarını okundu işaretle)
+app.get('/coach/students/:userId/messages', coachMiddleware, async (req, res) => {
+  try {
+    if (!(await studentInCoachGym(req.coachId, req.params.userId)))
+      return res.status(403).json({ error: "Bu öğrenciye erişimin yok." });
+    const msgs = await CoachMessage.find({ coach: req.coachId, user: req.params.userId })
+      .sort({ createdAt: 1 }).limit(200).lean();
+    // hocanın açtığı sohbette öğrenci mesajlarını okundu say
+    await CoachMessage.updateMany(
+      { coach: req.coachId, user: req.params.userId, from: 'student', readByCoach: false },
+      { $set: { readByCoach: true } }
+    );
+    res.json(msgs.map(m => ({ from: m.from, text: m.text, at: m.createdAt })));
+  } catch (err) { console.error("Mesaj getirme hatası:", err); res.status(500).json({ error: "Mesajlar yüklenemedi." }); }
+});
+
+// Sohbet — hoca mesaj gönderir
+app.post('/coach/students/:userId/messages', coachMiddleware, async (req, res) => {
+  try {
+    if (!(await studentInCoachGym(req.coachId, req.params.userId)))
+      return res.status(403).json({ error: "Bu öğrenciye erişimin yok." });
+    const text = (req.body.text || '').trim();
+    if (!text) return res.status(400).json({ error: "Mesaj boş olamaz." });
+    if (text.length > 2000) return res.status(400).json({ error: "Mesaj çok uzun." });
+    const msg = await CoachMessage.create({
+      coach: req.coachId, user: req.params.userId,
+      from: 'coach', text, readByCoach: true,
+    });
+    res.json({ from: 'coach', text: msg.text, at: msg.createdAt });
+  } catch (err) { console.error("Mesaj gönderme hatası:", err); res.status(500).json({ error: "Mesaj gönderilemedi." }); }
+});
+
 // Hoca kendi şifresini değiştirir
 app.post('/coach/change-password', coachMiddleware, async (req, res) => {
   try {
@@ -2761,6 +2794,15 @@ app.get('/coach', (req, res) => {
   .addbtn{width:34px;height:34px;border-radius:9px;background:#1C2230;color:#FF9F1C;font-size:20px;border:none;margin:0;padding:0;flex:none;line-height:1}
   .addbtn.on{background:#FF9F1C;color:#0B0D12}
   .srin{width:46px;background:#0B0D12;border:1px solid #262C3A;border-radius:8px;padding:7px 4px;color:#E7EAF0;text-align:center;font-size:14px}
+  /* Sohbet */
+  .chat-box{max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 2px}
+  .msg{max-width:80%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.4;word-break:break-word}
+  .msg.coach{align-self:flex-end;background:#FF9F1C;color:#0B0D12;border-bottom-right-radius:4px}
+  .msg.student{align-self:flex-start;background:#1C2230;color:#E7EAF0;border-bottom-left-radius:4px}
+  .msg .t{display:block;font-size:10px;opacity:.65;margin-top:3px;text-align:right}
+  .chat-input{display:flex;gap:8px;margin-top:10px}
+  .chat-input input{flex:1;margin:0}
+  .chat-input button{margin:0;flex:none}
 </style></head>
 <body><div class="wrap">
   <!-- LOGIN -->
@@ -2839,6 +2881,15 @@ app.get('/coach', (req, res) => {
             <button onclick="closeStudent()" style="background:#1C2230;color:#FF9F1C;margin:0;padding:9px 14px;flex:none">← Geri</button>
           </div>
           <div class="card" id="sProgress"></div>
+          <!-- Sohbet -->
+          <div class="card">
+            <div class="muted" style="margin-bottom:8px">💬 Sohbet</div>
+            <div class="chat-box" id="chatBox"><div class="muted">Yükleniyor…</div></div>
+            <div class="chat-input">
+              <input id="chatText" placeholder="Mesaj yaz…" maxlength="2000" onkeydown="if(event.key==='Enter')sendMsg()">
+              <button onclick="sendMsg()">Gönder</button>
+            </div>
+          </div>
           <!-- Günler (tablo) -->
           <div class="card">
             <div class="muted" style="margin-bottom:8px">📅 Günler</div>
@@ -2913,12 +2964,41 @@ app.get('/coach', (req, res) => {
     _plan=(d.workoutPlan&&d.workoutPlan.length)?JSON.parse(JSON.stringify(d.workoutPlan)):[];
     _activeDay=0;_openGroups={};
     renderPlan();
+    document.getElementById('chatBox').innerHTML='<div class="muted">Yükleniyor…</div>';
+    startChatPoll();
   }
   function closeStudent(){
+    stopChatPoll();
     document.getElementById('studentView').classList.add('hidden');
     document.getElementById('noStudentMsg').classList.remove('hidden');
     switchTab(1);
   }
+  // ---- Sohbet ----
+  let _chatTimer=null,_chatLastCount=-1;
+  function chatEsc(s){return s.replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function renderChat(msgs){
+    var box=document.getElementById('chatBox');
+    if(!msgs.length){box.innerHTML='<div class="muted" style="text-align:center;padding:14px">Henüz mesaj yok. İlk mesajı sen yaz 👋</div>';_chatLastCount=0;return;}
+    var atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;
+    box.innerHTML=msgs.map(function(m){
+      var d=new Date(m.at),hh=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+      return '<div class="msg '+(m.from==='coach'?'coach':'student')+'">'+chatEsc(m.text)+'<span class="t">'+hh+'</span></div>';
+    }).join('');
+    if(atBottom||msgs.length!==_chatLastCount)box.scrollTop=box.scrollHeight;
+    _chatLastCount=msgs.length;
+  }
+  async function loadChat(){
+    if(!_curUser)return;
+    try{var r=await fetch('/coach/students/'+_curUser+'/messages',{headers:H()});if(!r.ok)return;renderChat(await r.json());}catch(_){}
+  }
+  async function sendMsg(){
+    var inp=document.getElementById('chatText'),t=inp.value.trim();
+    if(!t||!_curUser)return;
+    inp.value='';
+    try{var r=await fetch('/coach/students/'+_curUser+'/messages',{method:'POST',headers:H(),body:JSON.stringify({text:t})});if(r.ok)loadChat();else inp.value=t;}catch(_){inp.value=t;}
+  }
+  function startChatPoll(){stopChatPoll();_chatLastCount=-1;loadChat();_chatTimer=setInterval(loadChat,4000);}
+  function stopChatPoll(){if(_chatTimer){clearInterval(_chatTimer);_chatTimer=null;}}
   // ---- Program editörü (gün tabları + bölge akordeon) ----
   function GINFO(key){
     var M={chest:['Göğüs','💪'],back:['Sırt','🔙'],legs:['Bacak','🦵'],shoulders:['Omuz','🏔️'],
