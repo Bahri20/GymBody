@@ -390,12 +390,12 @@
     if(!list.length){gl.innerHTML='<div class="muted">Henüz öğrenci yok. Yukarıdan e-posta ile ekle.</div>';}
     else{gl.innerHTML=list.map(s=>
       '<div class="row" style="cursor:pointer" onclick="openStudent(\''+s._id+'\',\''+(s.name||'').replace(/[^\w çğıöşüÇĞİÖŞÜ]/g,'')+'\')">'+
-      '<div><b>'+s.name+'</b> <span class="'+(s.isVip?'vip':'novip')+'">'+(s.isVip?'VIP':'')+'</span>'+
+      '<div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+      '<b>'+s.name+'</b> <span class="'+(s.isVip?'vip':'novip')+'">'+(s.isVip?'VIP':'')+'</span>'+
+      '<button class="danger" onclick="event.stopPropagation();rmStudent(\''+s._id+'\')" style="margin:0">Çıkar</button></div>'+
       '<div style="margin-top:2px"><span class="pill">🏋️ '+(s.coachName||d.name)+'</span></div>'+
       (s.email?'<div class="muted" style="margin-top:2px">'+s.email+'</div>':'')+'</div>'+
-      '<div style="display:flex;align-items:center;gap:10px">'+
-      '<button class="danger" onclick="event.stopPropagation();rmStudent(\''+s._id+'\')" style="margin:0">Çıkar</button>'+
-      '<span style="color:#FF9F1C;font-size:20px">›</span></div></div>').join('');}
+      '<span style="color:#FF9F1C;font-size:20px">›</span></div>').join('');}
     // çekimler
     const wl=document.getElementById('wList');
     wl.innerHTML=(d.withdrawals&&d.withdrawals.length)?d.withdrawals.map(w=>
