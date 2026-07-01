@@ -67,10 +67,10 @@ const C = {
 
 // Sekme aksanına göre yumuşak üst ambient glow (algılanan parlaklığa göre dengelendi)
 const TAB_GLOW: Record<string, string[]> = {
-  meal:    ['rgba(255,159,28,0.16)', 'rgba(255,159,28,0.05)', 'transparent'], // turuncu
+  analiz:  ['rgba(255,159,28,0.16)', 'rgba(255,159,28,0.05)', 'transparent'], // turuncu
+  pt:      ['rgba(37,99,235,0.20)', 'rgba(37,99,235,0.06)', 'transparent'], // koyu mavi
   gymBody: ['rgba(37,99,235,0.20)', 'rgba(37,99,235,0.06)', 'transparent'], // koyu mavi
   stats:   ['rgba(91,141,239,0.18)', 'rgba(91,141,239,0.06)', 'transparent'], // mavi
-  gallery: ['rgba(198,255,61,0.12)', 'rgba(198,255,61,0.04)', 'transparent'], // lime
   profile: ['rgba(198,255,61,0.12)', 'rgba(198,255,61,0.04)', 'transparent'], // lime
 };
 
@@ -527,7 +527,15 @@ export default function App() {
   const [weeklyPlan, setWeeklyPlan] = useState<any>(null);
   const [gymLoading, setGymLoading] = useState(false);
   const [gymPlanTab, setGymPlanTab] = useState<'workout' | 'nutrition'>('workout');
-  const [mealTab, setMealTab] = useState<'plan' | 'analiz'>('plan');
+  const [mealTab, setMealTab] = useState<'plan' | 'analiz'>('analiz');
+  const [analizTab, setAnalizTab] = useState<'gelisim' | 'beslenme'>('gelisim');
+  // PT (hoca) durumu
+  const [coachData, setCoachData] = useState<any>({ hasCoach: false });
+  const [coachChatVisible, setCoachChatVisible] = useState(false);
+  const [coachMessages, setCoachMessages] = useState<{ from: string; text: string; at: string }[]>([]);
+  const [coachChatInput, setCoachChatInput] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const coachPollRef = useRef<any>(null);
   const [gymTab, setGymTab] = useState<'program' | 'max'>('program');
   const [gifModalUrl, setGifModalUrl] = useState<string | null>(null);
   const [dayFeedbackVisible, setDayFeedbackVisible] = useState(false);
@@ -719,7 +727,7 @@ export default function App() {
   const [note, setNote] = useState('');
 
   // SEKME YÖNETİMİ: 'gallery' | 'meal' | 'profile'
-  const [currentTab, setCurrentTab] = useState('gallery');
+  const [currentTab, setCurrentTab] = useState('analiz');
 
   // Yemek Kalori Ölçer State'leri
   const [mealImage, setMealImage] = useState<string | null>(null);
@@ -764,6 +772,14 @@ export default function App() {
  useEffect(() => {
    mobileAds().initialize();
  }, []);
+
+ // PT (hoca) durumunu giriş sonrası çek + okunmamış rozet için 30sn'de bir yenile
+ useEffect(() => {
+   if (!token) return;
+   fetchCoach();
+   const t = setInterval(fetchCoach, 30000);
+   return () => clearInterval(t);
+ }, [token]);
 
  // Ödüllü reklam göster → izlenince backend'den token al (VIP hariç, sunucu günlük sınırı uygular)
  const showRewardedAd = () => {
@@ -1240,6 +1256,53 @@ const sendMessage = async () => {
 const closeChat = () => {
   if (chatPollRef.current) clearInterval(chatPollRef.current);
   setChatFriend(null);
+};
+
+// ─── PT (HOCA) ───
+const fetchCoach = async () => {
+  if (!token) return;
+  try {
+    const { data } = await axios.get(`${API_URL}/my-coach`, { headers: { Authorization: `Bearer ${token}` } });
+    setCoachData(data);
+  } catch {}
+};
+const joinCoach = async () => {
+  const code = joinCode.trim();
+  if (!code) return;
+  try {
+    const { data } = await axios.post(`${API_URL}/join-coach`, { code }, { headers: { Authorization: `Bearer ${token}` } });
+    showToast(data.message || 'Hocana bağlandın!');
+    setJoinCode('');
+    fetchCoach();
+  } catch (e: any) { showToast(e.response?.data?.error || 'Kod bulunamadı', 'error'); }
+};
+const loadCoachMessages = async () => {
+  try {
+    const { data } = await axios.get(`${API_URL}/my-coach/messages`, { headers: { Authorization: `Bearer ${token}` } });
+    setCoachMessages(data);
+    setCoachData((prev: any) => ({ ...prev, unread: 0 }));
+  } catch {}
+};
+const openCoachChat = () => {
+  setCoachChatVisible(true);
+  setCoachMessages([]);
+  loadCoachMessages();
+  if (coachPollRef.current) clearInterval(coachPollRef.current);
+  coachPollRef.current = setInterval(loadCoachMessages, 5000);
+};
+const closeCoachChat = () => {
+  if (coachPollRef.current) clearInterval(coachPollRef.current);
+  setCoachChatVisible(false);
+  fetchCoach();
+};
+const sendCoachMessage = async () => {
+  const text = coachChatInput.trim();
+  if (!text) return;
+  setCoachChatInput('');
+  try {
+    const { data } = await axios.post(`${API_URL}/my-coach/messages`, { text }, { headers: { Authorization: `Bearer ${token}` } });
+    setCoachMessages(prev => [...prev, data]);
+  } catch { showToast('Gönderilemedi', 'error'); }
 };
 
 // ─── ENGELLE / ŞİKAYET ET (UGC moderasyon — App Store/Play Store zorunlu) ───
@@ -2123,8 +2186,8 @@ const pickAndUploadProfilePhoto = async () => {
 
   // --- ANA UYGULAMA EKRANI ---
   const TABS = [
-  { key: 'gallery', label: 'Galeri', icon: 'images-outline' as const, gym: false },
-  { key: 'meal', label: 'Yemek', icon: 'restaurant-outline' as const, gym: false },
+  { key: 'analiz', label: 'Analiz', icon: 'analytics-outline' as const, gym: false },
+  { key: 'pt', label: 'PT', icon: 'person-circle-outline' as const, gym: false },
   { key: 'gymBody', label: 'GymBody', icon: 'barbell-outline' as const, gym: true },
   { key: 'stats', label: 'Max Güç', icon: 'trophy-outline' as const, gym: false },
   { key: 'profile', label: 'Profil', icon: 'person-outline' as const, gym: false },
@@ -2417,6 +2480,22 @@ const pickAndUploadProfilePhoto = async () => {
         </View>
       )}
 
+      {/* GÜNÜN BESLENME PLANI — antrenmanla aynı yerde (Analiz'den taşındı) */}
+      {currentNutritionDay && (
+        <View style={[styles.gymDayCard, { marginTop: 12 }]}>
+          <View style={styles.gymDayHeader}>
+            <Text style={styles.gymDayTitle}>🍽️ Beslenme</Text>
+            <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{currentNutritionDay.totalCalories} kcal</Text></View>
+          </View>
+          {currentNutritionDay.meals?.map((meal: any, j: number) => (
+            <View key={j} style={styles.gymMealRow}>
+              <Text style={styles.gymMealName}>{meal.name}</Text>
+              <Text style={styles.gymMealItems}>{meal.items}</Text>
+              <Text style={styles.gymMealCal}>{meal.calories} kcal</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       <TouchableOpacity activeOpacity={0.85} onPress={() => setDayFeedbackVisible(true)} style={{ marginTop: 8 }}>
         <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
@@ -2457,14 +2536,142 @@ const pickAndUploadProfilePhoto = async () => {
     )}
   </ScrollView>
       )}
-      {currentTab === 'gallery' && loading && gallery.length === 0 && (
+      {currentTab === 'pt' && (
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100, paddingTop: 12 }}>
+          {!userStats.isVip ? (
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
+              style={{ margin: 16, padding: 24, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(37,99,235,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="person-circle-outline" size={40} color="#5B8DEF" />
+              </View>
+              <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>PT — Kişisel Hoca</Text>
+              <Text style={{ color: C.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+                Hocanın sana özel yazdığı antrenman & beslenme programı ve birebir sohbet <Text style={{ color: C.orange, fontWeight: '800' }}>VIP</Text> üyelere özeldir.
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <Ionicons name="lock-closed" size={16} color={C.orange} />
+                <Text style={{ color: C.orange, fontWeight: '800', fontSize: 14 }}>VIP'e Geç →</Text>
+              </View>
+            </TouchableOpacity>
+          ) : !coachData.hasCoach ? (
+            <View style={{ paddingHorizontal: 20, paddingTop: 30, alignItems: 'center', gap: 14 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(37,99,235,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="person-circle-outline" size={40} color="#5B8DEF" />
+              </View>
+              <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>Hocana Bağlan</Text>
+              <Text style={{ color: C.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+                Hocanın sana verdiği kodu gir; sana özel yazdığı antrenman & beslenme programı ve sohbet burada açılsın.
+              </Text>
+              <View style={{ width: '100%', marginTop: 8 }}>
+                <TextInput
+                  style={styles.noteInput}
+                  placeholder="Hoca kodu (örn. ali47)"
+                  placeholderTextColor={C.textMuted}
+                  value={joinCode}
+                  autoCapitalize="none"
+                  onChangeText={setJoinCode}
+                />
+                <TouchableOpacity activeOpacity={0.85} onPress={joinCoach} style={{ marginTop: 12 }}>
+                  <LinearGradient colors={['#2563EB', '#1E40AF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+                    <Ionicons name="link" size={18} color="#fff" />
+                    <Text style={[styles.primaryBtnText, { color: '#fff' }]}>BAĞLAN</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={{ paddingHorizontal: 16 }}>
+              <View style={[styles.gymDayCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+                <View>
+                  <Text style={{ color: C.textMuted, fontSize: 12 }}>Hocan</Text>
+                  <Text style={{ color: C.text, fontWeight: '900', fontSize: 18 }}>🏋️ {coachData.coachName}</Text>
+                </View>
+                <TouchableOpacity activeOpacity={0.85} onPress={openCoachChat} style={{ backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Sohbet</Text>
+                  {coachData.unread > 0 && (
+                    <View style={{ backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>{coachData.unread}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {(coachData.workoutPlan || []).length === 0 && (coachData.nutritionPlan || []).length === 0 && (
+                <View style={[styles.statsCard, { alignItems: 'center', gap: 8 }]}>
+                  <Ionicons name="barbell-outline" size={30} color={C.textMuted} />
+                  <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 15 }}>Program Bekleniyor</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>Hocan sana özel program yazınca burada görünecek.</Text>
+                </View>
+              )}
+              {(coachData.workoutPlan || []).map((day: any, i: number) => (
+                <View key={'w' + i} style={styles.gymDayCard}>
+                  <View style={styles.gymDayHeader}>
+                    <Text style={styles.gymDayTitle}>{day.dayNumber || i + 1}. Gün</Text>
+                    {!!day.focus && <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{day.focus}</Text></View>}
+                  </View>
+                  {(day.exercises || []).map((ex: any, j: number) => (
+                    <View key={j} style={styles.gymExerciseRow}>
+                      <Ionicons name="checkmark-circle-outline" size={18} color="#FF9F1C" />
+                      {ex.gifUrl && (
+                        <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ marginLeft: 8 }}>
+                          <Ionicons name="play-circle" size={24} color="#2563EB" />
+                        </TouchableOpacity>
+                      )}
+                      <View style={{ flex: 1, marginLeft: 8 }}>
+                        <Text style={styles.gymExerciseName}>{ex.name}</Text>
+                        <Text style={styles.gymExerciseSets}>{ex.sets}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ))}
+              {(coachData.nutritionPlan || []).map((day: any, i: number) => (
+                <View key={'n' + i} style={styles.gymDayCard}>
+                  <View style={styles.gymDayHeader}>
+                    <Text style={styles.gymDayTitle}>🍽️ {day.dayNumber || i + 1}. Gün Beslenme</Text>
+                    {!!day.totalCalories && <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{day.totalCalories} kcal</Text></View>}
+                  </View>
+                  {(day.meals || []).map((meal: any, j: number) => (
+                    <View key={j} style={styles.gymMealRow}>
+                      <Text style={styles.gymMealName}>{meal.name}</Text>
+                      <Text style={styles.gymMealItems}>{meal.items}</Text>
+                      <Text style={styles.gymMealCal}>{meal.calories} kcal</Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      )}
+      {/* ANALİZ iç switcher: Gelişim (foto) | Beslenme (kalori) */}
+      {currentTab === 'analiz' && (
+        <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, marginBottom: 4, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border }}>
+          <TouchableOpacity
+            style={[{ flex: 1, gap: 4, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
+              analizTab === 'gelisim' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
+            onPress={() => setAnalizTab('gelisim')}>
+            <Ionicons name="images-outline" size={16} color={analizTab === 'gelisim' ? '#0B0D12' : C.textSec} />
+            <Text style={{ fontWeight: '700', color: analizTab === 'gelisim' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Gelişim</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[{ flex: 1, gap: 4, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
+              analizTab === 'beslenme' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
+            onPress={() => setAnalizTab('beslenme')}>
+            <Ionicons name="restaurant-outline" size={16} color={analizTab === 'beslenme' ? '#0B0D12' : C.textSec} />
+            <Text style={{ fontWeight: '700', color: analizTab === 'beslenme' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Beslenme</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {currentTab === 'analiz' && analizTab === 'gelisim' && loading && gallery.length === 0 && (
         <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
           {[1,2,3].map(i => (
             <View key={i} style={{ backgroundColor: C.surface, borderRadius: 16, height: 120, opacity: 0.5 + i * 0.1 }} />
           ))}
         </View>
       )}
-      {currentTab === 'gallery' && !(loading && gallery.length === 0) && (
+      {currentTab === 'analiz' && analizTab === 'gelisim' && !(loading && gallery.length === 0) && (
         <FlatList
           data={gallery}
           keyExtractor={(item) => item._id}
@@ -2691,77 +2898,8 @@ const pickAndUploadProfilePhoto = async () => {
       )}
 
       {/* ===== YEMEK SEKMESİ ===== */}
-      {currentTab === 'meal' && (
+      {currentTab === 'analiz' && analizTab === 'beslenme' && (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100 }}>
-
-          {/* SWITCHER */}
-          <View style={{ flexDirection: 'row', marginBottom: 12, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border }}>
-            <TouchableOpacity
-              style={[{ flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
-                mealTab === 'analiz' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
-              onPress={() => setMealTab('analiz')}>
-              <Ionicons name="scan-outline" size={16} color={mealTab === 'analiz' ? '#0B0D12' : C.textSec} />
-              <Text style={{ fontWeight: '700', color: mealTab === 'analiz' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Kalori Analizi</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[{ flex: 1, gap: 3, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
-                mealTab === 'plan' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
-              onPress={() => setMealTab('plan')}>
-              <Ionicons name="restaurant-outline" size={16} color={mealTab === 'plan' ? '#0B0D12' : C.textSec} />
-              <Text style={{ fontWeight: '700', color: mealTab === 'plan' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Beslenme Planı</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* ===================== GÜNLÜK BESLENME PLANI (VIP) ===================== */}
-          {mealTab === 'plan' && userStats.isVip && weeklyPlan && !weeklyPlan.completedFully && (() => {
-            const currentDay = weeklyPlan.currentDay || 1;
-            const totalDays = weeklyPlan.nutritionPlan?.length || 7;
-            const todayNutrition = weeklyPlan.nutritionPlan?.find((d: any) => d.dayNumber === currentDay)
-              || weeklyPlan.nutritionPlan?.[currentDay - 1];
-            if (!todayNutrition) return null;
-            return (
-              <View style={[styles.statsCard, { marginBottom: 4 }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <Text style={styles.statsTitle}>Beslenme Planı</Text>
-                  <View style={{ backgroundColor: C.surface2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 }}>
-                    <Text style={{ color: C.orange, fontWeight: '800', fontSize: 13 }}>{todayNutrition.totalCalories} kcal</Text>
-                  </View>
-                </View>
-                <Text style={{ color: C.textMuted, fontSize: 11, marginBottom: 10 }}>
-                  {currentDay}. gün / {totalDays}
-                </Text>
-                {todayNutrition.meals?.map((meal: any, j: number) => (
-                  <View key={j} style={styles.gymMealRow}>
-                    <Text style={styles.gymMealName}>{meal.name}</Text>
-                    <Text style={styles.gymMealItems}>{meal.items}</Text>
-                    <Text style={styles.gymMealCal}>{meal.calories} kcal</Text>
-                  </View>
-                ))}
-                <TouchableOpacity activeOpacity={0.85} onPress={() => setDayFeedbackVisible(true)} style={{ marginTop: 12 }}>
-                  <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
-                    <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
-                    <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{currentDay}. GÜNÜ TAMAMLADIM</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            );
-          })()}
-          {mealTab === 'plan' && userStats.isVip && !weeklyPlan && (
-            <View style={[styles.statsCard, { alignItems: 'center', gap: 8, marginBottom: 4 }]}>
-              <Ionicons name="restaurant-outline" size={32} color={C.textMuted} />
-              <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 15 }}>Beslenme Planın Hazır Değil</Text>
-              <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>GymBody sekmesinden haftalık program oluştur, beslenme planın burada görünsün.</Text>
-            </View>
-          )}
-          {mealTab === 'plan' && !userStats.isVip && (
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
-              style={[styles.statsCard, { alignItems: 'center', gap: 12, marginBottom: 4 }]}>
-              <Ionicons name="lock-closed" size={32} color={C.orange} />
-              <Text style={{ color: C.text, fontWeight: '800', fontSize: 16 }}>VIP Özelliği</Text>
-              <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>Kişisel haftalık beslenme planı VIP üyelere özeldir.</Text>
-              <Text style={{ color: C.orange, fontWeight: '700', fontSize: 13 }}>VIP'e Geç →</Text>
-            </TouchableOpacity>
-          )}
 
           {mealTab === 'analiz' && (
           <View>
@@ -4089,6 +4227,41 @@ const pickAndUploadProfilePhoto = async () => {
       })()}
 
       {/* GIF MODAL */}
+      {/* PT — HOCA SOHBET MODALI */}
+      <Modal visible={coachChatVisible} transparent animationType="slide" onRequestClose={closeCoachChat}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: C.bg }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 54, paddingBottom: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.border, backgroundColor: C.surface }}>
+              <TouchableOpacity onPress={closeCoachChat} style={{ marginRight: 12 }}>
+                <Ionicons name="chevron-back" size={26} color={C.text} />
+              </TouchableOpacity>
+              <Text style={{ color: C.text, fontWeight: '900', fontSize: 17, flex: 1 }}>🏋️ {coachData.coachName || 'Hocan'}</Text>
+            </View>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, gap: 8 }}>
+              {coachMessages.length === 0 && (
+                <Text style={{ color: C.textMuted, textAlign: 'center', marginTop: 40 }}>Henüz mesaj yok. Hocana yazabilirsin 👋</Text>
+              )}
+              {coachMessages.map((msg, i) => {
+                const mine = msg.from === 'student';
+                return (
+                  <View key={i} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '80%', backgroundColor: mine ? C.orange : C.surface2, borderRadius: 16, borderBottomRightRadius: mine ? 4 : 16, borderBottomLeftRadius: mine ? 16 : 4, paddingVertical: 9, paddingHorizontal: 12 }}>
+                    <Text style={{ color: mine ? '#0B0D12' : C.text, fontSize: 14, lineHeight: 19 }}>{msg.text}</Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.surface }}>
+              <TextInput value={coachChatInput} onChangeText={setCoachChatInput} placeholder="Mesaj yaz..." placeholderTextColor={C.textMuted}
+                style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: C.text }} />
+              <TouchableOpacity onPress={sendCoachMessage} disabled={!coachChatInput.trim()}
+                style={{ backgroundColor: coachChatInput.trim() ? C.orange : C.surface2, borderRadius: 20, padding: 10 }}>
+                <Ionicons name="send" size={20} color={coachChatInput.trim() ? '#0B0D12' : C.textMuted} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={!!gifModalUrl} transparent animationType="fade" onRequestClose={() => setGifModalUrl(null)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setGifModalUrl(null)}>
          {gifModalUrl && (
@@ -5095,7 +5268,14 @@ const pickAndUploadProfilePhoto = async () => {
             <TouchableOpacity key={t.key} activeOpacity={0.85} style={styles.tabBtn}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(t.key); }}>
               {active && <View style={styles.tabActivePill} />}
-              <Ionicons name={t.icon} size={22} color={active ? C.orange : C.textSec} />
+              <View>
+                <Ionicons name={t.icon} size={22} color={active ? C.orange : C.textSec} />
+                {t.key === 'pt' && coachData.unread > 0 && (
+                  <View style={{ position: 'absolute', top: -5, right: -9, backgroundColor: '#EF4444', borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: C.bg }}>
+                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>{coachData.unread > 9 ? '9+' : coachData.unread}</Text>
+                  </View>
+                )}
+              </View>
               <Text style={[styles.tabBtnText, active && { color: C.orange, fontWeight: '700' }]}>{t.label}</Text>
             </TouchableOpacity>
           );

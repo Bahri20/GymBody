@@ -2047,13 +2047,13 @@ app.get('/coach/students/:userId', coachMiddleware, async (req, res) => {
   try {
     if (!(await studentInCoachGym(req.coachId, req.params.userId)))
       return res.status(403).json({ error: "Bu öğrenciye erişimin yok." });
-    const user = await User.findById(req.params.userId, 'name email weight height gender weeklyPlan lifts');
+    const user = await User.findById(req.params.userId, 'name email weight height gender coachPlan lifts');
     if (!user) return res.status(404).json({ error: "Öğrenci bulunamadı." });
     const stats = await BodyStat.find({ userId: user._id }).sort({ date: -1 }).limit(8);
     res.json({
       name: user.name, email: user.email, weight: user.weight, height: user.height, gender: user.gender,
-      workoutPlan: user.weeklyPlan?.workoutPlan || [],
-      nutritionPlan: user.weeklyPlan?.nutritionPlan || [],
+      workoutPlan: user.coachPlan?.workoutPlan || [],
+      nutritionPlan: user.coachPlan?.nutritionPlan || [],
       lifts: user.lifts || {},
       bodyStats: stats,
     });
@@ -2069,14 +2069,13 @@ app.post('/coach/students/:userId/program', coachMiddleware, async (req, res) =>
     if (!Array.isArray(workoutPlan) || !workoutPlan.length) return res.status(400).json({ error: "Program boş olamaz." });
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ error: "Öğrenci bulunamadı." });
-    user.weeklyPlan = user.weeklyPlan || {};
-    user.weeklyPlan.workoutPlan = workoutPlan;
-    user.weeklyPlan.generatedAt = new Date();
-    user.weeklyPlan.completedFully = false;
-    user.weeklyPlan.currentDay = 1;
-    user.weeklyPlan.totalDays = workoutPlan.length;
-    user.weeklyPlan.started = true;
-    user.markModified('weeklyPlan');
+    const coach = await Coach.findById(req.coachId, 'name');
+    // Hoca planı AI weeklyPlan'dan AYRI tutulur (öğrenci PT sekmesinde görür)
+    user.coachPlan = user.coachPlan || {};
+    user.coachPlan.workoutPlan = workoutPlan;
+    user.coachPlan.coachName = coach?.name || user.coachPlan.coachName;
+    user.coachPlan.updatedAt = new Date();
+    user.markModified('coachPlan');
     await user.save();
     console.log(`📋 Hoca programı kaydedildi → ${user.name} (${workoutPlan.length} gün)`);
     res.json({ message: "Program kaydedildi ✓" });
@@ -2106,9 +2105,12 @@ app.post('/coach/students/:userId/nutrition', coachMiddleware, async (req, res) 
         completed: false,
       };
     });
-    user.weeklyPlan = user.weeklyPlan || {};
-    user.weeklyPlan.nutritionPlan = clean;
-    user.markModified('weeklyPlan');
+    const coach = await Coach.findById(req.coachId, 'name');
+    user.coachPlan = user.coachPlan || {};
+    user.coachPlan.nutritionPlan = clean;
+    user.coachPlan.coachName = coach?.name || user.coachPlan.coachName;
+    user.coachPlan.updatedAt = new Date();
+    user.markModified('coachPlan');
     await user.save();
     console.log(`🥗 Hoca beslenmesi kaydedildi → ${user.name} (${clean.length} gün)`);
     res.json({ message: "Beslenme kaydedildi ✓" });
@@ -2145,6 +2147,74 @@ app.post('/coach/students/:userId/messages', coachMiddleware, async (req, res) =
     });
     res.json({ from: 'coach', text: msg.text, at: msg.createdAt });
   } catch (err) { console.error("Mesaj gönderme hatası:", err); res.status(500).json({ error: "Mesaj gönderilemedi." }); }
+});
+
+// ============ ÖĞRENCİ (PT) TARAFI — mobil uygulama kullanır ============
+
+// Öğrenci hocanın koduyla bağlanır — İNDİRİM YOK, sadece bağlama (Apple 3.1.1 uyumlu)
+app.post('/join-coach', authMiddleware, async (req, res) => {
+  try {
+    const code = (req.body.code || '').toLowerCase().trim();
+    if (!code) return res.status(400).json({ error: "Kod gerekli." });
+    const coach = await Coach.findOne({ referralCode: code, isActive: true });
+    if (!coach) return res.status(404).json({ error: "Geçersiz hoca kodu." });
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    user.referredBy = coach._id;
+    await user.save();
+    await Coach.findByIdAndUpdate(coach._id, { $addToSet: { referredUsers: user._id } });
+    console.log(`🔗 Öğrenci hocaya bağlandı: ${user.name} → ${coach.name}`);
+    res.json({ message: `${coach.name} hocana bağlandın!`, coachName: coach.name });
+  } catch (err) { console.error("join-coach hatası:", err); res.status(500).json({ error: "Bağlanılamadı." }); }
+});
+
+// Öğrenci: hocam + hoca planı + okunmamış mesaj sayısı (PT sekmesi)
+app.get('/my-coach', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId, 'referredBy coachPlan');
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    if (!user.referredBy) return res.json({ hasCoach: false });
+    const coach = await Coach.findById(user.referredBy, 'name');
+    const unread = await CoachMessage.countDocuments({ coach: user.referredBy, user: user._id, from: 'coach', readByStudent: false });
+    res.json({
+      hasCoach: true,
+      coachName: coach?.name || user.coachPlan?.coachName || 'Hocan',
+      workoutPlan: user.coachPlan?.workoutPlan || [],
+      nutritionPlan: user.coachPlan?.nutritionPlan || [],
+      updatedAt: user.coachPlan?.updatedAt || null,
+      unread,
+    });
+  } catch (err) { console.error("my-coach hatası:", err); res.status(500).json({ error: "Yüklenemedi." }); }
+});
+
+// Öğrenci: hocayla mesajları getir (hoca mesajlarını okundu işaretle)
+app.get('/my-coach/messages', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId, 'referredBy');
+    if (!user?.referredBy) return res.json([]);
+    const msgs = await CoachMessage.find({ coach: user.referredBy, user: user._id }).sort({ createdAt: 1 }).limit(200).lean();
+    await CoachMessage.updateMany(
+      { coach: user.referredBy, user: user._id, from: 'coach', readByStudent: false },
+      { $set: { readByStudent: true } }
+    );
+    res.json(msgs.map(m => ({ from: m.from, text: m.text, at: m.createdAt })));
+  } catch (err) { console.error("my-coach messages hatası:", err); res.status(500).json({ error: "Mesajlar yüklenemedi." }); }
+});
+
+// Öğrenci: hocaya mesaj gönder
+app.post('/my-coach/messages', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId, 'referredBy');
+    if (!user?.referredBy) return res.status(400).json({ error: "Bağlı bir hocan yok." });
+    const text = (req.body.text || '').trim();
+    if (!text) return res.status(400).json({ error: "Mesaj boş olamaz." });
+    if (text.length > 2000) return res.status(400).json({ error: "Mesaj çok uzun." });
+    const msg = await CoachMessage.create({
+      coach: user.referredBy, user: user._id,
+      from: 'student', text, readByStudent: true,
+    });
+    res.json({ from: 'student', text: msg.text, at: msg.createdAt });
+  } catch (err) { console.error("my-coach send hatası:", err); res.status(500).json({ error: "Mesaj gönderilemedi." }); }
 });
 
 // Hoca kendi şifresini değiştirir
