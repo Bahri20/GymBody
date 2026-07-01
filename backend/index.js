@@ -828,9 +828,9 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
 
     const myId = String(me._id);
     const myRank = ranked.findIndex(u => u.id === myId) + 1; // 0 = listede yok (PR girilmemiş)
-    const top = ranked.slice(0, 10);
+    const top = ranked.slice(0, 20);
 
-    // İlk 10 için arkadaşlık durumlarını tek sorguda çek
+    // İlk 20 için arkadaşlık durumlarını tek sorguda çek
     const topIds = top.map(u => u.id).filter(id => id !== myId);
     const friendships = await Friendship.find({
       $or: [

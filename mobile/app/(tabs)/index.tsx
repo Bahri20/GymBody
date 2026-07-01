@@ -278,6 +278,34 @@ function RankBadgeSvg({ rankKey, color, size = 44 }: { rankKey: string; color: s
     );
   }
 
+  if (rankKey === 'efsane') {
+    // Alevli taç — en üst zirve (Elmas'ın da üstü)
+    return (
+      <Svg width={s} height={s} viewBox="0 0 44 44">
+        {/* Işık huzmesi */}
+        <Path d="M22,22 L2,0 L22,7 Z"  fill={stroke} opacity={0.15} />
+        <Path d="M22,22 L42,0 L22,7 Z" fill={stroke} opacity={0.15} />
+        {/* Çok geniş kanatlar */}
+        <Path d="M5,30 Q-5,22 -3,8 Q4,16 8,25 Z"  fill={stroke} opacity={0.8} />
+        <Path d="M7,24 Q-3,15 1,3  Q9,12 11,21 Z"  fill={stroke} opacity={0.55} />
+        <Path d="M9,18 Q4,9 8,2     Q14,9 13,17 Z"  fill={stroke} opacity={0.35} />
+        <Path d="M39,30 Q49,22 47,8 Q40,16 36,25 Z" fill={stroke} opacity={0.8} />
+        <Path d="M37,24 Q47,15 43,3 Q35,12 33,21 Z" fill={stroke} opacity={0.55} />
+        <Path d="M35,18 Q40,9 36,2  Q30,9 31,17 Z"  fill={stroke} opacity={0.35} />
+        {/* Taç gövdesi */}
+        <Path d="M11,31 L9,14 L17,21 L22,9 L27,21 L35,14 L33,31 Z" fill={fill} stroke={stroke} strokeWidth={2.3} strokeLinejoin="round" />
+        {/* Taç tabanı */}
+        <Path d="M11,31 L33,31 L32,36 L12,36 Z" fill={stroke} opacity={0.9} />
+        {/* Mücevherler */}
+        <Circle cx={22} cy={17} r={2.6} fill="#fff" opacity={0.95} />
+        <Circle cx={14} cy={21} r={1.7} fill={bright} opacity={0.85} />
+        <Circle cx={30} cy={21} r={1.7} fill={bright} opacity={0.85} />
+        {/* Alev ucu */}
+        <Path d="M22,3 Q24.5,7 22,10 Q19.5,7 22,3 Z" fill="#fff" opacity={0.9} />
+      </Svg>
+    );
+  }
+
   // elmas — tam mücevher, geniş kanatlar + ışık huzmesi
   return (
     <Svg width={s} height={s} viewBox="0 0 44 44">
@@ -4723,7 +4751,7 @@ const pickAndUploadProfilePhoto = async () => {
                             Bu siklette henüz kimse PR girmemiş. İlk sen ol! 💪
                           </Text>
                         )}
-                        {leaderboardData.myRank > 10 && (
+                        {leaderboardData.myRank > 20 && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 12,
                             borderRadius: 12, marginTop: 6, backgroundColor: 'rgba(255,159,28,0.14)', borderWidth: 1, borderColor: C.orange }}>
                             <Text style={{ width: 30, textAlign: 'center', fontSize: 14, fontWeight: '800', color: C.orange }}>#{leaderboardData.myRank}</Text>
@@ -5001,24 +5029,43 @@ const pickAndUploadProfilePhoto = async () => {
             return (
               <>
                 <ViewShot ref={liftShareRef} options={{ format: 'jpg', quality: 0.95 }}>
-                  <LinearGradient colors={['#12151C', '#0B0D12']} style={{ width: 300, borderRadius: 28, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: rank.color + '55' }}>
-                    <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', letterSpacing: 2 }}>GYMBODY</Text>
-                    <View style={{ marginVertical: 12 }}>
-                      <RankBadgeSvg rankKey={rank.key} color={rank.color} size={88} />
-                    </View>
-                    <Text style={{ color: rank.color, fontSize: 26, fontWeight: '900' }}>{rank.label}</Text>
-                    <View style={{ height: 1, backgroundColor: C.border, alignSelf: 'stretch', marginVertical: 16 }} />
-                    <Text style={{ color: C.text, fontSize: 20, fontWeight: '800' }}>{lift.label}</Text>
-                    <Text style={{ color: C.orange, fontSize: 40, fontWeight: '900', marginTop: 8 }}>{best} kg</Text>
-                    <Text style={{ color: C.textSec, fontSize: 13, marginTop: 4 }}>
-                      Vücut ağırlığının {ratio.toFixed(2)}x katı
-                    </Text>
-                    {nextWeight ? (
-                      <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 12 }}>Sonraki rank'a {nextWeight - best} kg kaldı</Text>
-                    ) : (
-                      <Text style={{ color: RANKS[RANKS.length - 1].color, fontSize: 13, fontWeight: '700', marginTop: 12 }}>EN YÜKSEK RANK</Text>
-                    )}
-                  </LinearGradient>
+                  <View style={{ width: 320, borderRadius: 32, overflow: 'hidden', borderWidth: 1.5, borderColor: rank.color + '66' }}>
+                    <LinearGradient colors={[rank.color + '2E', '#0E1118', '#0B0D12']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ paddingVertical: 30, paddingHorizontal: 26, alignItems: 'center' }}>
+                      {/* Marka */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="barbell" size={15} color={rank.color} />
+                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 3 }}>GYMBODY<Text style={{ color: C.lime }}>AI</Text></Text>
+                      </View>
+                      {/* Rozet + glow */}
+                      <View style={{ marginTop: 20, marginBottom: 6, alignItems: 'center', justifyContent: 'center' }}>
+                        <View style={{ position: 'absolute', width: 150, height: 150, borderRadius: 75, backgroundColor: rank.color + '20' }} />
+                        <View style={{ position: 'absolute', width: 104, height: 104, borderRadius: 52, backgroundColor: rank.color + '18' }} />
+                        <RankBadgeSvg rankKey={rank.key} color={rank.color} size={104} />
+                      </View>
+                      {/* Rank pill */}
+                      <View style={{ backgroundColor: rank.color + '22', borderColor: rank.color, borderWidth: 1, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 6 }}>
+                        <Text style={{ color: rank.color, fontSize: 22, fontWeight: '900', letterSpacing: 2 }}>{rank.label.toUpperCase()}</Text>
+                      </View>
+                      {/* Hareket + kilo */}
+                      <Text style={{ color: C.textSec, fontSize: 15, fontWeight: '700', marginTop: 22, letterSpacing: 0.5 }}>{lift.label}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 5, marginTop: 2 }}>
+                        <Text style={{ color: '#fff', fontSize: 54, fontWeight: '900', lineHeight: 58 }}>{best}</Text>
+                        <Text style={{ color: rank.color, fontSize: 22, fontWeight: '900', marginBottom: 9 }}>kg</Text>
+                      </View>
+                      <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 2 }}>Vücut ağırlığının {ratio.toFixed(2)}× katı</Text>
+                      {/* Alt bilgi */}
+                      {nextWeight ? (
+                        <View style={{ marginTop: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 16 }}>
+                          <Text style={{ color: C.textSec, fontSize: 12 }}>Sonraki rank'a <Text style={{ color: '#fff', fontWeight: '800' }}>{nextWeight - best} kg</Text> kaldı</Text>
+                        </View>
+                      ) : (
+                        <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: rank.color + '22', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 16 }}>
+                          <Ionicons name="flame" size={15} color={rank.color} />
+                          <Text style={{ color: rank.color, fontSize: 12, fontWeight: '900', letterSpacing: 1 }}>EN YÜKSEK RANK</Text>
+                        </View>
+                      )}
+                    </LinearGradient>
+                  </View>
                 </ViewShot>
                 <TouchableOpacity onPress={captureLiftShare} activeOpacity={0.85}
                   style={{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 32 }}>
