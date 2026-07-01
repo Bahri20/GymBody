@@ -124,18 +124,19 @@ const RANKS = [
   { key: 'altin',  label: 'Altın',  emoji: '🥇', color: '#FFD700' },
   { key: 'platin', label: 'Platin', emoji: '💠', color: '#5BC8E0' },
   { key: 'elmas',  label: 'Elmas',  emoji: '💎', color: '#9B6BFF' },
+  { key: 'efsane', label: 'Efsane', emoji: '🔥', color: '#EF4444' },
 ] as const;
 
-// oran eşikleri [bronz, gümüş, altın, platin, elmas]
+// oran eşikleri [bronz, gümüş, altın, platin, elmas, efsane]
 const STD: Record<string, { erkek: number[]; kadin: number[] }> = {
-  bench:    { erkek: [0.50, 0.75, 1.00, 1.25, 1.50], kadin: [0.30, 0.45, 0.60, 0.80, 1.00] },
-  squat:    { erkek: [0.75, 1.00, 1.50, 1.75, 2.25], kadin: [0.50, 0.75, 1.00, 1.25, 1.60] },
-  deadlift: { erkek: [1.00, 1.25, 1.75, 2.25, 2.75], kadin: [0.60, 0.90, 1.25, 1.60, 2.00] },
-  ohp:      { erkek: [0.35, 0.50, 0.65, 0.80, 1.00], kadin: [0.20, 0.30, 0.45, 0.55, 0.70] },
-  latpull:  { erkek: [0.60, 0.80, 1.00, 1.20, 1.40], kadin: [0.40, 0.55, 0.70, 0.85, 1.00] },
-  curl:     { erkek: [0.30, 0.40, 0.55, 0.70, 0.85], kadin: [0.20, 0.28, 0.38, 0.50, 0.60] },
+  bench:    { erkek: [0.50, 0.75, 1.00, 1.25, 1.50, 1.80], kadin: [0.30, 0.45, 0.60, 0.80, 1.00, 1.20] },
+  squat:    { erkek: [0.75, 1.00, 1.50, 1.75, 2.25, 2.60], kadin: [0.50, 0.75, 1.00, 1.25, 1.60, 1.90] },
+  deadlift: { erkek: [1.00, 1.25, 1.75, 2.25, 2.75, 3.10], kadin: [0.60, 0.90, 1.25, 1.60, 2.00, 2.30] },
+  ohp:      { erkek: [0.35, 0.50, 0.65, 0.80, 1.00, 1.15], kadin: [0.20, 0.30, 0.45, 0.55, 0.70, 0.85] },
+  latpull:  { erkek: [0.60, 0.80, 1.00, 1.20, 1.40, 1.60], kadin: [0.40, 0.55, 0.70, 0.85, 1.00, 1.15] },
+  curl:     { erkek: [0.30, 0.40, 0.55, 0.70, 0.85, 1.00], kadin: [0.20, 0.28, 0.38, 0.50, 0.60, 0.72] },
   // Lateral raise tek dumbbell/cable (tek kol) — izolasyon, vücut ağırlığıyla az ölçeklenir
-  lateral:  { erkek: [0.06, 0.09, 0.12, 0.16, 0.20], kadin: [0.04, 0.06, 0.09, 0.12, 0.15] },
+  lateral:  { erkek: [0.06, 0.09, 0.12, 0.16, 0.20, 0.25], kadin: [0.04, 0.06, 0.09, 0.12, 0.15, 0.18] },
 };
 
 // Bir hareketin rank durumunu hesapla. Döner: { rankIndex (-1=henüz bronz değil), ratio, nextWeight, progress }
@@ -5015,7 +5016,7 @@ const pickAndUploadProfilePhoto = async () => {
                     {nextWeight ? (
                       <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 12 }}>Sonraki rank'a {nextWeight - best} kg kaldı</Text>
                     ) : (
-                      <Text style={{ color: RANKS[4].color, fontSize: 13, fontWeight: '700', marginTop: 12 }}>EN YÜKSEK RANK</Text>
+                      <Text style={{ color: RANKS[RANKS.length - 1].color, fontSize: 13, fontWeight: '700', marginTop: 12 }}>EN YÜKSEK RANK</Text>
                     )}
                   </LinearGradient>
                 </ViewShot>
