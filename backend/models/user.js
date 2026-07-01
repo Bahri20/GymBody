@@ -53,6 +53,13 @@ const userSchema = new mongoose.Schema({
     started: { type: Boolean, default: false },
     workoutPlan: { type: mongoose.Schema.Types.Mixed },
     nutritionPlan: { type: mongoose.Schema.Types.Mixed }
+  },
+  // Hoca (PT) planı — AI weeklyPlan'dan ayrı; hoca web panelinden yazar, öğrenci PT sekmesinde görür
+  coachPlan: {
+    workoutPlan: { type: mongoose.Schema.Types.Mixed },
+    nutritionPlan: { type: mongoose.Schema.Types.Mixed },
+    coachName: { type: String },
+    updatedAt: { type: Date }
   }
 }, { timestamps: true });
 
