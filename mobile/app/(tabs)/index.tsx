@@ -67,10 +67,10 @@ const C = {
 
 // Sekme aksanına göre yumuşak üst ambient glow (algılanan parlaklığa göre dengelendi)
 const TAB_GLOW: Record<string, string[]> = {
-  meal:    ['rgba(255,159,28,0.16)', 'rgba(255,159,28,0.05)', 'transparent'], // turuncu
+  analiz:  ['rgba(255,159,28,0.16)', 'rgba(255,159,28,0.05)', 'transparent'], // turuncu
+  pt:      ['rgba(37,99,235,0.20)', 'rgba(37,99,235,0.06)', 'transparent'], // koyu mavi
   gymBody: ['rgba(37,99,235,0.20)', 'rgba(37,99,235,0.06)', 'transparent'], // koyu mavi
   stats:   ['rgba(91,141,239,0.18)', 'rgba(91,141,239,0.06)', 'transparent'], // mavi
-  gallery: ['rgba(198,255,61,0.12)', 'rgba(198,255,61,0.04)', 'transparent'], // lime
   profile: ['rgba(198,255,61,0.12)', 'rgba(198,255,61,0.04)', 'transparent'], // lime
 };
 
@@ -719,7 +719,7 @@ export default function App() {
   const [note, setNote] = useState('');
 
   // SEKME YÖNETİMİ: 'gallery' | 'meal' | 'profile'
-  const [currentTab, setCurrentTab] = useState('gallery');
+  const [currentTab, setCurrentTab] = useState('analiz');
 
   // Yemek Kalori Ölçer State'leri
   const [mealImage, setMealImage] = useState<string | null>(null);
@@ -2123,8 +2123,8 @@ const pickAndUploadProfilePhoto = async () => {
 
   // --- ANA UYGULAMA EKRANI ---
   const TABS = [
-  { key: 'gallery', label: 'Galeri', icon: 'images-outline' as const, gym: false },
-  { key: 'meal', label: 'Yemek', icon: 'restaurant-outline' as const, gym: false },
+  { key: 'analiz', label: 'Analiz', icon: 'analytics-outline' as const, gym: false },
+  { key: 'pt', label: 'PT', icon: 'person-circle-outline' as const, gym: false },
   { key: 'gymBody', label: 'GymBody', icon: 'barbell-outline' as const, gym: true },
   { key: 'stats', label: 'Max Güç', icon: 'trophy-outline' as const, gym: false },
   { key: 'profile', label: 'Profil', icon: 'person-outline' as const, gym: false },
@@ -2457,14 +2457,27 @@ const pickAndUploadProfilePhoto = async () => {
     )}
   </ScrollView>
       )}
-      {currentTab === 'gallery' && loading && gallery.length === 0 && (
+      {currentTab === 'pt' && (
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100, paddingTop: 40 }}>
+          <View style={{ alignItems: 'center', paddingHorizontal: 24, gap: 14 }}>
+            <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(37,99,235,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="person-circle-outline" size={40} color="#5B8DEF" />
+            </View>
+            <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>PT — Hocan</Text>
+            <Text style={{ color: C.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+              Hocanın sana özel yazdığı antrenman ve beslenme programı ile sohbet burada olacak.{'\n\n'}Yakında aktif olacak.
+            </Text>
+          </View>
+        </ScrollView>
+      )}
+      {currentTab === 'analiz' && loading && gallery.length === 0 && (
         <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
           {[1,2,3].map(i => (
             <View key={i} style={{ backgroundColor: C.surface, borderRadius: 16, height: 120, opacity: 0.5 + i * 0.1 }} />
           ))}
         </View>
       )}
-      {currentTab === 'gallery' && !(loading && gallery.length === 0) && (
+      {currentTab === 'analiz' && !(loading && gallery.length === 0) && (
         <FlatList
           data={gallery}
           keyExtractor={(item) => item._id}
@@ -2691,7 +2704,7 @@ const pickAndUploadProfilePhoto = async () => {
       )}
 
       {/* ===== YEMEK SEKMESİ ===== */}
-      {currentTab === 'meal' && (
+      {currentTab === 'meal_LEGACY' && (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100 }}>
 
           {/* SWITCHER */}
