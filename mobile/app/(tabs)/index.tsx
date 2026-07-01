@@ -2538,7 +2538,22 @@ const pickAndUploadProfilePhoto = async () => {
       )}
       {currentTab === 'pt' && (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100, paddingTop: 12 }}>
-          {!coachData.hasCoach ? (
+          {!userStats.isVip ? (
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
+              style={{ margin: 16, padding: 24, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(37,99,235,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="person-circle-outline" size={40} color="#5B8DEF" />
+              </View>
+              <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>PT — Kişisel Hoca</Text>
+              <Text style={{ color: C.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+                Hocanın sana özel yazdığı antrenman & beslenme programı ve birebir sohbet <Text style={{ color: C.orange, fontWeight: '800' }}>VIP</Text> üyelere özeldir.
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <Ionicons name="lock-closed" size={16} color={C.orange} />
+                <Text style={{ color: C.orange, fontWeight: '800', fontSize: 14 }}>VIP'e Geç →</Text>
+              </View>
+            </TouchableOpacity>
+          ) : !coachData.hasCoach ? (
             <View style={{ paddingHorizontal: 20, paddingTop: 30, alignItems: 'center', gap: 14 }}>
               <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(37,99,235,0.14)', alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="person-circle-outline" size={40} color="#5B8DEF" />
