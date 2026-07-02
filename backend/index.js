@@ -1495,15 +1495,14 @@ app.post('/complete-day', authMiddleware, async (req, res) => {
 app.get('/gif-proxy', authMiddleware, async (req, res) => {
   try {
     const { url } = req.query;
-    const isWorkoutx = url && url.startsWith('https://api.workoutxapp.com/');
+    // Yalnızca Cloudinary'ye izin ver — workoutx'e (dış API kotası) hiç gidilmez.
     const isCloudinary = url && /^https:\/\/res\.cloudinary\.com\//.test(url);
-    if (!isWorkoutx && !isCloudinary) {
+    if (!isCloudinary) {
       return res.status(400).json({ error: "Geçersiz URL" });
     }
     const https = require('https');
-    // Cloudinary genel erişimli (api-key gerekmez); workoutx için anahtar ekle
-    const proxyUrl = isWorkoutx ? `${url}?api-key=${process.env.WORKOUTX_API_KEY}` : url;
-    const gifReq = https.get(proxyUrl, (gifRes) => {
+    // Cloudinary genel erişimli (api-key gerekmez)
+    const gifReq = https.get(url, (gifRes) => {
       res.setHeader('Content-Type', gifRes.headers['content-type'] || 'image/gif');
       res.setHeader('Cache-Control', 'public, max-age=86400');
       gifRes.pipe(res);
