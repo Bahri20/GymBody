@@ -3196,11 +3196,11 @@ const pickAndUploadProfilePhoto = async () => {
           {/* RANK SIRASI */}
           <View style={[styles.statsCard, { marginBottom: 14 }]}>
             <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', letterSpacing: 1.2, marginBottom: 14 }}>RANK SİSTEMİ</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 3 }}>
               {RANKS.map((r, i) => (
-                <View key={r.key} style={{ alignItems: 'center', gap: 6 }}>
-                  <RankBadgeSvg rankKey={r.key} color={r.color} size={i === 2 ? 62 : i === 1 || i === 3 ? 52 : 44} />
-                  <Text style={{ color: r.color, fontSize: i === 2 ? 11 : 9, fontWeight: '800' }}>{r.label}</Text>
+                <View key={r.key} style={{ alignItems: 'center', gap: 5, marginBottom: i * 9 }}>
+                  <RankBadgeSvg rankKey={r.key} color={r.color} size={32 + i * 5} />
+                  <Text style={{ color: r.color, fontSize: 8.5, fontWeight: '800' }}>{r.label}</Text>
                 </View>
               ))}
             </View>
