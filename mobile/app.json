@@ -35,10 +35,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "permissions": [
-        "com.google.android.gms.permission.AD_ID"
-      ]
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -66,13 +63,6 @@
         {
           "photosPermission": "Gelişim ve yemek fotoğraflarını galeriden seçebilmen için fotoğraflarına erişim gerekiyor.",
           "cameraPermission": "Gelişim ve yemek fotoğraflarını çekebilmen için kameraya erişim gerekiyor."
-        }
-      ],
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
       ]
     ],

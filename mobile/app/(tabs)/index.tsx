@@ -12,7 +12,6 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
-import mobileAds, { BannerAd, BannerAdSize, TestIds, RewardedAd, RewardedAdEventType, AdEventType } from 'react-native-google-mobile-ads';
 
 WebBrowser.maybeCompleteAuthSession(); // Google girişi sonrası tarayıcı sekmesini kapat
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
@@ -735,7 +734,6 @@ export default function App() {
   const [appleLoading, setAppleLoading] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [welcomeVisible, setWelcomeVisible] = useState(false); // ilk giriş karşılama modalı
-  const [adLoading, setAdLoading] = useState(false); // ödüllü reklam yükleniyor
   const onboardingDoneRef = useRef(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingAnswers, setOnboardingAnswers] = useState<Record<string, string>>({});
@@ -796,12 +794,6 @@ export default function App() {
    AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => setAppleAvailable(false));
  }, []);
 
- // AdMob'u bir kez başlat — kullanıcı TAKİP ETMİYORUZ:
- // ATT yok, reklamlar kişiselleştirilmemiş (non-personalized) gösteriliyor (Apple 2.1).
- useEffect(() => {
-   mobileAds().initialize();
- }, []);
-
  // PT (hoca) durumunu giriş sonrası çek + okunmamış rozet için 30sn'de bir yenile
  useEffect(() => {
    if (!token) return;
@@ -809,36 +801,6 @@ export default function App() {
    const t = setInterval(fetchCoach, 30000);
    return () => clearInterval(t);
  }, [token]);
-
- // Ödüllü reklam göster → izlenince backend'den token al (VIP hariç, sunucu günlük sınırı uygular)
- const showRewardedAd = () => {
-   if (userStats.isVip || adLoading) return;
-   setAdLoading(true);
-   // Takip yok → kişiselleştirilmemiş reklam iste (ATT gerekmez)
-   const rewarded = RewardedAd.createForAdRequest(TestIds.REWARDED, { requestNonPersonalizedAdsOnly: true });
-   let earned = false;
-   const subs: Array<() => void> = [];
-   const cleanup = () => subs.forEach((u) => u());
-   subs.push(rewarded.addAdEventListener(RewardedAdEventType.LOADED, () => { setAdLoading(false); rewarded.show(); }));
-   subs.push(rewarded.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => { earned = true; }));
-   subs.push(rewarded.addAdEventListener(AdEventType.CLOSED, async () => {
-     cleanup();
-     if (earned) {
-       try {
-         const res = await axios.post(`${API_URL}/reward-ad-token`, {}, { headers: { Authorization: `Bearer ${token}` } });
-         showToast(`${res.data.reward} token kazandın! Bugün ${res.data.remaining} hakkın kaldı.`);
-         fetchUserStats();
-       } catch (e: any) {
-         showToast(e.response?.data?.error || 'Token verilemedi.', 'error');
-       }
-     }
-   }));
-   subs.push(rewarded.addAdEventListener(AdEventType.ERROR, () => {
-     setAdLoading(false); cleanup();
-     showToast('Reklam şu an yüklenemedi, biraz sonra tekrar dene.', 'error');
-   }));
-   rewarded.load();
- };
 
  // Google giriş sonucu döndüğünde backend'e gönder
  useEffect(() => {
@@ -943,8 +905,6 @@ const completeOnboarding = async () => {
     }, { headers: { Authorization: `Bearer ${token}` } });
   } catch {}
   setUser((prev: any) => prev ? { ...prev, onboarded: true } : prev);
-  // iOS'ta referans/promo kodu ile içerik açma yasak (Apple 3.1.1) — sadece Android'de sor
-  if (Platform.OS !== 'ios' && !user?.referredBy) setTimeout(() => askReferralCode(), 400);
 };
 
 // GymBody sekmesine her geçişte mola durumunu sıfırla (yeni gün = antrenman zamanı)
@@ -1710,22 +1670,6 @@ const handleCompleteDay = async (feedback?: string) => {
     ]
   );
 };
-const redeemVip = async () => {
-  setLoading(true);
-  try {
-    const res = await axios.post(`${API_URL}/redeem-vip`, {}, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    showToast(res.data.message);
-    fetchUserStats();
-  } catch (error: any) {
-    const msg = error.response?.data?.error || 'VIP aktifleştirilemedi.';
-    showToast(msg, 'error');
-  } finally {
-    setLoading(false);
-  }
-};
-
 const purchaseVip = async (packageId: string) => {
   try {
     setLoading(true);
@@ -1733,12 +1677,12 @@ const purchaseVip = async (packageId: string) => {
     try {
       offerings = await Purchases.getOfferings();
     } catch {
-      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.' + (Platform.OS !== 'ios' ? ' Token ile VIP açabilirsin.' : ''));
+      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.');
       return;
     }
     const offering = offerings.all['gymvip'] ?? offerings.current;
     if (!offering || offering.availablePackages.length === 0) {
-      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.' + (Platform.OS !== 'ios' ? ' Token ile VIP açabilirsin.' : ''));
+      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.');
       return;
     }
     const pkg = offering.availablePackages.find(p => p.identifier === packageId);
@@ -1760,54 +1704,6 @@ const purchaseVip = async (packageId: string) => {
   }
 };
 
-const redeemPromo = () => {
-  Alert.prompt(
-    '🎁 Promosyon Kodu',
-    'Sana verilen kodu gir:',
-    async (code) => {
-      if (!code?.trim()) return;
-      try {
-        const res = await axios.post(`${API_URL}/redeem-promo`, { code: code.trim() }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        showToast(res.data.message);
-        fetchUserStats();
-      } catch (error: any) {
-        const msg = error.response?.data?.error || 'Geçersiz kod.';
-        showToast(msg, 'error');
-      }
-    },
-    'plain-text'
-  );
-};
-
-// Referans (hoca) kodunu kayıttan sonra uygula — Google ile gelenler veya sonradan girmek isteyenler
-const applyReferral = async (code: string, authToken?: string) => {
-  if (!code?.trim()) return;
-  try {
-    const res = await axios.post(`${API_URL}/apply-referral`, { code: code.trim() }, {
-      headers: { Authorization: `Bearer ${authToken || token}` }
-    });
-    // Yerel kullanıcıyı güncelle ki "referans kodu gir" butonu gizlensin
-    setUser((prev: any) => prev ? { ...prev, referredBy: res.data.coachName, discountRate: res.data.discountRate } : prev);
-    showToast(res.data.message);
-  } catch (error: any) {
-    const msg = error.response?.data?.error || 'Geçersiz referans kodu.';
-    showToast(msg, 'error');
-  }
-};
-
-const askReferralCode = (authToken?: string) => {
-  Alert.prompt(
-    '🎯 Referans Kodu',
-    'Bir hocanın referans kodu varsa gir — VIP alırken indirim kazanırsın (opsiyonel):',
-    [
-      { text: 'Geç', style: 'cancel' },
-      { text: 'Uygula', onPress: (code?: string) => applyReferral(code || '', authToken) },
-    ],
-    'plain-text'
-  );
-};
   // --- KAMERA VEYA GALERİ SEÇİM ---
 const askAndPickImage = async (type: 'progress' | 'meal') => {
   if (type === 'meal' && dailyMealRights <= 0) {
@@ -2031,34 +1927,6 @@ const pickAndUploadProfilePhoto = async () => {
                     />
                   </View>
                 </View>
-                {/* Referans kodu girişi iOS'ta gizli — Apple 3.1.1 (IAP dışı indirim/içerik açma yasak) */}
-                {Platform.OS !== 'ios' && (
-                  <View style={[styles.inputWrap, referralBonus ? { borderColor: '#4ade80' } : {}]}>
-                    <Ionicons name="pricetag-outline" size={18} color={referralBonus ? '#4ade80' : C.textMuted} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.inputWithIcon}
-                      placeholder="Referans kodu (opsiyonel)"
-                      placeholderTextColor={C.textMuted}
-                      value={referralCode}
-                      autoCapitalize="none"
-                      onChangeText={async (val) => {
-                        setReferralCode(val);
-                        setReferralBonus(null);
-                        if (val.trim().length >= 3) {
-                          try {
-                            const r = await axios.get(`${API_URL}/check-referral/${val.trim()}`);
-                            if (r.data.valid) setReferralBonus(r.data);
-                          } catch {}
-                        }
-                      }}
-                    />
-                  </View>
-                )}
-                {Platform.OS !== 'ios' && referralBonus && (
-                  <Text style={{ color: '#4ade80', fontSize: 12, marginTop: -8, marginBottom: 8, marginLeft: 4 }}>
-                    ✓ {referralBonus.coachName} referansı · %{referralBonus.discountRate} VIP indirimi
-                  </Text>
-                )}
               </>
             )}
 
@@ -2284,25 +2152,11 @@ const pickAndUploadProfilePhoto = async () => {
           </Text>
 
           <View style={styles.gymLockStats}>
-            {/* Token göstergesi iOS'ta gizli — token sistemi iOS'ta yok (Apple 3.1.1) */}
-            {Platform.OS !== 'ios' && (
-              <View style={styles.gymLockStatItem}>
-                <Ionicons name="diamond" size={16} color={C.lime} />
-                <Text style={styles.gymLockStatText}>{userStats.tokens} / 200 Token</Text>
-              </View>
-            )}
             <View style={styles.gymLockStatItem}>
               <Ionicons name="flame" size={16} color={C.orange} />
               <Text style={styles.gymLockStatText}>{userStats.streak} Günlük Seri</Text>
             </View>
           </View>
-
-          {/* Token→VIP ilerleme çubuğu iOS'ta gizli */}
-          {Platform.OS !== 'ios' && (
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${Math.min(100, (userStats.tokens / 200) * 100)}%`, backgroundColor: '#FF9F1C' }]} />
-            </View>
-          )}
 
           <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={{ borderRadius: 14, paddingVertical: 13, paddingHorizontal: 32, marginTop: 16, alignItems: 'center' }}>
@@ -3389,16 +3243,6 @@ const pickAndUploadProfilePhoto = async () => {
           <Text style={{ color: C.orange, fontWeight: '900', fontSize: 24 }}>{userStats.streak}</Text>
           <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>🔥 Seri</Text>
         </View>
-        {/* Token sayacı iOS'ta gizli — token sistemi iOS'ta kullanılmıyor (Apple 3.1.1) */}
-        {Platform.OS !== 'ios' && (
-          <>
-            <View style={{ width: 1, height: 32, backgroundColor: C.border }} />
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ color: C.lime, fontWeight: '900', fontSize: 24 }}>{userStats.tokens}</Text>
-              <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>💎 Token</Text>
-            </View>
-          </>
-        )}
         {userStats.isVip && (
           <>
             <View style={{ width: 1, height: 32, backgroundColor: C.border }} />
@@ -3509,43 +3353,6 @@ const pickAndUploadProfilePhoto = async () => {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Token ile VIP açma iOS'ta gizli — Apple 3.1.1 (IAP dışı dijital içerik açma yasak) */}
-        {Platform.OS !== 'ios' && (
-          <>
-            <View style={{ height: 1, backgroundColor: C.border, marginVertical: 14 }} />
-            <TouchableOpacity activeOpacity={0.85} onPress={redeemVip} disabled={userStats.tokens < 200}>
-              <View style={{ borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1,
-                borderColor: userStats.tokens >= 200 ? '#4ade80' : C.border,
-                backgroundColor: userStats.tokens >= 200 ? '#4ade8015' : 'transparent' }}>
-                <Text style={{ color: userStats.tokens >= 200 ? '#4ade80' : C.textMuted, fontWeight: '700', fontSize: 13 }}>
-                  {userStats.tokens >= 200 ? `Token ile aç (${userStats.tokens}/200)` : `${200 - userStats.tokens} token daha gerekiyor`}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </>
-        )}
-
-        {/* Promosyon kodu yalnızca Android'de — Apple 3.1.1 gereği iOS'ta IAP dışı
-            içerik açma (promo kod ile VIP/indirim) yasak. iOS'ta gizli. */}
-        {Platform.OS !== 'ios' && (
-          <TouchableOpacity activeOpacity={0.8} onPress={redeemPromo} style={{ marginTop: 10, alignItems: 'center' }}>
-            <Text style={{ color: '#FF9F1C', fontSize: 13, fontWeight: '600' }}>Promosyon kodum var</Text>
-          </TouchableOpacity>
-        )}
-        {Platform.OS !== 'ios' && !user?.referredBy && (
-          <TouchableOpacity activeOpacity={0.8} onPress={() => askReferralCode()} style={{ marginTop: 8, alignItems: 'center' }}>
-            <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: '600' }}>🎯 Referans kodu gir</Text>
-          </TouchableOpacity>
-        )}
-        {/* Reklamla token kazanma iOS'ta gizli — token sistemi iOS'ta yok (Apple 3.1.1) */}
-        {Platform.OS !== 'ios' && (userStats.adRewardsRemaining ?? 0) > 0 && (
-          <TouchableOpacity activeOpacity={0.85} onPress={showRewardedAd} disabled={adLoading} style={{ marginTop: 12 }}>
-            <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(198,255,61,0.12)', borderWidth: 1, borderColor: C.lime }}>
-              {adLoading ? <ActivityIndicator color={C.lime} /> : <Ionicons name="play-circle" size={18} color={C.lime} />}
-              <Text style={{ color: C.lime, fontWeight: '700', fontSize: 13 }}>🎬 Reklam izle, 5 token kazan ({userStats.adRewardsRemaining} hak)</Text>
-            </View>
-          </TouchableOpacity>
-        )}
       </>
     )}
   </LinearGradient>
@@ -4340,7 +4147,6 @@ const pickAndUploadProfilePhoto = async () => {
                       </View>
                     );
                   })}
-                  {Platform.OS !== 'ios' && <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 14 }}>+{newBadges.length * 10} token kazandın!</Text>}
                   <TouchableOpacity onPress={() => setNewBadgeVisible(false)}
                     style={{ marginTop: 20, backgroundColor: topBadge?.color || C.orange, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 36 }}>
                     <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>HARİKA! 🎉</Text>
