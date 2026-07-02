@@ -1495,7 +1495,7 @@ app.post('/complete-day', authMiddleware, async (req, res) => {
 app.get('/gif-proxy', authMiddleware, async (req, res) => {
   try {
     const { url } = req.query;
-    // Yalnızca Cloudinary'ye izin ver — workoutx'e (dış API kotası) hiç gidilmez.
+    // Yalnızca Cloudinary'ye izin ver — dış API kotası tüketilmez.
     const isCloudinary = url && /^https:\/\/res\.cloudinary\.com\//.test(url);
     if (!isCloudinary) {
       return res.status(400).json({ error: "Geçersiz URL" });
