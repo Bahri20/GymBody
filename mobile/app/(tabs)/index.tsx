@@ -3198,7 +3198,7 @@ const pickAndUploadProfilePhoto = async () => {
             <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', letterSpacing: 1.2, marginBottom: 14 }}>RANK SİSTEMİ</Text>
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 3 }}>
               {RANKS.map((r, i) => (
-                <View key={r.key} style={{ alignItems: 'center', gap: 5, marginBottom: i * 9 }}>
+                <View key={r.key} style={{ alignItems: 'center', gap: 5, marginBottom: i * 4.5 }}>
                   <RankBadgeSvg rankKey={r.key} color={r.color} size={32 + i * 5} />
                   <Text style={{ color: r.color, fontSize: 8.5, fontWeight: '800' }}>{r.label}</Text>
                 </View>
