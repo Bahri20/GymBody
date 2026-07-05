@@ -1814,6 +1814,17 @@ app.get('/_diag-vertex', async (req, res) => {
         out.tests.push({ name: t.name, fetchError: err?.message || String(err) });
       }
     }
+    // 4) AI olmayan Google API testi — Render IP'si tüm Google'da mı bloklu, yoksa sadece AI uçlarında mı?
+    try {
+      const cr = await fetch(`https://cloudresourcemanager.googleapis.com/v1/projects/${proj}`, {
+        headers: { Authorization: `Bearer ${tok.token}` },
+      });
+      const cb = await cr.text();
+      out.nonAiTest = { name: 'cloudresourcemanager', status: cr.status, ctype: (cr.headers.get('content-type') || '').split(';')[0], bodyHead: cb.slice(0, 160) };
+    } catch (err) {
+      out.nonAiTest = { fetchError: err?.message || String(err) };
+    }
+
     out.ok = out.tests.some((x) => x.status === 200);
     res.json(out);
   } catch (e) {
