@@ -1704,6 +1704,31 @@ app.post('/monthly-badge/run', authMiddleware, async (req, res) => {
   }
 });
 
+// ==================== GEÇİCİ TEŞHİS: Gemini'nin Render'a döndüğü ham cevap ====================
+app.get('/_diag-gemini', async (req, res) => {
+  try {
+    const key = process.env.GEMINI_API_KEY || '';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: 'ping' }] }] }),
+    });
+    const body = await r.text();
+    res.status(200).json({
+      keyPrefix: key.slice(0, 6),
+      keyLen: key.length,
+      status: r.status,
+      statusText: r.statusText,
+      xServed: r.headers.get('server') || null,
+      contentType: r.headers.get('content-type') || null,
+      body: body.slice(0, 1500),
+    });
+  } catch (e) {
+    res.status(200).json({ fetchError: e?.message || String(e) });
+  }
+});
+
 // ==================== AI ANTRENMAN KOÇU CHAT ====================
 app.post('/ai-chat', authMiddleware, async (req, res) => {
   try {
