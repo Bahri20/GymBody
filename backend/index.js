@@ -21,6 +21,7 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const cloudinary = require('cloudinary').v2;
 const appleSignin = require('apple-signin-auth');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI } = require('@google/genai');
 const { OAuth2Client } = require('google-auth-library');
 const googleClient = new OAuth2Client();
 const axios = require('axios');
@@ -140,6 +141,66 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
+// ==================== VERTEX AI (Gemini) ====================
+// Google, ücretsiz generativelanguage.googleapis.com ucunu datacenter IP'lerinden
+// (Render vb.) 403 ile engelliyor. Vertex AI (aiplatform.googleapis.com) service-account
+// ile kimlik doğruladığı için bu engele takılmaz. Aşağıdaki sarmalayıcı, eski
+// @google/generative-ai arayüzünü (getGenerativeModel / generateContent / startChat /
+// response.text()) taklit eder; böylece çağrı noktaları neredeyse hiç değişmez.
+let _vertexClient = null;
+function getVertexClient() {
+  if (_vertexClient) return _vertexClient;
+  let credentials;
+  if (process.env.GOOGLE_CREDENTIALS_JSON) {
+    try { credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON); }
+    catch (e) { console.error('⚠️ GOOGLE_CREDENTIALS_JSON parse edilemedi:', e.message); }
+  }
+  _vertexClient = new GoogleGenAI({
+    vertexai: true,
+    project: process.env.GCP_PROJECT_ID,
+    location: process.env.GCP_LOCATION || 'us-central1',
+    ...(credentials ? { googleAuthOptions: { credentials } } : {}),
+  });
+  return _vertexClient;
+}
+
+// [prompt] veya [prompt, imagePart] dizisini @google/genai parts formatına çevirir
+function toParts(content) {
+  const arr = Array.isArray(content) ? content : [content];
+  return arr.map((item) => (typeof item === 'string' ? { text: item } : item));
+}
+
+// Eski GoogleGenerativeAI().getGenerativeModel(...) yerine geçen fabrika
+function getGeminiModel({ model = 'gemini-2.5-flash', generationConfig } = {}) {
+  const ai = getVertexClient();
+  const config = generationConfig ? { ...generationConfig } : undefined;
+  return {
+    async generateContent(content) {
+      const resp = await ai.models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: toParts(content) }],
+        ...(config ? { config } : {}),
+      });
+      const text = resp.text;
+      return { response: { text: () => text } };
+    },
+    startChat({ history = [] } = {}) {
+      const chat = ai.chats.create({
+        model,
+        history: history.map((h) => ({ role: h.role, parts: h.parts })),
+        ...(config ? { config } : {}),
+      });
+      return {
+        async sendMessage(message) {
+          const resp = await chat.sendMessage({ message });
+          const text = resp.text;
+          return { response: { text: () => text } };
+        },
+      };
+    },
+  };
+}
+
 async function generateWithRetry(model, prompt, imagePart, retries = 2) {
   const content = imagePart ? [prompt, imagePart] : [prompt];
   for (let i = 0; i <= retries; i++) {
@@ -547,8 +608,7 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
     let aiAnalysis = "";
     if (canAnalyze) {
       try {
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = getGeminiModel({ model: "gemini-2.5-flash" });
 
         const resizedBuffer = await sharp(req.file.buffer)
           .resize({ width: 800, withoutEnlargement: true })
@@ -1048,7 +1108,6 @@ if (isVipActive && todayCount >= 5) {
     const { note } = req.body;
 
     console.log("📸 Yapay zeka analizi tetiklendi...");
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
     const resizedBuffer = await sharp(req.file.buffer)
     .resize({ width: 800, withoutEnlargement: true })
@@ -1069,7 +1128,7 @@ if (isVipActive && todayCount >= 5) {
       {"mealName": "Yemeğin Adı", "calories": 500, "protein": 30, "carbs": 50, "fat": 15, "description": "Tavsiye mesajı"}
     `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = getGeminiModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent([prompt, imagePart]);
     let responseText = result.response.text().trim();
     
@@ -1227,9 +1286,8 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     }
 
     console.log("🤖 Yeni program üretiliyor...");
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     // temperature yüksek → her üretimde farklı egzersiz varyasyonları (aynı program tekrarını önler)
-    const model = genAI.getGenerativeModel({
+    const model = getGeminiModel({
       model: "gemini-2.5-flash",
       generationConfig: { temperature: 1.0 },
     });
@@ -1704,6 +1762,29 @@ app.post('/monthly-badge/run', authMiddleware, async (req, res) => {
   }
 });
 
+// ==================== GEÇİCİ TEŞHİS: Vertex AI çalışıyor mu? ====================
+app.get('/_diag-vertex', async (req, res) => {
+  try {
+    const model = getGeminiModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent(['Sadece "OK" yaz.']);
+    res.status(200).json({
+      ok: true,
+      project: process.env.GCP_PROJECT_ID || null,
+      location: process.env.GCP_LOCATION || 'us-central1',
+      credsSet: !!process.env.GOOGLE_CREDENTIALS_JSON,
+      reply: result.response.text(),
+    });
+  } catch (e) {
+    res.status(200).json({
+      ok: false,
+      project: process.env.GCP_PROJECT_ID || null,
+      location: process.env.GCP_LOCATION || 'us-central1',
+      credsSet: !!process.env.GOOGLE_CREDENTIALS_JSON,
+      error: e?.message || String(e),
+    });
+  }
+});
+
 // ==================== GEÇİCİ TEŞHİS: Gemini'nin Render'a döndüğü ham cevap ====================
 app.get('/_diag-gemini', async (req, res) => {
   try {
@@ -1751,8 +1832,7 @@ app.post('/ai-chat', authMiddleware, async (req, res) => {
       }
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = getGeminiModel({ model: 'gemini-2.5-flash' });
 
     const systemPrompt = `Sen GymBodyAI'ın kişisel fitness koçusun. Kullanıcı: ${user?.name || 'Sporcu'}, ${user?.weight || '?'}kg, ${user?.height || '?'}cm. Kısa, samimi, motive edici cevaplar ver. Türkçe konuş. Fitness, beslenme, antrenman dışındaki konularda kibar şekilde konuyu yönlendir.`;
 
