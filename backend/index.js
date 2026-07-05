@@ -1747,7 +1747,8 @@ app.post('/ai-chat', authMiddleware, async (req, res) => {
     res.json({ reply });
   } catch (err) {
     console.error("AI Chat hatası:", err);
-    res.status(500).json({ error: "AI şu an yanıt veremiyor." });
+    // GEÇİCİ TEŞHİS: gerçek hata mesajını döndür (sorun bulununca geri alınacak)
+    res.status(500).json({ error: "AI şu an yanıt veremiyor.", _debug: err?.message || String(err), _key: process.env.GEMINI_API_KEY ? `set(${process.env.GEMINI_API_KEY.length})` : 'MISSING' });
   }
 });
 
