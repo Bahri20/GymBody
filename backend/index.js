@@ -20,7 +20,6 @@ const toDateString = (date) => date.toISOString().split('T')[0];
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const cloudinary = require('cloudinary').v2;
 const appleSignin = require('apple-signin-auth');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleGenAI } = require('@google/genai');
 const { OAuth2Client } = require('google-auth-library');
 const googleClient = new OAuth2Client();
@@ -1096,7 +1095,6 @@ app.post('/redeem-vip', authMiddleware, async (req, res) => {
 app.post('/analyze-meal', authMiddleware, upload.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Fotoğraf gelmedi!" });
-    if (!process.env.GEMINI_API_KEY) return res.status(500).json({ error: "API anahtarı .env dosyasında yok kanka!" });
 
     // Günlük tarama limiti: 2 adet
     const startOfDay = new Date();
@@ -1770,79 +1768,6 @@ app.post('/monthly-badge/run', authMiddleware, async (req, res) => {
   }
 });
 
-// ==================== GEÇİCİ TEŞHİS: Vertex AI çalışıyor mu? ====================
-app.get('/_diag-vertex', async (req, res) => {
-  const out = {
-    project: process.env.GCP_PROJECT_ID || null,
-    location: process.env.GCP_LOCATION || 'us-central1',
-    credsSet: !!process.env.GOOGLE_CREDENTIALS_JSON,
-  };
-  try {
-    // 1) creds parse
-    let creds;
-    try {
-      creds = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON || '');
-      out.credsParsed = true;
-      out.credsEmail = creds.client_email || null;
-      out.credsProject = creds.project_id || null;
-      out.hasPrivateKey = !!creds.private_key;
-    } catch (e) {
-      out.credsParsed = false;
-      out.credsError = e.message;
-      return res.json(out);
-    }
-
-    // 2) token üret
-    const { GoogleAuth } = require('google-auth-library');
-    const auth = new GoogleAuth({ credentials: creds, scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
-    const client = await auth.getClient();
-    const tok = await client.getAccessToken();
-    out.tokenGot = !!tok?.token;
-    out.tokenLen = tok?.token ? tok.token.length : 0;
-
-    // 3) Gerçek yol: getGeminiModel (proxy varsa onun üzerinden) ile canlı çağrı
-    out.proxySet = !!process.env.VERTEX_PROXY_URL;
-    try {
-      const model = getGeminiModel({ model: 'gemini-2.5-flash' });
-      const result = await model.generateContent(['Sadece "OK" yaz.']);
-      out.reply = result.response.text();
-      out.ok = true;
-    } catch (err) {
-      out.ok = false;
-      out.callError = (err?.message || String(err)).slice(0, 400);
-    }
-    res.json(out);
-  } catch (e) {
-    out.fatal = e?.message || String(e);
-    res.json(out);
-  }
-});
-
-// ==================== GEÇİCİ TEŞHİS: Gemini'nin Render'a döndüğü ham cevap ====================
-app.get('/_diag-gemini', async (req, res) => {
-  try {
-    const key = process.env.GEMINI_API_KEY || '';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: 'ping' }] }] }),
-    });
-    const body = await r.text();
-    res.status(200).json({
-      keyPrefix: key.slice(0, 6),
-      keyLen: key.length,
-      status: r.status,
-      statusText: r.statusText,
-      xServed: r.headers.get('server') || null,
-      contentType: r.headers.get('content-type') || null,
-      body: body.slice(0, 1500),
-    });
-  } catch (e) {
-    res.status(200).json({ fetchError: e?.message || String(e) });
-  }
-});
-
 // ==================== AI ANTRENMAN KOÇU CHAT ====================
 app.post('/ai-chat', authMiddleware, async (req, res) => {
   try {
@@ -1886,7 +1811,7 @@ app.post('/ai-chat', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("AI Chat hatası:", err);
     // GEÇİCİ TEŞHİS: gerçek hata mesajını döndür (sorun bulununca geri alınacak)
-    res.status(500).json({ error: "AI şu an yanıt veremiyor.", _debug: err?.message || String(err), _key: process.env.GEMINI_API_KEY ? `set(${process.env.GEMINI_API_KEY.length})` : 'MISSING' });
+    res.status(500).json({ error: "AI şu an yanıt veremiyor." });
   }
 });
 
