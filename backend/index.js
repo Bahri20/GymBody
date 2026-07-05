@@ -1764,24 +1764,51 @@ app.post('/monthly-badge/run', authMiddleware, async (req, res) => {
 
 // ==================== GEÇİCİ TEŞHİS: Vertex AI çalışıyor mu? ====================
 app.get('/_diag-vertex', async (req, res) => {
+  const out = {
+    project: process.env.GCP_PROJECT_ID || null,
+    location: process.env.GCP_LOCATION || 'us-central1',
+    credsSet: !!process.env.GOOGLE_CREDENTIALS_JSON,
+  };
   try {
-    const model = getGeminiModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent(['Sadece "OK" yaz.']);
-    res.status(200).json({
-      ok: true,
-      project: process.env.GCP_PROJECT_ID || null,
-      location: process.env.GCP_LOCATION || 'us-central1',
-      credsSet: !!process.env.GOOGLE_CREDENTIALS_JSON,
-      reply: result.response.text(),
+    // 1) creds parse
+    let creds;
+    try {
+      creds = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON || '');
+      out.credsParsed = true;
+      out.credsEmail = creds.client_email || null;
+      out.credsProject = creds.project_id || null;
+      out.hasPrivateKey = !!creds.private_key;
+    } catch (e) {
+      out.credsParsed = false;
+      out.credsError = e.message;
+      return res.json(out);
+    }
+
+    // 2) token üret
+    const { GoogleAuth } = require('google-auth-library');
+    const auth = new GoogleAuth({ credentials: creds, scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+    const client = await auth.getClient();
+    const tok = await client.getAccessToken();
+    out.tokenGot = !!tok?.token;
+    out.tokenLen = tok?.token ? tok.token.length : 0;
+
+    // 3) ham Vertex REST çağrısı (Bearer token ile)
+    const loc = out.location, proj = out.project;
+    const url = `https://${loc}-aiplatform.googleapis.com/v1/projects/${proj}/locations/${loc}/publishers/google/models/gemini-2.5-flash:generateContent`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${tok.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Sadece OK yaz.' }] }] }),
     });
+    const body = await r.text();
+    out.apiStatus = r.status;
+    out.apiContentType = r.headers.get('content-type');
+    out.apiBody = body.slice(0, 900);
+    out.ok = r.status === 200;
+    res.json(out);
   } catch (e) {
-    res.status(200).json({
-      ok: false,
-      project: process.env.GCP_PROJECT_ID || null,
-      location: process.env.GCP_LOCATION || 'us-central1',
-      credsSet: !!process.env.GOOGLE_CREDENTIALS_JSON,
-      error: e?.message || String(e),
-    });
+    out.fatal = e?.message || String(e);
+    res.json(out);
   }
 });
 
