@@ -1792,19 +1792,29 @@ app.get('/_diag-vertex', async (req, res) => {
     out.tokenGot = !!tok?.token;
     out.tokenLen = tok?.token ? tok.token.length : 0;
 
-    // 3) ham Vertex REST çağrısı (Bearer token ile)
-    const loc = out.location, proj = out.project;
-    const url = `https://${loc}-aiplatform.googleapis.com/v1/projects/${proj}/locations/${loc}/publishers/google/models/gemini-2.5-flash:generateContent`;
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${tok.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Sadece OK yaz.' }] }] }),
-    });
-    const body = await r.text();
-    out.apiStatus = r.status;
-    out.apiContentType = r.headers.get('content-type');
-    out.apiBody = body.slice(0, 900);
-    out.ok = r.status === 200;
+    // 3) Farklı host/bölgeleri Bearer token ile dene — hangisi Render IP'sinden geçiyor?
+    const proj = out.project;
+    const targets = [
+      { name: 'regional-us-central1', host: 'us-central1-aiplatform.googleapis.com', loc: 'us-central1' },
+      { name: 'global',               host: 'aiplatform.googleapis.com',             loc: 'global' },
+      { name: 'regional-europe-west1',host: 'europe-west1-aiplatform.googleapis.com', loc: 'europe-west1' },
+    ];
+    out.tests = [];
+    for (const t of targets) {
+      try {
+        const url = `https://${t.host}/v1/projects/${proj}/locations/${t.loc}/publishers/google/models/gemini-2.5-flash:generateContent`;
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${tok.token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Sadece OK yaz.' }] }] }),
+        });
+        const body = await r.text();
+        out.tests.push({ name: t.name, status: r.status, ctype: (r.headers.get('content-type') || '').split(';')[0], bodyHead: body.slice(0, 160) });
+      } catch (err) {
+        out.tests.push({ name: t.name, fetchError: err?.message || String(err) });
+      }
+    }
+    out.ok = out.tests.some((x) => x.status === 200);
     res.json(out);
   } catch (e) {
     out.fatal = e?.message || String(e);
