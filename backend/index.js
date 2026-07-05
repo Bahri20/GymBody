@@ -155,11 +155,19 @@ function getVertexClient() {
     try { credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON); }
     catch (e) { console.error('⚠️ GOOGLE_CREDENTIALS_JSON parse edilemedi:', e.message); }
   }
+  // Google, Render'ın çıkış IP'sini *.googleapis.com kenarında blokluyor. Bu yüzden
+  // API çağrılarını temiz IP'li bir Cloudflare Worker proxy üzerinden geçiriyoruz
+  // (token üretimi doğrudan oauth2.googleapis.com'a gider, o engelli değil).
+  const proxyUrl = process.env.VERTEX_PROXY_URL;
+  const httpOptions = proxyUrl
+    ? { baseUrl: proxyUrl, headers: { 'X-Proxy-Secret': process.env.VERTEX_PROXY_SECRET || '' } }
+    : undefined;
   _vertexClient = new GoogleGenAI({
     vertexai: true,
     project: process.env.GCP_PROJECT_ID,
     location: process.env.GCP_LOCATION || 'us-central1',
     ...(credentials ? { googleAuthOptions: { credentials } } : {}),
+    ...(httpOptions ? { httpOptions } : {}),
   });
   return _vertexClient;
 }
@@ -1792,40 +1800,17 @@ app.get('/_diag-vertex', async (req, res) => {
     out.tokenGot = !!tok?.token;
     out.tokenLen = tok?.token ? tok.token.length : 0;
 
-    // 3) Farklı host/bölgeleri Bearer token ile dene — hangisi Render IP'sinden geçiyor?
-    const proj = out.project;
-    const targets = [
-      { name: 'regional-us-central1', host: 'us-central1-aiplatform.googleapis.com', loc: 'us-central1' },
-      { name: 'global',               host: 'aiplatform.googleapis.com',             loc: 'global' },
-      { name: 'regional-europe-west1',host: 'europe-west1-aiplatform.googleapis.com', loc: 'europe-west1' },
-    ];
-    out.tests = [];
-    for (const t of targets) {
-      try {
-        const url = `https://${t.host}/v1/projects/${proj}/locations/${t.loc}/publishers/google/models/gemini-2.5-flash:generateContent`;
-        const r = await fetch(url, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${tok.token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Sadece OK yaz.' }] }] }),
-        });
-        const body = await r.text();
-        out.tests.push({ name: t.name, status: r.status, ctype: (r.headers.get('content-type') || '').split(';')[0], bodyHead: body.slice(0, 160) });
-      } catch (err) {
-        out.tests.push({ name: t.name, fetchError: err?.message || String(err) });
-      }
-    }
-    // 4) AI olmayan Google API testi — Render IP'si tüm Google'da mı bloklu, yoksa sadece AI uçlarında mı?
+    // 3) Gerçek yol: getGeminiModel (proxy varsa onun üzerinden) ile canlı çağrı
+    out.proxySet = !!process.env.VERTEX_PROXY_URL;
     try {
-      const cr = await fetch(`https://cloudresourcemanager.googleapis.com/v1/projects/${proj}`, {
-        headers: { Authorization: `Bearer ${tok.token}` },
-      });
-      const cb = await cr.text();
-      out.nonAiTest = { name: 'cloudresourcemanager', status: cr.status, ctype: (cr.headers.get('content-type') || '').split(';')[0], bodyHead: cb.slice(0, 160) };
+      const model = getGeminiModel({ model: 'gemini-2.5-flash' });
+      const result = await model.generateContent(['Sadece "OK" yaz.']);
+      out.reply = result.response.text();
+      out.ok = true;
     } catch (err) {
-      out.nonAiTest = { fetchError: err?.message || String(err) };
+      out.ok = false;
+      out.callError = (err?.message || String(err)).slice(0, 400);
     }
-
-    out.ok = out.tests.some((x) => x.status === 200);
     res.json(out);
   } catch (e) {
     out.fatal = e?.message || String(e);
