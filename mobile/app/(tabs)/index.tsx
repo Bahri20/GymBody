@@ -566,6 +566,13 @@ export default function App() {
   const coachPollRef = useRef<any>(null);
   const [gymTab, setGymTab] = useState<'program' | 'max'>('program');
   const [gifModalUrl, setGifModalUrl] = useState<string | null>(null);
+  const [gifFrame, setGifFrame] = useState(0); // 2 kareli statik görseli ard arda oynat (mini animasyon)
+  useEffect(() => {
+    if (!gifModalUrl) return;
+    setGifFrame(0);
+    const id = setInterval(() => setGifFrame((f) => (f === 0 ? 1 : 0)), 650);
+    return () => clearInterval(id);
+  }, [gifModalUrl]);
   const [dayFeedbackVisible, setDayFeedbackVisible] = useState(false);
   const [dayFeedbackText, setDayFeedbackText] = useState('');
   const [showRestPrompt, setShowRestPrompt] = useState(false);
@@ -4098,13 +4105,19 @@ const pickAndUploadProfilePhoto = async () => {
 
       <Modal visible={!!gifModalUrl} transparent animationType="fade" onRequestClose={() => setGifModalUrl(null)}>
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setGifModalUrl(null)}>
-         {gifModalUrl && (
-           <ExpoImage
-             source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(gifModalUrl)}`, headers: { Authorization: `Bearer ${token}` } }}
-             style={{ width: 308, height: 308, borderRadius: 16 }}
-             contentFit="contain"
-           />
-         )}
+         {gifModalUrl && (() => {
+           // 2 kareli statik görsel (.../0.jpg başlangıç, .../1.jpg bitiş) → ard arda oynat
+           const twoFrame = /\/[01]\.jpg$/i.test(gifModalUrl);
+           const cur = twoFrame && gifFrame === 0 ? gifModalUrl.replace(/\/1\.jpg$/i, '/0.jpg') : gifModalUrl;
+           return (
+             <ExpoImage
+               source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(cur)}`, headers: { Authorization: `Bearer ${token}` } }}
+               style={{ width: 308, height: 308, borderRadius: 16 }}
+               contentFit="contain"
+               transition={250}
+             />
+           );
+         })()}
         </TouchableOpacity>
       </Modal>
 
