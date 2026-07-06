@@ -2338,9 +2338,8 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
           {currentWorkoutDay.exercises?.map((ex: any, j: number) => (
             <View key={j} style={styles.gymExerciseRow}>
-              <Ionicons name="checkmark-circle-outline" size={18} color="#FF9F1C" />
               {ex.gifUrl && (
-                <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ marginLeft: 8 }}>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)}>
                   <Ionicons name="play-circle" size={24} color="#2563EB" />
                 </TouchableOpacity>
               )}
@@ -2495,9 +2494,8 @@ const pickAndUploadProfilePhoto = async () => {
                   </View>
                   {(day.exercises || []).map((ex: any, j: number) => (
                     <View key={j} style={styles.gymExerciseRow}>
-                      <Ionicons name="checkmark-circle-outline" size={18} color="#FF9F1C" />
                       {ex.gifUrl && (
-                        <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ marginLeft: 8 }}>
+                        <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)}>
                           <Ionicons name="play-circle" size={24} color="#2563EB" />
                         </TouchableOpacity>
                       )}
@@ -4103,7 +4101,7 @@ const pickAndUploadProfilePhoto = async () => {
          {gifModalUrl && (
            <ExpoImage
              source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(gifModalUrl)}`, headers: { Authorization: `Bearer ${token}` } }}
-             style={{ width: 280, height: 280, borderRadius: 16 }}
+             style={{ width: 308, height: 308, borderRadius: 16 }}
              contentFit="contain"
            />
          )}
