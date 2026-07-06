@@ -567,12 +567,29 @@ export default function App() {
   const [gymTab, setGymTab] = useState<'program' | 'max'>('program');
   const [gifModalUrl, setGifModalUrl] = useState<string | null>(null);
   const [gifFrame, setGifFrame] = useState(0); // 2 kareli statik görseli ard arda oynat (mini animasyon)
+  // Egzersiz kütüphanesi
+  const [libVisible, setLibVisible] = useState(false);
+  const [libData, setLibData] = useState<Record<string, any[]>>({});
+  const [libSearch, setLibSearch] = useState('');
+  const [libGroup, setLibGroup] = useState('Tümü');
+  const [libDetail, setLibDetail] = useState<any>(null);
+  const [libLoading, setLibLoading] = useState(false);
   useEffect(() => {
-    if (!gifModalUrl) return;
+    if (!gifModalUrl && !libDetail) return;
     setGifFrame(0);
     const id = setInterval(() => setGifFrame((f) => (f === 0 ? 1 : 0)), 650);
     return () => clearInterval(id);
-  }, [gifModalUrl]);
+  }, [gifModalUrl, libDetail]);
+  const openLibrary = async () => {
+    setLibVisible(true);
+    if (Object.keys(libData).length) return;
+    setLibLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/exercises`, { headers: { Authorization: `Bearer ${token}` } });
+      setLibData(res.data || {});
+    } catch { showToast('Kütüphane yüklenemedi.', 'error'); }
+    finally { setLibLoading(false); }
+  };
   const [dayFeedbackVisible, setDayFeedbackVisible] = useState(false);
   const [dayFeedbackText, setDayFeedbackText] = useState('');
   const [showRestPrompt, setShowRestPrompt] = useState(false);
@@ -2329,6 +2346,18 @@ const pickAndUploadProfilePhoto = async () => {
             )}
           </View>
         )}
+
+        {/* HAREKET KÜTÜPHANESİ girişi */}
+        <TouchableOpacity onPress={openLibrary} activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 12 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="albums-outline" size={20} color={C.lime} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>Hareket Kütüphanesi</Text>
+            <Text style={{ color: C.textMuted, fontSize: 12 }}>Hareketlerin yapılışına bak</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
+        </TouchableOpacity>
 
         {/* PLAN GÖSTERİMİ */}
         {weeklyPlan && !weeklyPlan.completedFully && !isRestDay && !showRestPrompt && !(!weeklyPlan.started && weeklyPlan.currentDay === 1 && !weeklyPlan.lastDayCompletedAt) && (() => {
@@ -4119,6 +4148,87 @@ const pickAndUploadProfilePhoto = async () => {
            );
          })()}
         </TouchableOpacity>
+      </Modal>
+
+      {/* EGZERSİZ KÜTÜPHANESİ MODAL */}
+      <Modal visible={libVisible} animationType="slide" onRequestClose={() => { if (libDetail) setLibDetail(null); else setLibVisible(false); }}>
+        <View style={{ flex: 1, backgroundColor: C.bg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, gap: 12 }}>
+            <TouchableOpacity onPress={() => { if (libDetail) setLibDetail(null); else setLibVisible(false); }}>
+              <Ionicons name={libDetail ? 'arrow-back' : 'close'} size={26} color={C.text} />
+            </TouchableOpacity>
+            <Text numberOfLines={1} style={{ color: C.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{libDetail ? libDetail.name : 'Hareket Kütüphanesi'}</Text>
+          </View>
+
+          {libDetail ? (
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+              <View style={{ alignItems: 'center', backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 16 }}>
+                <ExpoImage
+                  source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent((libDetail.images && libDetail.images.length ? libDetail.images[gifFrame % libDetail.images.length] : libDetail.gifUrl))}`, headers: { Authorization: `Bearer ${token}` } }}
+                  style={{ width: 260, height: 260, borderRadius: 12 }}
+                  contentFit="contain"
+                  transition={250}
+                />
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+                {!!libDetail._group && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.lime, fontSize: 12, fontWeight: '600' }}>{libDetail._group}</Text></View>}
+                {!!libDetail.equipment && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.textSec, fontSize: 12 }}>{libDetail.equipment}</Text></View>}
+                {!!libDetail.level && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.textSec, fontSize: 12 }}>{libDetail.level}</Text></View>}
+              </View>
+              <Text style={{ color: C.text, fontWeight: '700', fontSize: 15, marginBottom: 12 }}>Yapılışı</Text>
+              {(libDetail.instructions || []).map((s: string, i: number) => (
+                <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: 13 }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: C.bg, fontWeight: '800', fontSize: 12 }}>{i + 1}</Text></View>
+                  <Text style={{ color: C.textSec, fontSize: 14, flex: 1, lineHeight: 21 }}>{s}</Text>
+                </View>
+              ))}
+              {!(libDetail.instructions || []).length && <Text style={{ color: C.textMuted, fontSize: 13 }}>Bu hareket için talimat bulunmuyor.</Text>}
+            </ScrollView>
+          ) : (
+            <>
+              <View style={{ paddingHorizontal: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 12, height: 44, marginBottom: 12 }}>
+                  <Ionicons name="search" size={18} color={C.textMuted} />
+                  <TextInput value={libSearch} onChangeText={setLibSearch} placeholder="Hareket ara..." placeholderTextColor={C.textMuted} style={{ flex: 1, color: C.text, fontSize: 15 }} />
+                </View>
+              </View>
+              <View style={{ marginBottom: 6 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+                  {['Tümü', ...Object.keys(libData)].map((g) => (
+                    <TouchableOpacity key={g} onPress={() => setLibGroup(g)} style={{ backgroundColor: libGroup === g ? C.lime : C.surface, borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14 }}>
+                      <Text style={{ color: libGroup === g ? C.bg : C.textSec, fontSize: 13, fontWeight: '600' }}>{g}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              {libLoading ? (
+                <ActivityIndicator color={C.lime} style={{ marginTop: 50 }} />
+              ) : (
+                <FlatList
+                  data={(() => {
+                    const all = Object.entries(libData).flatMap(([g, arr]) => (arr as any[]).map((x) => ({ ...x, _group: g })));
+                    const q = libSearch.toLowerCase().trim();
+                    return all.filter((x) => (libGroup === 'Tümü' || x._group === libGroup) && (!q || x.name.toLowerCase().includes(q)));
+                  })()}
+                  keyExtractor={(it: any) => it.name}
+                  numColumns={2}
+                  contentContainerStyle={{ padding: 12 }}
+                  columnWrapperStyle={{ gap: 10 }}
+                  renderItem={({ item }: any) => (
+                    <TouchableOpacity onPress={() => setLibDetail(item)} activeOpacity={0.85} style={{ flex: 1, maxWidth: '48%', backgroundColor: C.surface, borderRadius: 12, marginBottom: 10, overflow: 'hidden' }}>
+                      <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(item.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: 110, backgroundColor: C.surface2 }} contentFit="cover" />
+                      <View style={{ padding: 9 }}>
+                        <Text numberOfLines={2} style={{ color: C.text, fontSize: 13, fontWeight: '600' }}>{item.name}</Text>
+                        {!!item.equipment && <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 3 }}>{item.equipment}</Text>}
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  ListEmptyComponent={<Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 }}>Eşleşen hareket yok.</Text>}
+                />
+              )}
+            </>
+          )}
+        </View>
       </Modal>
 
       {/* ROZET KAZANILDI MODAL */}
