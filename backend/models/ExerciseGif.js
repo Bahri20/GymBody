@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const exerciseGifSchema = new mongoose.Schema({
   name: { type: String, required: true, unique: true },
   gifUrl: { type: String },          // gösterilecek ana görsel (animasyonlu GIF veya statik foto)
+  animatedGifUrl: { type: String },  // eski animasyonlu GIF (uyum için statiğe geçince yedeklendi; geri dönülebilir)
   bodyPart: { type: String },        // TR kategori: Göğüs/Sırt/Bacak/Omuz/Biceps/Triceps/Karın/Kardiyo
 
   // --- zenginleştirilmiş alanlar (free-exercise-db import'u ile geldi) ---
