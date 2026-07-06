@@ -10,7 +10,7 @@ const ExerciseGif = require('./models/ExerciseGif');
 
 const WRITE = process.argv.includes('--write');
 const SRC = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/dist/exercises.json';
-const CDN = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/';
+const CDN = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@b0eed061e1c832b3ed815fbaa4b45b3cdc14df49/exercises/';
 
 // bizim isim -> free-exercise-db birebir ismi (doğrulanmış)
 const MAP = {
