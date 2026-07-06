@@ -2113,7 +2113,7 @@ app.get('/exercises', authMiddleware, async (req, res) => {
   try {
     const exs = await ExerciseGif.find(
       {},
-      'name gifUrl images bodyPart equipment primaryMuscles secondaryMuscles level instructions'
+      'name gifUrl images bodyPart equipment primaryMuscles secondaryMuscles level instructions instructionsTr'
     ).sort({ bodyPart: 1, name: 1 });
     const grouped = {};
     for (const e of exs) {
@@ -2127,7 +2127,8 @@ app.get('/exercises', authMiddleware, async (req, res) => {
         primaryMuscles: e.primaryMuscles || [],
         secondaryMuscles: e.secondaryMuscles || [],
         level: e.level || '',
-        instructions: e.instructions || [],
+        // Türkçe talimat varsa onu ver, yoksa İngilizce
+        instructions: (e.instructionsTr && e.instructionsTr.length) ? e.instructionsTr : (e.instructions || []),
       });
     }
     res.json(grouped);

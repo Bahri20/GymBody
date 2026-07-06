@@ -13,7 +13,8 @@ const exerciseGifSchema = new mongoose.Schema({
   secondaryMuscles: [{ type: String }],
   level: { type: String },                        // beginner/intermediate/advanced
   category: { type: String },                     // strength/stretching/cardio ...
-  instructions: [{ type: String }],               // adım adım (şimdilik EN, sonra TR çevrilecek)
+  instructions: [{ type: String }],               // adım adım yapılış (orijinal, EN)
+  instructionsTr: [{ type: String }],              // Türkçe çeviri (kütüphanede gösterilir)
   images: [{ type: String }],                     // statik kaynakta başlangıç+bitiş foto URL'leri
   source: { type: String, default: 'exercisedb' },// exercisedb (mevcut 57) | free-exercise-db (yeni)
 });
