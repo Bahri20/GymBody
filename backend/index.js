@@ -1313,10 +1313,25 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     }
 
     // GIF'i olan egzersizleri çek — AI sadece bunlardan seçecek (constrained generation)
-    const availableExercises = await ExerciseGif.find({}, 'name bodyPart gifUrl');
-    // Listeyi her üretimde karıştır → AI hep aynı ilk egzersizleri seçmesin, çeşitlilik artsın
-    const shuffledExercises = [...availableExercises].sort(() => Math.random() - 0.5);
-    const exerciseListText = shuffledExercises.map(e => e.name).join(', ');
+    const allExercises = await ExerciseGif.find({}, 'name bodyPart gifUrl equipment animated');
+    // Kullanıcının ekipmanına göre filtrele → isabetli program + prompt şişmez
+    const EQUIP_BY_LOCATION = {
+      home_bare: new Set(['body only']),
+      home_equipped: new Set(['body only', 'dumbbell', 'bands', 'kettlebell']),
+      // gym / tanımsız: tüm ekipman
+    };
+    const allowedEquip = EQUIP_BY_LOCATION[od.location] || null;
+    let availableExercises = allExercises.filter(e =>
+      !allowedEquip || !e.equipment || allowedEquip.has((e.equipment || '').toLowerCase())
+    );
+    // güvenlik: filtre havuzu çok küçülttüyse (eksik metadata) tümüne düş
+    if (availableExercises.length < 24) availableExercises = allExercises;
+    // Kas grubuna göre grupla + her grubu karıştır → AI dengeli ve çeşitli seçsin
+    const byGroup = {};
+    for (const e of availableExercises) (byGroup[e.bodyPart || 'Diğer'] ||= []).push(e.name);
+    const exerciseListText = Object.entries(byGroup)
+      .map(([g, names]) => `${g}: ${[...names].sort(() => Math.random() - 0.5).join(', ')}`)
+      .join('\n');
 
     const DAY_STRUCTURES = {
       2: [
