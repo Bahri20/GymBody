@@ -2106,6 +2106,34 @@ async function studentInCoachGym(coachId, userId) {
 // "Front Raise" bozuk gif'e eşleşiyor; doğru "Barbell Front Raise" zaten havuzda.
 const COACH_EXERCISE_BLOCKLIST = new Set(['front raise']);
 
+// ==================== EGZERSİZ KÜTÜPHANESİ (kullanıcı) ====================
+// Kullanıcı GymBody sekmesinden hareket arar, yapılışına bakar. Sadece giriş yeter (VIP değil).
+// Veri zaten ExerciseGif DB'de → ekstra maliyet yok (görseller jsDelivr CDN).
+app.get('/exercises', authMiddleware, async (req, res) => {
+  try {
+    const exs = await ExerciseGif.find(
+      {},
+      'name gifUrl images bodyPart equipment primaryMuscles secondaryMuscles level instructions'
+    ).sort({ bodyPart: 1, name: 1 });
+    const grouped = {};
+    for (const e of exs) {
+      if (COACH_EXERCISE_BLOCKLIST.has((e.name || '').toLowerCase().trim())) continue;
+      const p = e.bodyPart || 'Diğer';
+      (grouped[p] = grouped[p] || []).push({
+        name: e.name,
+        gifUrl: e.gifUrl,
+        images: e.images || [],
+        equipment: e.equipment || '',
+        primaryMuscles: e.primaryMuscles || [],
+        secondaryMuscles: e.secondaryMuscles || [],
+        level: e.level || '',
+        instructions: e.instructions || [],
+      });
+    }
+    res.json(grouped);
+  } catch (err) { res.status(500).json({ error: "Kütüphane yüklenemedi." }); }
+});
+
 // Kas grubuna göre egzersiz listesi (program editörü — hoca buradan seçer)
 app.get('/coach/exercises', coachMiddleware, async (req, res) => {
   try {
