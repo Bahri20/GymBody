@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ViewShot from 'react-native-view-shot';
 import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated, Share } from 'react-native';
 import * as Sharing from 'expo-sharing';
@@ -46,23 +46,45 @@ function sparseLabels(items: any[], maxLabels = 5, fn: (item: any) => string): s
 }
 
 // 🎨 TASARIM SİSTEMİ — Koyu + Neon Yeşil
-const C = {
+// Koyu tema paleti (aksan: MacFit yeşili)
+const DARK = {
   bg: '#0B0D12',
   bgAlt: '#10131A',
-  surface: '#12151C',  // sayfa rengine yakın, gömme kart hissi
-  surface2: '#171C26', // nested/etkileşimli elemanlar için hafif daha açık
-  border: 'rgba(255,255,255,0.07)', // sert kutu yerine yumuşak kenar ışığı
-  borderStrong: '#262C3A', // gerektiğinde belirgin kenar (eski değer)
+  surface: '#12151C',
+  surface2: '#171C26',
+  border: 'rgba(255,255,255,0.07)',
+  borderStrong: '#262C3A',
   text: '#FFFFFF',
   textSec: '#A3ABBA',
   textMuted: '#6B7384',
-  lime: '#C6FF3D',
-  limeDark: '#9FE000',
+  lime: '#83C93C',
+  limeDark: '#6FB32E',
   blue: '#5B8DEF',
   orange: '#FF9F1C',
   red: '#FF5A52',
   green: '#34D399',
 };
+// Açık tema paleti (varsayılan)
+const LIGHT = {
+  bg: '#F7F8F4',
+  bgAlt: '#EEF0E8',
+  surface: '#FFFFFF',
+  surface2: '#F0F2EB',
+  border: 'rgba(0,0,0,0.08)',
+  borderStrong: '#E4E7DE',
+  text: '#1A1D18',
+  textSec: '#5F6B5B',
+  textMuted: '#8A9182',
+  lime: '#5FA82A',
+  limeDark: '#4E9A24',
+  blue: '#3B82F6',
+  orange: '#F08A00',
+  red: '#E24B4A',
+  green: '#2FA36B',
+};
+type Palette = typeof DARK;
+// Modül seviyesi varsayılan (component dışı referanslar için; component içinde temaya göre override edilir)
+const C: Palette = LIGHT;
 
 // Sekme aksanına göre yumuşak üst ambient glow (algılanan parlaklığa göre dengelendi)
 const TAB_GLOW: Record<string, string[]> = {
@@ -512,6 +534,22 @@ const GOOGLE_CLIENT_IDS = {
 
 export default function App() {
   const insets = useSafeAreaInsets();
+
+  // ===== TEMA (açık varsayılan; kullanıcı koyuya geçebilir; SecureStore'da saklanır) =====
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
+  const C = useMemo<Palette>(() => (themeMode === 'dark' ? DARK : LIGHT), [themeMode]);
+  const styles = useMemo(() => makeStyles(C), [C]);
+  useEffect(() => {
+    (async () => {
+      const t = await SecureStore.getItemAsync('themeMode');
+      if (t === 'dark' || t === 'light') setThemeMode(t);
+    })();
+  }, []);
+  const toggleTheme = async () => {
+    const next = themeMode === 'dark' ? 'light' : 'dark';
+    setThemeMode(next);
+    try { await SecureStore.setItemAsync('themeMode', next); } catch {}
+  };
 
   // Logo nabız animasyonu (giriş ekranı)
   const logoScale = useSharedValue(1);
@@ -5270,7 +5308,7 @@ const chartConfig = {
   propsForBackgroundLines: { stroke: C.border },
   propsForDots: { r: '4', strokeWidth: '2', stroke: C.lime }
 };
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 16 },
 
   // ---- AUTH ----
