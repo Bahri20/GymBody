@@ -69,6 +69,9 @@
   .exrow2{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;background:#0B0D12;margin-bottom:6px}
   .exrow2 img{width:46px;height:46px;border-radius:8px;object-fit:cover;background:#1C2230;flex:none}
   .exrow2 .nm{flex:1;font-size:14px;font-weight:600}
+  .exrow2 .eqb{font-size:11px;color:#8A93A6;background:#141922;border-radius:6px;padding:2px 7px;margin-right:6px;white-space:nowrap}
+  .exsearch{width:100%;box-sizing:border-box;background:#0B0D12;border:1px solid #232A38;color:#fff;border-radius:10px;padding:11px 12px;font-size:14px;margin-bottom:12px;outline:none}
+  .exsearch:focus{border-color:#FF9F1C}
   .addbtn{width:34px;height:34px;border-radius:9px;background:#1C2230;color:#FF9F1C;font-size:20px;border:none;margin:0;padding:0;flex:none;line-height:1;transition:all .15s}
   .addbtn:hover{filter:brightness(1.15)}
   .addbtn.on{background:#FF9F1C;color:#0B0D12}
@@ -185,6 +188,7 @@
           <div class="card">
             <div class="sec-title"><span class="ic">➕</span> Hareket Kütüphanesi</div>
             <div class="muted" style="margin:-6px 0 12px">Bölgeyi aç, hareketin yanındaki + ile seçili güne ekle</div>
+            <input id="exSearch" class="exsearch" placeholder="🔍 Hareket ara (ör. bench, squat, curl)..." oninput="onExSearch()" autocomplete="off">
             <div id="groupAcc"></div>
           </div>
           <!-- BESLENME (açılır) -->
@@ -376,24 +380,35 @@
   function isInDay(name){
     return _plan.length && (_plan[_activeDay].exercises||[]).some(function(e){return e.name===name;});
   }
+  var _exSearch='';
+  var EQ_TR={'barbell':'Barbell','dumbbell':'Dambıl','cable':'Kablo','machine':'Makine','body only':'Vücut ağırlığı','kettlebell':'Kettlebell','bands':'Bant','e-z curl bar':'EZ bar','exercise ball':'Pilates topu','medicine ball':'Sağlık topu'};
+  function EQ(e){return EQ_TR[(e||'').toLowerCase()]||e;}
+  function onExSearch(){_exSearch=document.getElementById('exSearch').value||'';renderGroups();}
   function renderGroups(){
     var c=document.getElementById('groupAcc'), groups=Object.keys(_exGroups);
     if(!groups.length){c.innerHTML='<div class="muted">Egzersiz listesi yüklenemedi.</div>';return;}
-    c.innerHTML=groups.map(function(g){
-      var gi=GINFO(g), open=!!_openGroups[g];
+    var q=_exSearch.toLowerCase().trim();
+    var html=groups.map(function(g){
+      var gi=GINFO(g), open=q?true:!!_openGroups[g];
+      var shown=0;
       var items=_exGroups[g].map(function(x,i){
+        if(q && x.name.toLowerCase().indexOf(q)<0) return '';   // arama: eşleşmeyeni gizle (i korunur)
+        shown++;
         var inn=isInDay(x.name);
         return '<div class="exrow2">'+
           (x.gifUrl?'<img src="'+x.gifUrl+'" loading="lazy">':'<div style="width:46px;height:46px;border-radius:8px;background:#1C2230;flex:none"></div>')+
           '<div class="nm">'+x.name+'</div>'+
+          (x.equipment?'<span class="eqb">'+EQ(x.equipment)+'</span>':'')+
           '<button class="addbtn'+(inn?' on':'')+'" onclick="toggleEx(\''+g+'\','+i+')">'+(inn?'✓':'+')+'</button>'+
         '</div>';
       }).join('');
+      if(q && shown===0) return '';   // arama: eşleşmesi olmayan grubu tümden gizle
       return '<div class="acc'+(open?' open':'')+'">'+
-        '<div class="acc-head" onclick="toggleGroup(\''+g+'\')"><span>'+gi.e+' '+gi.tr+'<span class="cnt">'+_exGroups[g].length+'</span></span><span class="arr">›</span></div>'+
+        '<div class="acc-head" onclick="toggleGroup(\''+g+'\')"><span>'+gi.e+' '+gi.tr+'<span class="cnt">'+(q?shown:_exGroups[g].length)+'</span></span><span class="arr">›</span></div>'+
         '<div class="acc-body">'+items+'</div>'+
       '</div>';
     }).join('');
+    c.innerHTML=html||'<div class="muted" style="padding:6px 0">Eşleşen hareket yok.</div>';
   }
   function toggleGroup(g){_openGroups[g]=!_openGroups[g];renderGroups();}
   function toggleEx(g,i){

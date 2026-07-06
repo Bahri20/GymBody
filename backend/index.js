@@ -2109,12 +2109,12 @@ const COACH_EXERCISE_BLOCKLIST = new Set(['front raise']);
 // Kas grubuna göre egzersiz listesi (program editörü — hoca buradan seçer)
 app.get('/coach/exercises', coachMiddleware, async (req, res) => {
   try {
-    const exs = await ExerciseGif.find({}, 'name gifUrl bodyPart').sort({ name: 1 });
+    const exs = await ExerciseGif.find({}, 'name gifUrl bodyPart equipment animated').sort({ name: 1 });
     const grouped = {};
     for (const e of exs) {
       if (COACH_EXERCISE_BLOCKLIST.has((e.name || '').toLowerCase().trim())) continue;
       const p = e.bodyPart || 'Diğer';
-      (grouped[p] = grouped[p] || []).push({ name: e.name, gifUrl: e.gifUrl });
+      (grouped[p] = grouped[p] || []).push({ name: e.name, gifUrl: e.gifUrl, equipment: e.equipment || '', animated: !!e.animated });
     }
     res.json(grouped);
   } catch (err) { res.status(500).json({ error: "Egzersizler yüklenemedi." }); }
