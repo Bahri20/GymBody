@@ -63,6 +63,7 @@ const DARK = {
   orange: '#FF9F1C',
   red: '#FF5A52',
   green: '#34D399',
+  gold: '#FFD700',
 };
 // Açık tema paleti (varsayılan)
 const LIGHT = {
@@ -81,6 +82,7 @@ const LIGHT = {
   orange: '#F08A00',
   red: '#E24B4A',
   green: '#2FA36B',
+  gold: '#E0A400',
 };
 type Palette = typeof DARK;
 // Modül seviyesi varsayılan (component dışı referanslar için; component içinde temaya göre override edilir)
