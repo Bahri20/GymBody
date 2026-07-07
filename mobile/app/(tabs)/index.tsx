@@ -88,6 +88,35 @@ type Palette = typeof DARK;
 // Modül seviyesi varsayılan (component dışı referanslar için; component içinde temaya göre override edilir)
 const C: Palette = LIGHT;
 
+// "High-Performance Kinetic" (Stitch) tasarım tokenları — Analiz ekranı restyle'ı için.
+// Yeni ekranlar geldikçe burada büyüyecek; global C paletine karışmıyor (henüz yenilenmemiş
+// ekranları etkilememesi için) ama aynı isimlendirme mantığını takip ediyor.
+const AZ_DARK = {
+  bg: '#0B0D12',
+  glass: 'rgba(18,21,28,0.6)',
+  glassBorder: 'rgba(255,255,255,0.1)',
+  glassBorderFaint: 'rgba(255,255,255,0.05)',
+  surfaceContainer: '#1e1f25',
+  onSurface: '#e2e2e9',
+  onSurfaceVariant: '#c3c9ae',
+  lime: '#a2d801',
+  onLime: '#141f00',
+  limeGlow: 'rgba(162,216,1,0.3)',
+  limeSoft10: 'rgba(162,216,1,0.1)',
+  limeSoft20: 'rgba(162,216,1,0.2)',
+  limeSoft30: 'rgba(162,216,1,0.3)',
+  red: '#ffb4ab',
+  // Beslenme makro renkleri (DESIGN.md'deki örnek uygulamadan — protein/karb/yağ)
+  macroProtein: '#ffb4ab',
+  macroCarbs: '#ffb86b',
+  macroFat: '#34D399',
+};
+
+// GEÇİCİ: GymBody'nin kendi (AI) haftalık planındaki "Günün Beslenme Planı" kartı
+// bir süreliğine gizli — sadece haftalık antrenman programı + hareket kütüphanesi kalsın.
+// PT sekmesindeki hocanın yazdığı beslenme planına dokunulmadı.
+const SHOW_GYM_NUTRITION = false;
+
 // Sekme aksanına göre yumuşak üst ambient glow (algılanan parlaklığa göre dengelendi)
 const TAB_GLOW: Record<string, string[]> = {
   analiz:  ['rgba(255,159,28,0.16)', 'rgba(255,159,28,0.05)', 'transparent'], // turuncu
@@ -537,14 +566,19 @@ const GOOGLE_CLIENT_IDS = {
 export default function App() {
   const insets = useSafeAreaInsets();
 
-  // ===== TEMA (açık varsayılan; kullanıcı koyuya geçebilir; SecureStore'da saklanır) =====
-  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
+  // ===== TEMA =====
+  // GEÇİCİ: Stitch redesign süreci bitene kadar sadece dark mode aktif — aydınlık tema
+  // toggle'ı kaldırılmadı, sadece gizlendi (bkz. Profil sekmesi). 5 parça dark + 5 parça
+  // light tamamlanınca burayı ve toggle'ı geri açmak yeterli. LIGHT paleti silinmedi.
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('dark');
   const C = useMemo<Palette>(() => (themeMode === 'dark' ? DARK : LIGHT), [themeMode]);
   const styles = useMemo(() => makeStyles(C), [C]);
+  const chartConfig = useMemo(() => makeChartConfig(C), [C]);
   useEffect(() => {
     (async () => {
+      // GEÇİCİ: kayıtlı aydınlık tema tercihi olsa bile şu an için yok say, dark'ta sabitle.
       const t = await SecureStore.getItemAsync('themeMode');
-      if (t === 'dark' || t === 'light') setThemeMode(t);
+      if (t === 'dark') setThemeMode('dark');
     })();
   }, []);
   const toggleTheme = async () => {
@@ -622,7 +656,9 @@ export default function App() {
   }, [gifModalUrl, libDetail]);
   const openLibrary = async () => {
     setLibVisible(true);
-    if (Object.keys(libData).length) return;
+    // NOT: eskiden "zaten yüklendiyse tekrar çekme" vardı — bu, kütüphaneyi oturum
+    // boyunca kalıcı olarak eskitiyordu (yeni eklenen egzersizler DB'de olsa da
+    // uygulama açık kaldığı sürece görünmüyordu). Her açılışta taze veri çek.
     setLibLoading(true);
     try {
       const res = await axios.get(`${API_URL}/exercises`, { headers: { Authorization: `Bearer ${token}` } });
@@ -643,6 +679,12 @@ export default function App() {
   const [restDuration, setRestDuration] = useState(60);
   const [workoutWeights, setWorkoutWeights] = useState<Record<number, string>>({});
   const restIntervalRef = useRef<any>(null);
+  // Antrenman modu hangi programdan açıldı — GymBody'nin kendi "günü tamamladım" akışı
+  // (weeklyPlan.currentDay ilerletme, /complete-day) sadece 'gymbody' kaynağında tetiklenir.
+  const [workoutSource, setWorkoutSource] = useState<'gymbody' | 'pt'>('gymbody');
+  // PT sekmesinde seçili gün — hocanın planında GymBody'deki gibi "bugün" kavramı yok,
+  // kullanıcı gün sekmelerinden birini seçiyor.
+  const [ptSelectedDay, setPtSelectedDay] = useState(1);
 
   // Egzersiz adından lift key bul (fuzzy)
   const exToLiftKey = (name: string): string | null => {
@@ -2433,7 +2475,7 @@ const pickAndUploadProfilePhoto = async () => {
                 <Text style={{ color: C.text, fontSize: 13, fontWeight: '800' }}>{weeklyPlan.currentDay}/{total}</Text>
               </View>
             </View>
-            <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }}
+            <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutSource('gymbody'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }}
               style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <Ionicons name="play" size={18} color="#0B1207" />
               <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>Antrenmana başla</Text>
@@ -2462,8 +2504,8 @@ const pickAndUploadProfilePhoto = async () => {
         );
       })()}
 
-      {/* GÜNÜN BESLENME PLANI — antrenmanla aynı yerde (Analiz'den taşındı) */}
-      {currentNutritionDay && (
+      {/* GÜNÜN BESLENME PLANI — antrenmanla aynı yerde (Analiz'den taşındı) — GEÇİCİ olarak gizli */}
+      {SHOW_GYM_NUTRITION && currentNutritionDay && (
         <View style={[styles.gymDayCard, { marginTop: 12 }]}>
           <View style={styles.gymDayHeader}>
             <Text style={styles.gymDayTitle}>🍽️ Beslenme</Text>
@@ -2591,28 +2633,103 @@ const pickAndUploadProfilePhoto = async () => {
                   <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>Hocan sana özel program yazınca burada görünecek.</Text>
                 </View>
               )}
-              {(coachData.workoutPlan || []).map((day: any, i: number) => (
-                <View key={'w' + i} style={styles.gymDayCard}>
-                  <View style={styles.gymDayHeader}>
-                    <Text style={styles.gymDayTitle}>{day.dayNumber || i + 1}. Gün</Text>
-                    {!!day.focus && <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{day.focus}</Text></View>}
-                  </View>
-                  {(day.exercises || []).map((ex: any, j: number) => (
-                    <View key={j} style={styles.gymExerciseRow}>
-                      {ex.gifUrl && (
-                        <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)}>
-                          <Ionicons name="play-circle" size={24} color="#2563EB" />
-                        </TouchableOpacity>
-                      )}
-                      <View style={{ flex: 1, marginLeft: 8 }}>
-                        <Text style={styles.gymExerciseName}>{ex.name}</Text>
-                        <Text style={styles.gymExerciseSets}>{ex.sets}</Text>
+              {(coachData.workoutPlan || []).length > 0 && (() => {
+                const ptDays: any[] = coachData.workoutPlan || [];
+                const activeDay = ptDays.find((d: any) => d.dayNumber === ptSelectedDay) ? ptSelectedDay : (ptDays[0]?.dayNumber ?? 1);
+                const day = ptDays.find((d: any) => d.dayNumber === activeDay);
+                const nutritionDay = (coachData.nutritionPlan || []).find((d: any) => d.dayNumber === activeDay);
+                const exs = day?.exercises || [];
+                const estMin = exs.length * 6 + 8;
+                return (
+                  <View>
+                    {/* GÜN SEKMELERİ — hocanın planında "bugün" kavramı yok, kullanıcı seçiyor */}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 8 }}>
+                      {ptDays.map((d: any, i: number) => {
+                        const on = (d.dayNumber ?? i + 1) === activeDay;
+                        return (
+                          <TouchableOpacity key={i} activeOpacity={0.85} onPress={() => setPtSelectedDay(d.dayNumber ?? i + 1)}
+                            style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: on ? C.lime : C.surface, borderWidth: 1, borderColor: on ? C.lime : C.border }}>
+                            <Text style={{ color: on ? '#0B1207' : C.text, fontWeight: '800', fontSize: 13 }}>{d.dayNumber || i + 1}. Gün</Text>
+                            {!!d.focus && <Text style={{ color: on ? '#0B1207' : C.textMuted, fontSize: 11, marginTop: 1 }} numberOfLines={1}>{d.focus}</Text>}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+
+                    {/* HERO — seçili günün antrenmanı (GymBody ile aynı görsel dil) */}
+                    {day && (
+                      <View style={styles.gymDayCard}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: C.lime, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>{day.dayNumber || 1}. GÜN</Text>
+                            <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginTop: 3 }}>{day.focus || 'Antrenman'}</Text>
+                            <View style={{ flexDirection: 'row', gap: 14, marginTop: 8 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Ionicons name="barbell-outline" size={15} color={C.textMuted} />
+                                <Text style={{ color: C.textSec, fontSize: 12 }}>{exs.length} hareket</Text>
+                              </View>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Ionicons name="time-outline" size={15} color={C.textMuted} />
+                                <Text style={{ color: C.textSec, fontSize: 12 }}>~{estMin} dk</Text>
+                              </View>
+                            </View>
+                          </View>
+                        </View>
+                        {exs.length > 0 && (
+                          <TouchableOpacity activeOpacity={0.88}
+                            onPress={() => { setWorkoutSource('pt'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }}
+                            style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                            <Ionicons name="play" size={18} color="#0B1207" />
+                            <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>Antrenmana başla</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
-                    </View>
-                  ))}
-                </View>
-              ))}
-              {(coachData.nutritionPlan || []).map((day: any, i: number) => (
+                    )}
+
+                    {/* HAREKETLER — thumbnail'li (GymBody ile aynı görsel dil) */}
+                    {exs.length > 0 && (
+                      <>
+                        <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', marginBottom: 8, marginLeft: 2, marginTop: 12 }}>Hareketler · {day.dayNumber || 1}. gün</Text>
+                        {exs.map((ex: any, j: number) => (
+                          <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 7, borderWidth: 1, borderColor: C.border }}>
+                            <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
+                              {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{ex.name}</Text>
+                              <Text style={{ color: C.textMuted, fontSize: 12 }}>{ex.sets}</Text>
+                            </View>
+                            {ex.gifUrl && (
+                              <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                                <Ionicons name="play" size={16} color={C.lime} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+                      </>
+                    )}
+
+                    {/* SEÇİLİ GÜNÜN BESLENMESİ */}
+                    {nutritionDay && (
+                      <View style={[styles.gymDayCard, { marginTop: 12 }]}>
+                        <View style={styles.gymDayHeader}>
+                          <Text style={styles.gymDayTitle}>🍽️ Beslenme</Text>
+                          {!!nutritionDay.totalCalories && <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{nutritionDay.totalCalories} kcal</Text></View>}
+                        </View>
+                        {(nutritionDay.meals || []).map((meal: any, j: number) => (
+                          <View key={j} style={styles.gymMealRow}>
+                            <Text style={styles.gymMealName}>{meal.name}</Text>
+                            <Text style={styles.gymMealItems}>{meal.items}</Text>
+                            <Text style={styles.gymMealCal}>{meal.calories} kcal</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
+              {/* Hoca sadece beslenme yazmış, antrenman günü yoksa (hero/gün sekmesi gösterecek gün yok) */}
+              {(coachData.workoutPlan || []).length === 0 && (coachData.nutritionPlan || []).map((day: any, i: number) => (
                 <View key={'n' + i} style={styles.gymDayCard}>
                   <View style={styles.gymDayHeader}>
                     <Text style={styles.gymDayTitle}>🍽️ {day.dayNumber || i + 1}. Gün Beslenme</Text>
@@ -2633,27 +2750,27 @@ const pickAndUploadProfilePhoto = async () => {
       )}
       {/* ANALİZ iç switcher: Gelişim (foto) | Beslenme (kalori) */}
       {currentTab === 'analiz' && (
-        <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, marginBottom: 4, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border }}>
+        <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, marginBottom: 4, backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: AZ_DARK.glassBorderFaint }}>
           <TouchableOpacity
-            style={[{ flex: 1, gap: 4, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
-              analizTab === 'gelisim' && { backgroundColor: C.lime }]}
+            style={[{ flex: 1, gap: 6, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 8, flexDirection: 'row' },
+              analizTab === 'gelisim' && { backgroundColor: AZ_DARK.lime }]}
             onPress={() => setAnalizTab('gelisim')}>
-            <Ionicons name="images-outline" size={16} color={analizTab === 'gelisim' ? '#0B1207' : C.textSec} />
-            <Text style={{ fontWeight: '700', color: analizTab === 'gelisim' ? '#0B1207' : C.textSec, fontSize: 13 }}>Gelişim</Text>
+            <Ionicons name="camera-outline" size={16} color={analizTab === 'gelisim' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
+            <Text style={{ fontWeight: '700', color: analizTab === 'gelisim' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>Gelişim</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[{ flex: 1, gap: 4, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
-              analizTab === 'beslenme' && { backgroundColor: C.lime }]}
+            style={[{ flex: 1, gap: 6, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 8, flexDirection: 'row' },
+              analizTab === 'beslenme' && { backgroundColor: AZ_DARK.lime }]}
             onPress={() => setAnalizTab('beslenme')}>
-            <Ionicons name="restaurant-outline" size={16} color={analizTab === 'beslenme' ? '#0B1207' : C.textSec} />
-            <Text style={{ fontWeight: '700', color: analizTab === 'beslenme' ? '#0B1207' : C.textSec, fontSize: 13 }}>Beslenme</Text>
+            <Ionicons name="restaurant-outline" size={16} color={analizTab === 'beslenme' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
+            <Text style={{ fontWeight: '700', color: analizTab === 'beslenme' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>Beslenme</Text>
           </TouchableOpacity>
         </View>
       )}
       {currentTab === 'analiz' && analizTab === 'gelisim' && loading && gallery.length === 0 && (
         <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
           {[1,2,3].map(i => (
-            <View key={i} style={{ backgroundColor: C.surface, borderRadius: 16, height: 120, opacity: 0.5 + i * 0.1 }} />
+            <View key={i} style={{ backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 16, height: 120, opacity: 0.5 + i * 0.1 }} />
           ))}
         </View>
       )}
@@ -2662,427 +2779,443 @@ const pickAndUploadProfilePhoto = async () => {
           data={gallery}
           keyExtractor={(item) => item._id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 16 }}
           ListHeaderComponent={
             <View>
               {/* 📸 FOTOĞRAF EKLEME YERİ */}
-              <View style={styles.uploadCard}>
+              <View style={{ marginBottom: 16 }}>
               {!image ? (
                 <TouchableOpacity activeOpacity={0.85} onPress={() => askAndPickImage('progress')}>
-                  <View style={styles.dashedUpload}>
-                    <View style={styles.uploadIconCircle}>
-                      <Ionicons name="camera" size={24} color={C.lime} />
+                  <View style={{ borderWidth: 2, borderStyle: 'dashed', borderColor: AZ_DARK.limeSoft30, borderRadius: 16, paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center', backgroundColor: 'rgba(30,31,37,0.3)' }}>
+                    <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: AZ_DARK.limeSoft10, justifyContent: 'center', alignItems: 'center', marginBottom: 12,
+                      shadowColor: AZ_DARK.lime, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6 }}>
+                      <Ionicons name="camera" size={26} color={AZ_DARK.lime} />
                     </View>
-                    <Text style={styles.uploadTitle}>Yeni Gelişim Fotoğrafı</Text>
-                    <Text style={styles.uploadHint}>Çek veya galeriden seç · AI yağ oranını tahmin etsin</Text>
+                    <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 17, marginBottom: 4 }}>Yeni Gelişim Fotoğrafı</Text>
+                    <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>Çek veya galeriden seç · AI yağ oranını tahmin etsin</Text>
                   </View>
                 </TouchableOpacity>
               ) : (
                 <View>
-                  <Image source={{ uri: image }} style={styles.preview} />
+                  <Image source={{ uri: image }} style={{ width: '100%', height: 220, borderRadius: 16, marginBottom: 12 }} />
                   <TextInput
-                    style={styles.noteInput}
+                    style={{ backgroundColor: AZ_DARK.surfaceContainer, padding: 14, borderRadius: 12, minHeight: 52, borderWidth: 1, borderColor: AZ_DARK.glassBorder, color: AZ_DARK.onSurface, fontSize: 14 }}
                     placeholder="Antrenman notunu yaz..."
-                    placeholderTextColor={C.textMuted}
+                    placeholderTextColor={AZ_DARK.onSurfaceVariant}
                     value={note}
                     onChangeText={setNote}
                     multiline
                   />
-                  {loading ? <ActivityIndicator size="large" color={C.lime} style={{ marginTop: 12 }} /> : (
+                  {loading ? <ActivityIndicator size="large" color={AZ_DARK.lime} style={{ marginTop: 12 }} /> : (
                     <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 12}}>
-                      <TouchableOpacity style={[styles.miniBtn, styles.miniBtnPrimary]} onPress={uploadImage}>
-                        <Ionicons name="checkmark" size={18} color="#0B0D12" />
-                        <Text style={styles.miniBtnPrimaryText}>KAYDET</Text>
+                      <TouchableOpacity style={{ flex: 0.48, flexDirection: 'row', gap: 6, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: AZ_DARK.lime }} onPress={uploadImage}>
+                        <Ionicons name="checkmark" size={18} color={AZ_DARK.onLime} />
+                        <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14 }}>KAYDET</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.miniBtn, styles.miniBtnGhost]} onPress={() => setImage(null)}>
-                        <Ionicons name="close" size={18} color={C.red} />
-                        <Text style={styles.miniBtnGhostText}>İPTAL</Text>
+                      <TouchableOpacity style={{ flex: 0.48, flexDirection: 'row', gap: 6, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,180,171,0.12)', borderWidth: 1, borderColor: 'rgba(255,180,171,0.4)' }} onPress={() => setImage(null)}>
+                        <Ionicons name="close" size={18} color={AZ_DARK.red} />
+                        <Text style={{ color: AZ_DARK.red, fontWeight: '800', fontSize: 14 }}>İPTAL</Text>
                       </TouchableOpacity>
                     </View>
                   )}
                 </View>
               )}
-            </View>
+              </View>
+
+              {/* 🖼️ GELİŞİM KARŞILAŞTIRMASI */}
+              {!userStats.isVip ? (
+                <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
+                  style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 16, marginBottom: 16, alignItems: 'center', gap: 10 }}>
+                  <Ionicons name="lock-closed" size={24} color={AZ_DARK.lime} />
+                  <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, textAlign: 'center' }}>Gelişim Karşılaştırması</Text>
+                  <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>İlk ve son fotoğraflarını kıyasla, yağ oranı farkını gör. VIP üyelere özel.</Text>
+                  <Text style={{ color: AZ_DARK.lime, fontWeight: '700', fontSize: 13 }}>VIP'e Geç →</Text>
+                </TouchableOpacity>
+              ) : (() => {
+                const withFat = gallery.filter(p => p.bodyFatPercentage != null);
+                if (withFat.length < 2) {
+                  return (
+                    <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 16, marginBottom: 16, alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="images-outline" size={24} color={AZ_DARK.onSurfaceVariant} />
+                      <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>Kıyaslama için yağ oranı bilinen en az 2 fotoğraf gerekiyor.</Text>
+                    </View>
+                  );
+                }
+                // Dizi sırasına değil TARİHE göre belirle (eski vs yeni) — yağ oranı yön bug'ı fix
+                const byDate = [...withFat].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                const first = byDate[0];
+                const last = byDate[byDate.length - 1];
+                const diff = parseFloat((first.bodyFatPercentage - last.bodyFatPercentage).toFixed(1));
+                const improved = diff > 0;
+                const sameish = Math.abs(diff) < 0.1;
+
+                // Kaç gün geçti
+                const daysPassed = Math.max(1, Math.round((new Date(last.date).getTime() - new Date(first.date).getTime()) / (1000 * 60 * 60 * 24)));
+
+                // Kilo farkı (bodyStats varsa)
+                const firstStat = bodyStats.length ? bodyStats[bodyStats.length - 1] : null;
+                const lastStat = bodyStats.length ? bodyStats[0] : null;
+                const weightDiff = (firstStat?.weight && lastStat?.weight)
+                  ? parseFloat((firstStat.weight - lastStat.weight).toFixed(1))
+                  : null;
+
+                // Hedef yağ oranı tahmini (kullanıcının hedef kilosundan tahmini)
+                const targetFat = user.gender === 'Erkek' ? 12 : 18; // varsayılan hedef
+                const fatToGo = parseFloat((last.bodyFatPercentage - targetFat).toFixed(1));
+                const weeklyRate = diff / (daysPassed / 7); // haftada kaç % düşüyor
+                const weeksToGoal = (improved && weeklyRate > 0 && fatToGo > 0)
+                  ? Math.ceil(fatToGo / weeklyRate)
+                  : null;
+
+                const praise = improved
+                  ? diff >= 5 ? '🏆 İnanılmaz bir dönüşüm!' : diff >= 3 ? '💪 Harika ilerleme!' : diff >= 1 ? '🔥 Doğru yoldasın!' : '✨ Başlangıç iyi, devam et!'
+                  : sameish ? '🎯 Yağ oranın koruyor.' : '📈 Küçük artış var, bırakma!';
+
+                return (
+                  <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 16, marginBottom: 16, gap: 14 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>Gelişim Karşılaştırması</Text>
+                      <View style={{ backgroundColor: improved ? AZ_DARK.limeSoft20 : 'rgba(255,180,171,0.2)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 }}>
+                        <Text style={{ color: improved ? AZ_DARK.lime : AZ_DARK.red, fontWeight: '700', fontSize: 11, letterSpacing: 0.5 }}>
+                          {improved ? `−${diff}% Yağ` : sameish ? 'Değişim yok' : `+${Math.abs(diff)}% Yağ`}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Yan yana fotoğraf — Başlangıç / Güncel */}
+                    <View style={{ flexDirection: 'row', gap: 8, height: 192 }}>
+                      <View style={{ flex: 1, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+                        <Image source={{ uri: first.url }} style={{ width: '100%', height: '100%' }} />
+                        <View style={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                          <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>Başlangıç</Text>
+                        </View>
+                      </View>
+                      <View style={{ width: 1, backgroundColor: AZ_DARK.glassBorder, marginVertical: 16 }} />
+                      <View style={{ flex: 1, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: AZ_DARK.limeSoft30 }}>
+                        <Image source={{ uri: last.url }} style={{ width: '100%', height: '100%' }} />
+                        <View style={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: AZ_DARK.lime, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                          <Text style={{ color: AZ_DARK.onLime, fontSize: 11, fontWeight: '700' }}>Güncel</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* ÖZET KARTI */}
+                    <View style={{ backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: improved ? AZ_DARK.limeSoft20 : 'rgba(255,180,171,0.25)', gap: 10 }}>
+                      <Text style={{ color: improved ? AZ_DARK.lime : AZ_DARK.red, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>
+                        {improved ? `−${diff}% yağ oranı` : sameish ? 'Değişim yok' : `+${Math.abs(diff)}% artış`}
+                      </Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 16 }}>{daysPassed}</Text>
+                          <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>gün</Text>
+                        </View>
+                        {weightDiff != null && (
+                          <View style={{ alignItems: 'center' }}>
+                            <Text style={{ color: weightDiff > 0 ? AZ_DARK.lime : AZ_DARK.red, fontWeight: '800', fontSize: 16 }}>
+                              {weightDiff > 0 ? `−${weightDiff}` : `+${Math.abs(weightDiff)}`} kg
+                            </Text>
+                            <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>kilo</Text>
+                          </View>
+                        )}
+                        <View style={{ alignItems: 'center' }}>
+                          <Text style={{ color: AZ_DARK.lime, fontWeight: '800', fontSize: 16 }}>{byDate.length}</Text>
+                          <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>analiz</Text>
+                        </View>
+                      </View>
+                      <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>{praise}</Text>
+                    </View>
+
+                    {/* BU HIZLA GİDERSEN TAHMİNİ */}
+                    {weeksToGoal != null && (
+                      <View style={{ backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: AZ_DARK.limeSoft20, gap: 6 }}>
+                        <Text style={{ color: AZ_DARK.lime, fontWeight: '800', fontSize: 14 }}>⚡ Bu hızla gidersen…</Text>
+                        <Text style={{ color: AZ_DARK.onSurface, fontSize: 13, lineHeight: 20 }}>
+                          Haftada <Text style={{ color: AZ_DARK.lime, fontWeight: '700' }}>~{weeklyRate.toFixed(1)}%</Text> yağ yakıyorsun.{'\n'}
+                          Hedef yağ oranına (<Text style={{ color: AZ_DARK.lime, fontWeight: '700' }}>%{targetFat}</Text>) ulaşman yaklaşık{' '}
+                          <Text style={{ color: AZ_DARK.lime, fontWeight: '800' }}>{weeksToGoal} hafta</Text> sürer.
+                        </Text>
+                        <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>* Tutarlı antrenman ve beslenme varsayımıyla</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
+
+              {gallery.length > 0 && (
+                <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, marginBottom: 12 }}>Geçmiş Kayıtlar</Text>
+              )}
             </View>
           }
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="camera-outline" size={52} color={C.orange} />
-              <Text style={styles.emptyTitle}>Henüz fotoğraf yok</Text>
-              <Text style={styles.emptyText}>İlk gelişim fotoğrafını ekle, AI yağ oranını hesaplasın ve değişimini takip etmeye başla.</Text>
+            <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 30 }}>
+              <Ionicons name="camera-outline" size={48} color={AZ_DARK.lime} />
+              <Text style={{ color: AZ_DARK.onSurface, fontSize: 17, fontWeight: '700', marginTop: 14 }}>Henüz fotoğraf yok</Text>
+              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>İlk gelişim fotoğrafını ekle, AI yağ oranını hesaplasın ve değişimini takip etmeye başla.</Text>
               <TouchableOpacity
                 onPress={() => showImageSourceOptions('progress')}
-                style={{ marginTop: 18, backgroundColor: C.orange, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                style={{ marginTop: 18, backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 8 }}
               >
-                <Ionicons name="add-circle-outline" size={20} color="#0B0D12" />
-                <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 14 }}>İlk Fotoğrafı Ekle</Text>
+                <Ionicons name="add-circle-outline" size={20} color={AZ_DARK.onLime} />
+                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14 }}>İlk Fotoğrafı Ekle</Text>
               </TouchableOpacity>
             </View>
           }
       renderItem={({ item }) => (
-  <View style={styles.galleryCard}>
+  <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 12, flexDirection: 'row', gap: 12 }}>
     <TouchableOpacity activeOpacity={0.92} onPress={() => setLightboxUrl(item.url)}>
-      <Image source={{ uri: item.url }} style={styles.galleryImg} />
+      <Image source={{ uri: item.url }} style={{ width: 96, height: 128, borderRadius: 12 }} />
     </TouchableOpacity>
-    <View style={styles.galleryInfo}>
-      <View style={styles.dateRow}>
-        <Ionicons name="calendar-outline" size={13} color={C.textMuted} />
-        <Text style={styles.dateText}>{new Date(item.date).toLocaleDateString('tr-TR')}</Text>
+    <View style={{ flex: 1 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 }}>
+          <Ionicons name="calendar-outline" size={13} color={AZ_DARK.onSurfaceVariant} />
+          <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, fontWeight: '600' }}>{new Date(item.date).toLocaleDateString('tr-TR')}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 2 }}>
+          <TouchableOpacity onPress={() => deletePhoto(item._id)} style={{ padding: 6 }}>
+            <Ionicons name="trash-outline" size={16} color={AZ_DARK.red} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              setShareImgLoaded(false);
+              setSharePhotoUrl(item.url);
+              setSharePhotoFat(item.bodyFatPercentage);
+              setShareCardReady(true);
+            }}
+            style={{ padding: 6 }}
+          >
+            <Ionicons name="share-social-outline" size={16} color={AZ_DARK.lime} />
+          </TouchableOpacity>
+        </View>
       </View>
-      {!!item.note && <Text style={styles.noteText}>{item.note}</Text>}
+      {item.bodyFatPercentage != null && (
+        <Text style={{ color: AZ_DARK.lime, fontWeight: '900', fontSize: 18, marginBottom: 8 }}>%{item.bodyFatPercentage}</Text>
+      )}
+      {!!item.note && <Text style={{ fontSize: 13, color: AZ_DARK.onSurface, marginBottom: 8, lineHeight: 18 }}>{item.note}</Text>}
 
       {item.bodyFatPercentage != null && (
-        <View style={styles.analysisBox}>
-          <View style={styles.analysisHeader}>
-            <Ionicons name="analytics" size={16} color={C.lime} />
-            <Text style={styles.analysisFat}>Tahmini Yağ Oranı: %{item.bodyFatPercentage}</Text>
+        <View style={{ backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 8, padding: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <Ionicons name="analytics" size={14} color={AZ_DARK.lime} />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: AZ_DARK.onSurface }}>AI Analizi</Text>
           </View>
-          <Text style={styles.analysisText}>{item.aiAnalysis}</Text>
+          <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, lineHeight: 17 }}>{item.aiAnalysis}</Text>
         </View>
       )}
       {item.bodyFatPercentage == null && item.aiAnalysis && (
-        <View style={styles.analysisBox}>
-          <Text style={styles.analysisText}>⚠️ {item.aiAnalysis}</Text>
+        <View style={{ backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 8, padding: 10 }}>
+          <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, lineHeight: 17 }}>⚠️ {item.aiAnalysis}</Text>
         </View>
       )}
-
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TouchableOpacity style={[styles.deleteBtn, { flex: 1 }]} onPress={() => deletePhoto(item._id)}>
-          <Ionicons name="trash-outline" size={15} color={C.red} />
-          <Text style={styles.deleteBtnText}>Sil</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.deleteBtn, { flex: 1, borderColor: C.orange }]}
-          onPress={() => {
-            setShareImgLoaded(false);
-            setSharePhotoUrl(item.url);
-            setSharePhotoFat(item.bodyFatPercentage);
-            setShareCardReady(true);
-          }}
-        >
-          <Ionicons name="share-social-outline" size={15} color={C.orange} />
-          <Text style={[styles.deleteBtnText, { color: C.orange }]}>Paylaş</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   </View>
       )}
-        ListFooterComponent={
-          <View style={{ paddingHorizontal: 0, paddingBottom: 16 }}>
-            {/* FOTOĞRAF KARŞILAŞTIRMA */}
-            {!userStats.isVip ? (
-              <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
-                style={[styles.statsCard, { marginHorizontal: 16, marginTop: 8, alignItems: 'center', gap: 10 }]}>
-                <Ionicons name="lock-closed" size={26} color="#FF9F1C" />
-                <Text style={[styles.statsTitle, { color: '#FF9F1C', textAlign: 'center' }]}>Gelişim Karşılaştırması</Text>
-                <Text style={[styles.statsEmptyText, { textAlign: 'center' }]}>İlk ve son fotoğraflarını kıyasla, yağ oranı farkını gör. VIP üyelere özel.</Text>
-                <Text style={{ color: '#FF9F1C', fontWeight: '700', fontSize: 13 }}>VIP'e Geç →</Text>
-              </TouchableOpacity>
-            ) : (() => {
-              const withFat = gallery.filter(p => p.bodyFatPercentage != null);
-              if (withFat.length < 2) {
-                return (
-                  <View style={[styles.statsCard, { marginHorizontal: 16, marginTop: 8, alignItems: 'center', gap: 8 }]}>
-                    <Ionicons name="images-outline" size={26} color={C.textMuted} />
-                    <Text style={[styles.statsEmptyText, { textAlign: 'center' }]}>Kıyaslama için yağ oranı bilinen en az 2 fotoğraf gerekiyor.</Text>
-                  </View>
-                );
-              }
-              // Dizi sırasına değil TARİHE göre belirle (eski vs yeni) — yağ oranı yön bug'ı fix
-              const byDate = [...withFat].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-              const first = byDate[0];
-              const last = byDate[byDate.length - 1];
-              const diff = parseFloat((first.bodyFatPercentage - last.bodyFatPercentage).toFixed(1));
-              const improved = diff > 0;
-              const sameish = Math.abs(diff) < 0.1;
-
-              // Kaç gün geçti
-              const daysPassed = Math.max(1, Math.round((new Date(last.date).getTime() - new Date(first.date).getTime()) / (1000 * 60 * 60 * 24)));
-
-              // Kilo farkı (bodyStats varsa)
-              const firstStat = bodyStats.length ? bodyStats[bodyStats.length - 1] : null;
-              const lastStat = bodyStats.length ? bodyStats[0] : null;
-              const weightDiff = (firstStat?.weight && lastStat?.weight)
-                ? parseFloat((firstStat.weight - lastStat.weight).toFixed(1))
-                : null;
-
-              // Hedef yağ oranı tahmini (kullanıcının hedef kilosundan tahmini)
-              const targetFat = user.gender === 'Erkek' ? 12 : 18; // varsayılan hedef
-              const fatToGo = parseFloat((last.bodyFatPercentage - targetFat).toFixed(1));
-              const weeklyRate = diff / (daysPassed / 7); // haftada kaç % düşüyor
-              const weeksToGoal = (improved && weeklyRate > 0 && fatToGo > 0)
-                ? Math.ceil(fatToGo / weeklyRate)
-                : null;
-
-              const praise = improved
-                ? diff >= 5 ? '🏆 İnanılmaz bir dönüşüm!' : diff >= 3 ? '💪 Harika ilerleme!' : diff >= 1 ? '🔥 Doğru yoldasın!' : '✨ Başlangıç iyi, devam et!'
-                : sameish ? '🎯 Yağ oranın koruyor.' : '📈 Küçük artış var, bırakma!';
-
-              return (
-                <View style={[styles.statsCard, { marginHorizontal: 16, marginTop: 8, gap: 14 }]}>
-                  <Text style={styles.statsTitle}>Gelişim Karşılaştırması</Text>
-
-                  {/* Yan yana fotoğraf */}
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <View style={{ flex: 1, alignItems: 'center', gap: 5 }}>
-                      <Image source={{ uri: first.url }} style={{ width: '100%', aspectRatio: 3/4, borderRadius: 12 }} />
-                      <Text style={{ color: C.textMuted, fontSize: 11 }}>{new Date(first.date).toLocaleDateString('tr-TR')}</Text>
-                      <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>%{first.bodyFatPercentage}</Text>
-                    </View>
-                    <View style={{ width: 1, backgroundColor: C.border, marginVertical: 8 }} />
-                    <View style={{ flex: 1, alignItems: 'center', gap: 5 }}>
-                      <Image source={{ uri: last.url }} style={{ width: '100%', aspectRatio: 3/4, borderRadius: 12 }} />
-                      <Text style={{ color: C.textMuted, fontSize: 11 }}>{new Date(last.date).toLocaleDateString('tr-TR')}</Text>
-                      <Text style={{ color: improved ? C.lime : C.red, fontWeight: '800', fontSize: 15 }}>%{last.bodyFatPercentage}</Text>
-                    </View>
-                  </View>
-
-                  {/* ÖZET KARTI */}
-                  <View style={{ backgroundColor: C.surface2, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: improved ? 'rgba(95,168,42,0.28)' : 'rgba(226,75,74,0.28)', gap: 10 }}>
-                    <Text style={{ color: improved ? C.lime : C.red, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>
-                      {improved ? `−${diff}% yağ oranı` : sameish ? 'Değişim yok' : `+${Math.abs(diff)}% artış`}
-                    </Text>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
-                      <View style={{ alignItems: 'center' }}>
-                        <Text style={{ color: C.text, fontWeight: '800', fontSize: 16 }}>{daysPassed}</Text>
-                        <Text style={{ color: C.textMuted, fontSize: 11 }}>gün</Text>
-                      </View>
-                      {weightDiff != null && (
-                        <View style={{ alignItems: 'center' }}>
-                          <Text style={{ color: weightDiff > 0 ? C.lime : C.red, fontWeight: '800', fontSize: 16 }}>
-                            {weightDiff > 0 ? `−${weightDiff}` : `+${Math.abs(weightDiff)}`} kg
-                          </Text>
-                          <Text style={{ color: C.textMuted, fontSize: 11 }}>kilo</Text>
-                        </View>
-                      )}
-                      <View style={{ alignItems: 'center' }}>
-                        <Text style={{ color: C.orange, fontWeight: '800', fontSize: 16 }}>{byDate.length}</Text>
-                        <Text style={{ color: C.textMuted, fontSize: 11 }}>analiz</Text>
-                      </View>
-                    </View>
-                    <Text style={{ color: C.textSec, fontSize: 13, textAlign: 'center' }}>{praise}</Text>
-                  </View>
-
-                  {/* BU HIZLA GİDERSEN TAHMİNİ */}
-                  {weeksToGoal != null && (
-                    <View style={{ backgroundColor: C.surface2, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: 'rgba(240,138,0,0.28)', gap: 6 }}>
-                      <Text style={{ color: C.orange, fontWeight: '800', fontSize: 14 }}>⚡ Bu hızla gidersen…</Text>
-                      <Text style={{ color: C.text, fontSize: 13, lineHeight: 20 }}>
-                        Haftada <Text style={{ color: C.lime, fontWeight: '700' }}>~{weeklyRate.toFixed(1)}%</Text> yağ yakıyorsun.{'\n'}
-                        Hedef yağ oranına (<Text style={{ color: C.lime, fontWeight: '700' }}>%{targetFat}</Text>) ulaşman yaklaşık{' '}
-                        <Text style={{ color: C.orange, fontWeight: '800' }}>{weeksToGoal} hafta</Text> sürer.
-                      </Text>
-                      <Text style={{ color: C.textMuted, fontSize: 11 }}>* Tutarlı antrenman ve beslenme varsayımıyla</Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })()}
-          </View>
-        }
         />
       )}
 
       {/* ===== YEMEK SEKMESİ ===== */}
       {currentTab === 'analiz' && analizTab === 'beslenme' && (
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100 }}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 16 }}>
 
           {mealTab === 'analiz' && (
           <View>
           {/* YAPAY ZEKA KALORİ ÖLÇER */}
-          <LinearGradient
-            colors={['#241A05', C.surface]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.mealHeaderCard}
-          >
-            <View style={styles.mealIconCircle}>
-              <Ionicons name="restaurant" size={22} color={C.orange} />
+          <View style={{ borderRadius: 22, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, backgroundColor: AZ_DARK.glass, alignItems: 'center' }}>
+            <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: AZ_DARK.limeSoft10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
+              <Ionicons name="restaurant" size={22} color={AZ_DARK.lime} />
             </View>
-            <Text style={styles.mealTitle}>Yapay Zeka Şefin</Text>
-            <Text style={styles.mealSubtitle}>Tabağının net bir fotoğrafını yükle, içindeki makroları anında söylesin.</Text>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: AZ_DARK.onSurface, textAlign: 'center' }}>Yapay Zeka Şefin</Text>
+            <Text style={{ fontSize: 13, color: AZ_DARK.onSurfaceVariant, textAlign: 'center', marginTop: 4, lineHeight: 18, paddingHorizontal: 10 }}>Tabağının net bir fotoğrafını yükle, içindeki makroları anında söylesin.</Text>
 
             {!userStats.isVip && (
-              <View style={styles.rightsPill}>
-                <Ionicons name="ticket-outline" size={14} color={C.orange} />
-                <Text style={styles.rightsText}>Bugünkü ücretsiz hakkın: <Text style={{ fontWeight: '800', color: C.orange }}>{dailyMealRights}</Text></Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: AZ_DARK.limeSoft10, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 10 }}>
+                <Ionicons name="ticket-outline" size={14} color={AZ_DARK.lime} />
+                <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5 }}>Bugünkü ücretsiz hakkın: <Text style={{ fontWeight: '800', color: AZ_DARK.lime }}>{dailyMealRights}</Text></Text>
               </View>
             )}
 
-            <TouchableOpacity activeOpacity={0.85} style={styles.scanBtn} onPress={() => askAndPickImage('meal')} disabled={loading}>
-              <Ionicons name="scan" size={20} color="#0B0D12" />
-              <Text style={styles.scanBtnText}>TABAĞI TARA</Text>
+            <TouchableOpacity activeOpacity={0.85}
+              style={{ flexDirection: 'row', gap: 8, backgroundColor: AZ_DARK.lime, paddingVertical: 13, paddingHorizontal: 30, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 12, alignSelf: 'stretch',
+                shadowColor: AZ_DARK.lime, shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6 }}
+              onPress={() => askAndPickImage('meal')} disabled={loading}>
+              <Ionicons name="scan" size={20} color={AZ_DARK.onLime} />
+              <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>TABAĞI TARA</Text>
             </TouchableOpacity>
-          </LinearGradient>
+          </View>
 
           {mealImage && !mealResult && !loading && (
             <View style={{ marginTop: 16 }}>
-              <Image source={{ uri: mealImage }} style={styles.mealPreviewImg} />
+              <Image source={{ uri: mealImage }} style={{ width: '100%', height: 190, borderRadius: 14, marginBottom: 14 }} />
               <TextInput
-                style={styles.noteInput}
+                style={{ backgroundColor: AZ_DARK.surfaceContainer, padding: 14, borderRadius: 12, minHeight: 52, borderWidth: 1, borderColor: AZ_DARK.glassBorder, color: AZ_DARK.onSurface, fontSize: 14 }}
                 placeholder="Ek bilgi (opsiyonel): örn. 'içine protein tozu ekledim'"
-                placeholderTextColor={C.textMuted}
+                placeholderTextColor={AZ_DARK.onSurfaceVariant}
                 value={mealNote}
                 onChangeText={setMealNote}
                 multiline
               />
-              <TouchableOpacity activeOpacity={0.85} onPress={() => sendMealToAI(mealImage)} style={{ marginTop: 12 }}>
-                <LinearGradient colors={[C.lime, C.limeDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
-                  <Ionicons name="sparkles" size={18} color="#0B0D12" />
-                  <Text style={styles.primaryBtnText}>ANALİZ ET</Text>
-                </LinearGradient>
+              <TouchableOpacity activeOpacity={0.85} onPress={() => sendMealToAI(mealImage)}
+                style={{ marginTop: 12, backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="sparkles" size={18} color={AZ_DARK.onLime} />
+                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>ANALİZ ET</Text>
               </TouchableOpacity>
             </View>
           )}
 
           {loading && mealImage && (
-            <View style={styles.loaderBox}>
-              <ActivityIndicator size="large" color={C.orange} />
-              <Text style={styles.loaderText}>Yapay zeka tabağı inceliyor, kalori hesabı yapılıyor...</Text>
+            <View style={{ marginVertical: 36, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={AZ_DARK.lime} />
+              <Text style={{ marginTop: 14, color: AZ_DARK.onSurfaceVariant, fontStyle: 'italic', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 }}>Yapay zeka tabağı inceliyor, kalori hesabı yapılıyor...</Text>
             </View>
           )}
 
           {mealResult && !loading && (
-            <View style={styles.resultCard}>
-              {mealImage && <Image source={{ uri: mealImage }} style={styles.mealPreviewImg} />}
-              <Text style={styles.resultMealName}>{mealResult.mealName}</Text>
-              <Text style={styles.resultDesc}>{mealResult.description}</Text>
+            <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 22, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+              {mealImage && <Image source={{ uri: mealImage }} style={{ width: '100%', height: 190, borderRadius: 14, marginBottom: 14 }} />}
+              <Text style={{ fontSize: 22, fontWeight: '800', color: AZ_DARK.onSurface, textAlign: 'center' }}>{mealResult.mealName}</Text>
+              <Text style={{ fontSize: 13.5, color: AZ_DARK.onSurfaceVariant, textAlign: 'center', marginVertical: 10, lineHeight: 20 }}>{mealResult.description}</Text>
 
-              <LinearGradient colors={['#2A2206', C.surface2]} style={styles.calorieBadge}>
-                <Text style={styles.calorieNum}>{mealResult.calories}</Text>
-                <Text style={styles.calorieLabel}>KCAL</Text>
-              </LinearGradient>
+              <View style={{ width: 110, height: 110, borderRadius: 55, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginVertical: 14, borderWidth: 1, borderColor: AZ_DARK.limeSoft30, backgroundColor: AZ_DARK.surfaceContainer }}>
+                <Text style={{ fontSize: 30, fontWeight: '900', color: AZ_DARK.lime }}>{mealResult.calories}</Text>
+                <Text style={{ fontSize: 11, color: AZ_DARK.onSurfaceVariant, fontWeight: '700', letterSpacing: 1 }}>KCAL</Text>
+              </View>
 
-              <View style={styles.macroContainer}>
-                <View style={styles.macroBox}>
-                  <Text style={[styles.macroVal, { color: C.red }]}>{mealResult.protein}g</Text>
-                  <Text style={styles.macroLabel2}>Protein</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginTop: 8, borderTopWidth: 1, borderTopColor: AZ_DARK.glassBorder, paddingTop: 16 }}>
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Text style={{ fontSize: 19, fontWeight: '800', color: AZ_DARK.macroProtein }}>{mealResult.protein}g</Text>
+                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>Protein</Text>
                 </View>
-                <View style={styles.macroDivider} />
-                <View style={styles.macroBox}>
-                  <Text style={[styles.macroVal, { color: C.orange }]}>{mealResult.carbs}g</Text>
-                  <Text style={styles.macroLabel2}>Karbonh.</Text>
+                <View style={{ width: 1, height: 34, backgroundColor: AZ_DARK.glassBorder }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Text style={{ fontSize: 19, fontWeight: '800', color: AZ_DARK.macroCarbs }}>{mealResult.carbs}g</Text>
+                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>Karbonh.</Text>
                 </View>
-                <View style={styles.macroDivider} />
-                <View style={styles.macroBox}>
-                  <Text style={[styles.macroVal, { color: C.green }]}>{mealResult.fat}g</Text>
-                  <Text style={styles.macroLabel2}>Yağ</Text>
+                <View style={{ width: 1, height: 34, backgroundColor: AZ_DARK.glassBorder }} />
+                <View style={{ alignItems: 'center', flex: 1 }}>
+                  <Text style={{ fontSize: 19, fontWeight: '800', color: AZ_DARK.macroFat }}>{mealResult.fat}g</Text>
+                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>Yağ</Text>
                 </View>
               </View>
             </View>
           )}
 
-          {/* BUGÜN NE KADAR TAMAMLANDI — kaydırmalı (Protein, Karbonhidrat, Yağ, Kalori) */}
-          <View style={[styles.statsCard, { marginTop: 16 }]}>
-            <Text style={styles.statsTitle}>Bugün Ne Kadar Tamamlandı</Text>
+          {/* GÜNLÜK KALORİ HEDEFİ — halka + makro barları (Stitch tasarımı) */}
+          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, alignItems: 'center' }}>
+            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, alignSelf: 'flex-start', marginBottom: 24 }}>Günlük Kalori Hedefi</Text>
 
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={(e) => setMacroPage(Math.round(e.nativeEvent.contentOffset.x / (Dimensions.get('window').width - 68)))}
-            >
+            {(() => {
+              const kcalPct = dailyTarget ? Math.min(1, todayCalories / dailyTarget) : 0;
+              const R = 45, CIRC = 2 * Math.PI * R;
+              return (
+                <View style={{ width: 192, height: 192, marginBottom: 24, alignItems: 'center', justifyContent: 'center' }}>
+                  <Svg width={192} height={192} viewBox="0 0 100 100" style={{ transform: [{ rotate: '-90deg' }] }}>
+                    <Circle cx={50} cy={50} r={R} fill="none" stroke={AZ_DARK.surfaceContainer} strokeWidth={8} />
+                    <Circle cx={50} cy={50} r={R} fill="none" stroke={AZ_DARK.lime} strokeWidth={8}
+                      strokeDasharray={`${CIRC}`} strokeDashoffset={CIRC * (1 - kcalPct)} strokeLinecap="round" />
+                  </Svg>
+                  <View style={{ position: 'absolute', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 32, fontWeight: '900', color: AZ_DARK.lime, letterSpacing: -1 }}>{todayCalories}</Text>
+                    <Text style={{ fontSize: 13, color: AZ_DARK.onSurfaceVariant, borderTopWidth: 1, borderTopColor: AZ_DARK.glassBorder, paddingTop: 4, marginTop: 4 }}>/ {dailyTarget ?? '--'} kcal</Text>
+                  </View>
+                </View>
+              );
+            })()}
+
+            <View style={{ width: '100%', gap: 14 }}>
               {[
-                { label: 'Protein', unit: 'g', color: C.red, cur: todayProtein, target: proteinTarget },
-                { label: 'Karbonhidrat', unit: 'g', color: C.orange, cur: todayCarbs, target: carbsTarget },
-                { label: 'Yağ', unit: 'g', color: C.green, cur: todayFat, target: fatTarget },
-                { label: 'Kalori', unit: 'kcal', color: C.lime, cur: todayCalories, target: dailyTarget },
+                { label: 'Protein', unit: 'g', color: AZ_DARK.macroProtein, cur: todayProtein, target: proteinTarget },
+                { label: 'Karbonhidrat', unit: 'g', color: AZ_DARK.macroCarbs, cur: todayCarbs, target: carbsTarget },
+                { label: 'Yağ', unit: 'g', color: AZ_DARK.macroFat, cur: todayFat, target: fatTarget },
               ].map((mac) => {
                 const pct = mac.target ? Math.min(100, Math.round((mac.cur / mac.target) * 100)) : 0;
                 return (
-                  <View key={mac.label} style={{ width: Dimensions.get('window').width - 68, alignItems: 'center', paddingVertical: 6 }}>
-                    <Text style={{ color: mac.color, fontSize: 13, fontWeight: '800' }}>{mac.label}</Text>
-                    <Text style={{ color: C.text, fontSize: 30, fontWeight: '900', marginVertical: 2 }}>
-                      {mac.cur}<Text style={{ fontSize: 14, color: C.textMuted, fontWeight: '600' }}> / {mac.target ?? '--'} {mac.unit}</Text>
-                    </Text>
-                    <View style={{ width: '100%', height: 8, backgroundColor: C.surface2, borderRadius: 4, overflow: 'hidden', marginTop: 4 }}>
-                      <View style={{ width: `${pct}%`, height: '100%', backgroundColor: mac.color, borderRadius: 4 }} />
+                  <View key={mac.label}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: mac.color }} />
+                        <Text style={{ color: AZ_DARK.onSurface, fontWeight: '600', fontSize: 12 }}>{mac.label}</Text>
+                      </View>
+                      <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12 }}>{mac.cur} / {mac.target ?? '--'}{mac.unit}</Text>
                     </View>
-                    <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 6 }}>%{pct} tamamlandı</Text>
+                    <View style={{ width: '100%', height: 8, backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 999, overflow: 'hidden' }}>
+                      <View style={{ width: `${pct}%`, height: '100%', backgroundColor: mac.color, borderRadius: 999 }} />
+                    </View>
                   </View>
                 );
               })}
-            </ScrollView>
-
-            {/* Sayfa noktaları */}
-            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 10 }}>
-              {[0, 1, 2, 3].map((i) => (
-                <View key={i} style={[styles.pageDot, macroPage === i && styles.pageDotActive]} />
-              ))}
             </View>
 
-            <Text style={[styles.statsSubtitle, { marginTop: 10, marginBottom: 0, textAlign: 'center' }]}>
+            <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12, marginTop: 14, textAlign: 'center' }}>
               {proteinTarget != null ? `Hedefler kilona göre · Bugün ${todayLogs.length} öğün tarandı` : 'Makro hedefleri için kilonu gir.'}
             </Text>
           </View>
 
           {/* BAZAL METABOLİZMA — sadece kalori analizi tabında */}
-          <View style={[styles.statsCard, { marginTop: 16 }]}>
-            <Text style={[styles.statsTitle, { marginBottom: 6 }]}>Kalori Hedefi</Text>
+          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, marginBottom: 6 }}>Kalori Hedefi</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Yaş" placeholderTextColor={C.textMuted} value={goalAge} onChangeText={setGoalAge} keyboardType="numeric" />
-              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Hedef Kilo (kg)" placeholderTextColor={C.textMuted} value={goalTarget} onChangeText={setGoalTarget} keyboardType="numeric" />
+              <TextInput style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, fontSize: 15, color: AZ_DARK.onSurface }} placeholder="Yaş" placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalAge} onChangeText={setGoalAge} keyboardType="numeric" />
+              <TextInput style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, fontSize: 15, color: AZ_DARK.onSurface }} placeholder="Hedef Kilo (kg)" placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalTarget} onChangeText={setGoalTarget} keyboardType="numeric" />
             </View>
-            <View style={[styles.genderRow, { marginBottom: 8 }]}>
-              <TouchableOpacity style={[styles.genderBtn, goalGender === 'male' && styles.genderBtnActive]} onPress={() => setGoalGender('male')}>
-                <Ionicons name="male" size={14} color={goalGender === 'male' ? '#0B0D12' : C.textSec} />
-                <Text style={[styles.genderText, goalGender === 'male' && styles.genderTextActive]}>Erkek</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+              <TouchableOpacity style={{ flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: goalGender === 'male' ? AZ_DARK.lime : AZ_DARK.surfaceContainer, borderWidth: 1, borderColor: goalGender === 'male' ? AZ_DARK.lime : AZ_DARK.glassBorder }} onPress={() => setGoalGender('male')}>
+                <Ionicons name="male" size={14} color={goalGender === 'male' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
+                <Text style={{ color: goalGender === 'male' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontWeight: '700', fontSize: 14 }}>Erkek</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.genderBtn, goalGender === 'female' && styles.genderBtnActive]} onPress={() => setGoalGender('female')}>
-                <Ionicons name="female" size={14} color={goalGender === 'female' ? '#0B0D12' : C.textSec} />
-                <Text style={[styles.genderText, goalGender === 'female' && styles.genderTextActive]}>Kadın</Text>
+              <TouchableOpacity style={{ flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: goalGender === 'female' ? AZ_DARK.lime : AZ_DARK.surfaceContainer, borderWidth: 1, borderColor: goalGender === 'female' ? AZ_DARK.lime : AZ_DARK.glassBorder }} onPress={() => setGoalGender('female')}>
+                <Ionicons name="female" size={14} color={goalGender === 'female' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
+                <Text style={{ color: goalGender === 'female' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontWeight: '700', fontSize: 14 }}>Kadın</Text>
               </TouchableOpacity>
             </View>
             {bmr != null ? (
               <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                <View style={{ flex: 1, backgroundColor: 'rgba(255,159,28,0.06)', borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: 'rgba(255,159,28,0.2)' }}>
-                  <Text style={{ color: C.orange, fontSize: 10, fontWeight: '600', marginBottom: 2 }}>BMR</Text>
-                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{bmr} <Text style={{ fontSize: 11, color: C.textMuted }}>kcal</Text></Text>
+                <View style={{ flex: 1, backgroundColor: AZ_DARK.limeSoft10, borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: AZ_DARK.limeSoft20 }}>
+                  <Text style={{ color: AZ_DARK.lime, fontSize: 10, fontWeight: '600', marginBottom: 2 }}>BMR</Text>
+                  <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 15 }}>{bmr} <Text style={{ fontSize: 11, color: AZ_DARK.onSurfaceVariant }}>kcal</Text></Text>
                 </View>
-                <View style={{ flex: 1, backgroundColor: 'rgba(255,159,28,0.06)', borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: 'rgba(255,159,28,0.2)' }}>
-                  <Text style={{ color: C.orange, fontSize: 10, fontWeight: '600', marginBottom: 2 }}>TDEE</Text>
-                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{tdee} <Text style={{ fontSize: 11, color: C.textMuted }}>kcal</Text></Text>
+                <View style={{ flex: 1, backgroundColor: AZ_DARK.limeSoft10, borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: AZ_DARK.limeSoft20 }}>
+                  <Text style={{ color: AZ_DARK.lime, fontSize: 10, fontWeight: '600', marginBottom: 2 }}>TDEE</Text>
+                  <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 15 }}>{tdee} <Text style={{ fontSize: 11, color: AZ_DARK.onSurfaceVariant }}>kcal</Text></Text>
                 </View>
                 {dailyTarget != null && (
-                  <View style={{ flex: 1, backgroundColor: 'rgba(255,159,28,0.12)', borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: 'rgba(255,159,28,0.35)' }}>
-                    <Text style={{ color: C.orange, fontSize: 10, fontWeight: '700', marginBottom: 2 }}>{goalMode}</Text>
-                    <Text style={{ color: C.orange, fontWeight: '900', fontSize: 15 }}>{dailyTarget} <Text style={{ fontSize: 11 }}>kcal</Text></Text>
+                  <View style={{ flex: 1, backgroundColor: AZ_DARK.limeSoft20, borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: AZ_DARK.limeSoft30 }}>
+                    <Text style={{ color: AZ_DARK.lime, fontSize: 10, fontWeight: '700', marginBottom: 2 }}>{goalMode}</Text>
+                    <Text style={{ color: AZ_DARK.lime, fontWeight: '900', fontSize: 15 }}>{dailyTarget} <Text style={{ fontSize: 11 }}>kcal</Text></Text>
                   </View>
                 )}
               </View>
             ) : (
-              <Text style={[styles.statsEmptyText, { marginBottom: 0 }]}>Yaş gir → BMR hesaplansın.</Text>
+              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', paddingVertical: 6, lineHeight: 20 }}>Yaş gir → BMR hesaplansın.</Text>
             )}
-            {loading ? <ActivityIndicator size="small" color={C.orange} style={{ marginTop: 8 }} /> : (
-              <TouchableOpacity activeOpacity={0.85} onPress={saveGoals} style={{ marginTop: 10 }}>
-                <LinearGradient colors={[C.orange, '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { paddingVertical: 10 }]}>
-                  <Text style={styles.primaryBtnText}>HEDEFLERİ KAYDET</Text>
-                </LinearGradient>
+            {loading ? <ActivityIndicator size="small" color={AZ_DARK.lime} style={{ marginTop: 8 }} /> : (
+              <TouchableOpacity activeOpacity={0.85} onPress={saveGoals}
+                style={{ marginTop: 10, backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>HEDEFLERİ KAYDET</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* YENEN ÜRÜNLER & DETAYLAR — bu hafta */}
-          <View style={[styles.statsCard, { marginTop: 16 }]}>
-            <Text style={styles.statsTitle}>Bu Hafta Yenenler</Text>
-            <Text style={[styles.statsSubtitle, { marginBottom: 10 }]}>Liste her hafta başında (Pazartesi) yenilenir.</Text>
+          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>Bu Hafta Yenenler</Text>
+            <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, marginBottom: 10 }}>Liste her hafta başında (Pazartesi) yenilenir.</Text>
             {thisWeekMealLogs.length === 0 ? (
-              <Text style={styles.statsEmptyText}>Bu hafta henüz taranmış öğün yok. Tabağını tara!</Text>
+              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', paddingVertical: 6, lineHeight: 20 }}>Bu hafta henüz taranmış öğün yok. Tabağını tara!</Text>
             ) : (
               thisWeekMealLogs.map((m, i) => (
-                <View key={m._id || i} style={styles.mealLogRow}>
+                <View key={m._id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: AZ_DARK.glassBorder }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.mealLogName}>{m.mealName || 'Öğün'}</Text>
-                    <Text style={styles.mealLogDate}>{new Date(m.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</Text>
-                    <View style={styles.mealLogMacros}>
-                      <Text style={[styles.mealLogMacro, { color: C.red }]}>P {m.protein || 0}g</Text>
-                      <Text style={[styles.mealLogMacro, { color: C.orange }]}>K {m.carbs || 0}g</Text>
-                      <Text style={[styles.mealLogMacro, { color: C.green }]}>Y {m.fat || 0}g</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: AZ_DARK.onSurface }}>{m.mealName || 'Öğün'}</Text>
+                    <Text style={{ fontSize: 11.5, color: AZ_DARK.onSurfaceVariant, marginTop: 2 }}>{new Date(m.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</Text>
+                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: AZ_DARK.macroProtein }}>P {m.protein || 0}g</Text>
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: AZ_DARK.macroCarbs }}>K {m.carbs || 0}g</Text>
+                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: AZ_DARK.macroFat }}>Y {m.fat || 0}g</Text>
                     </View>
                   </View>
-                  <View style={styles.mealLogCalBox}>
-                    <Text style={styles.mealLogCal}>{m.calories || 0}</Text>
-                    <Text style={styles.mealLogCalUnit}>kcal</Text>
+                  <View style={{ alignItems: 'center', marginLeft: 12, backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+                    <Text style={{ fontSize: 17, fontWeight: '800', color: AZ_DARK.lime }}>{m.calories || 0}</Text>
+                    <Text style={{ fontSize: 10, color: AZ_DARK.onSurfaceVariant, fontWeight: '600' }}>kcal</Text>
                   </View>
                 </View>
               ))
@@ -3100,9 +3233,9 @@ const pickAndUploadProfilePhoto = async () => {
             const minW = Math.min(...weights) - 2;
             const maxW = Math.max(...weights) + 2;
             return (
-              <View style={[styles.statsCard, { marginTop: 12 }]}>
-                <Text style={styles.statsTitle}>Kilo Takibi</Text>
-                <Text style={[styles.statsSubtitle, { marginBottom: 10 }]}>
+              <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+                <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>Kilo Takibi</Text>
+                <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, marginBottom: 10 }}>
                   {weights[0] > weights[weights.length - 1]
                     ? `+${(weights[weights.length - 1] - weights[0]).toFixed(1)} kg`
                     : `${(weights[weights.length - 1] - weights[0]).toFixed(1)} kg`
@@ -3116,14 +3249,14 @@ const pickAndUploadProfilePhoto = async () => {
                   fromNumber={maxW}
                   fromZero={false}
                   chartConfig={{
-                    backgroundColor: C.surface,
-                    backgroundGradientFrom: C.surface,
-                    backgroundGradientTo: C.surface,
+                    backgroundColor: AZ_DARK.surfaceContainer,
+                    backgroundGradientFrom: AZ_DARK.surfaceContainer,
+                    backgroundGradientTo: AZ_DARK.surfaceContainer,
                     decimalPlaces: 1,
-                    color: (o = 1) => `rgba(255,159,28,${o})`,
-                    labelColor: () => C.textMuted,
-                    propsForDots: { r: '4', strokeWidth: '2', stroke: '#FF9F1C' },
-                    propsForBackgroundLines: { stroke: C.border, strokeDasharray: '' },
+                    color: (o = 1) => `rgba(162,216,1,${o})`,
+                    labelColor: () => AZ_DARK.onSurfaceVariant,
+                    propsForDots: { r: '4', strokeWidth: '2', stroke: AZ_DARK.lime },
+                    propsForBackgroundLines: { stroke: AZ_DARK.glassBorder, strokeDasharray: '' },
                   }}
                   bezier
                   style={{ borderRadius: 12, marginLeft: -8 }}
@@ -3757,7 +3890,8 @@ const pickAndUploadProfilePhoto = async () => {
       </TouchableOpacity>
     </View>
 
-    {/* TEMA TOGGLE — aydınlık / karanlık */}
+    {/* TEMA TOGGLE — aydınlık/karanlık — GEÇİCİ olarak gizli (redesign bitene kadar sadece dark) */}
+    {false && (
     <TouchableOpacity activeOpacity={0.85} onPress={toggleTheme}
       style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.surface, borderRadius: 14, padding: 16, marginTop: 16, borderWidth: 1, borderColor: C.border }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -3770,6 +3904,7 @@ const pickAndUploadProfilePhoto = async () => {
         </View>
       </View>
     </TouchableOpacity>
+    )}
 
     <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await SecureStore.deleteItemAsync('userToken'); setUser(null); setToken(null); }}>
       <Ionicons name="log-out-outline" size={18} color={C.red} />
@@ -4013,7 +4148,9 @@ const pickAndUploadProfilePhoto = async () => {
 
       {/* ANTRENMAN MODU MODAL */}
       {(() => {
-        const exercises: any[] = weeklyPlan?.workoutPlan?.find((d: any) => d.dayNumber === weeklyPlan?.currentDay)?.exercises || [];
+        const exercises: any[] = workoutSource === 'pt'
+          ? (coachData.workoutPlan?.find((d: any) => d.dayNumber === ptSelectedDay)?.exercises || [])
+          : (weeklyPlan?.workoutPlan?.find((d: any) => d.dayNumber === weeklyPlan?.currentDay)?.exercises || []);
         const ex = exercises[workoutExIdx];
         if (!ex) return null;
         const { sets: totalSets, repsLabel } = parseExSets(ex.sets || '3x10');
@@ -4061,7 +4198,13 @@ const pickAndUploadProfilePhoto = async () => {
               setWorkoutSetIdx(0);
               setWorkoutWeights({});
               setRestSeconds(null);
-              setDayFeedbackVisible(true);
+              // PT programı GymBody'nin "günü tamamladım" akışına (weeklyPlan.currentDay
+              // ilerletme + /complete-day) bağlı değil — sadece bir bitirme mesajı gösterilir.
+              if (workoutSource === 'pt') {
+                showToast('Antrenmanı bitirdin, tebrikler! 💪', 'success');
+              } else {
+                setDayFeedbackVisible(true);
+              }
             }
           }
         };
@@ -4147,6 +4290,12 @@ const pickAndUploadProfilePhoto = async () => {
                   <View style={{ alignItems: 'center', marginBottom: 32 }}>
                     <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 8 }}>Dinlenme süresi</Text>
                     <Text style={{ color: restSeconds <= 10 ? C.orange : C.lime, fontWeight: '900', fontSize: 48 }}>{restSeconds}s</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 16 }}>
+                      <Ionicons name="barbell-outline" size={15} color={C.textMuted} />
+                      <Text style={{ color: C.text, fontWeight: '700', fontSize: 14, textAlign: 'center' }} numberOfLines={1}>
+                        Sıradaki: {ex.name}{!isLastSet ? ` · Set ${workoutSetIdx + 1}` : ''}
+                      </Text>
+                    </View>
                     <TouchableOpacity onPress={() => { clearInterval(restIntervalRef.current); setRestSeconds(null); }}
                       style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: C.border }}>
                       <Text style={{ color: C.textMuted, fontSize: 13 }}>Atla</Text>
@@ -5346,7 +5495,9 @@ const pickAndUploadProfilePhoto = async () => {
     </View>
   );
 }
-const chartConfig = {
+// Aktif temaya göre grafik ayarı — modül seviyesindeki sabit C (hep LIGHT) kullanmak
+// grafik arka planını dark modda bile beyaz basıyordu (bkz. Max Güç > Güç Geçmişi).
+const makeChartConfig = (C: Palette) => ({
   backgroundGradientFrom: C.surface,
   backgroundGradientTo: C.surface,
   decimalPlaces: 1,
@@ -5355,7 +5506,7 @@ const chartConfig = {
   style: { borderRadius: 12 },
   propsForBackgroundLines: { stroke: C.border },
   propsForDots: { r: '4', strokeWidth: '2', stroke: C.lime }
-};
+});
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 16 },
 

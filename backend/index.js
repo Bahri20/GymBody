@@ -1574,13 +1574,17 @@ app.post('/complete-day', authMiddleware, async (req, res) => {
 app.get('/gif-proxy', authMiddleware, async (req, res) => {
   try {
     const { url } = req.query;
-    // Yalnızca Cloudinary'ye izin ver — dış API kotası tüketilmez.
-    const isCloudinary = url && /^https:\/\/res\.cloudinary\.com\//.test(url);
-    if (!isCloudinary) {
+    // Yalnızca bilinen görsel kaynaklarına izin ver (SSRF / kota istismarını önler).
+    // Cloudinary: eski yüklemeler. jsDelivr (free-exercise-db): 343 egzersizin yeni
+    // 2 kareli statik görselleri — buraya eklenmediği için migration sonrası tüm
+    // yeni görseller 400 ile reddediliyordu.
+    const ALLOWED_HOSTS = [/^https:\/\/res\.cloudinary\.com\//, /^https:\/\/cdn\.jsdelivr\.net\//];
+    const isAllowed = url && ALLOWED_HOSTS.some(re => re.test(url));
+    if (!isAllowed) {
       return res.status(400).json({ error: "Geçersiz URL" });
     }
     const https = require('https');
-    // Cloudinary genel erişimli (api-key gerekmez)
+    // Cloudinary/jsDelivr genel erişimli (api-key gerekmez)
     const gifReq = https.get(url, (gifRes) => {
       res.setHeader('Content-Type', gifRes.headers['content-type'] || 'image/gif');
       res.setHeader('Cache-Control', 'public, max-age=86400');
