@@ -2605,17 +2605,17 @@ const pickAndUploadProfilePhoto = async () => {
         <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, marginBottom: 4, backgroundColor: C.surface, borderRadius: 16, padding: 5, borderWidth: 1, borderColor: C.border }}>
           <TouchableOpacity
             style={[{ flex: 1, gap: 4, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
-              analizTab === 'gelisim' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
+              analizTab === 'gelisim' && { backgroundColor: C.lime }]}
             onPress={() => setAnalizTab('gelisim')}>
-            <Ionicons name="images-outline" size={16} color={analizTab === 'gelisim' ? '#0B0D12' : C.textSec} />
-            <Text style={{ fontWeight: '700', color: analizTab === 'gelisim' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Gelişim</Text>
+            <Ionicons name="images-outline" size={16} color={analizTab === 'gelisim' ? '#0B1207' : C.textSec} />
+            <Text style={{ fontWeight: '700', color: analizTab === 'gelisim' ? '#0B1207' : C.textSec, fontSize: 13 }}>Gelişim</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[{ flex: 1, gap: 4, paddingVertical: 9, alignItems: 'center', justifyContent: 'center', borderRadius: 12, flexDirection: 'row' },
-              analizTab === 'beslenme' && { backgroundColor: 'rgba(255,255,255,0.92)' }]}
+              analizTab === 'beslenme' && { backgroundColor: C.lime }]}
             onPress={() => setAnalizTab('beslenme')}>
-            <Ionicons name="restaurant-outline" size={16} color={analizTab === 'beslenme' ? '#0B0D12' : C.textSec} />
-            <Text style={{ fontWeight: '700', color: analizTab === 'beslenme' ? '#0B0D12' : C.textSec, fontSize: 13 }}>Beslenme</Text>
+            <Ionicons name="restaurant-outline" size={16} color={analizTab === 'beslenme' ? '#0B1207' : C.textSec} />
+            <Text style={{ fontWeight: '700', color: analizTab === 'beslenme' ? '#0B1207' : C.textSec, fontSize: 13 }}>Beslenme</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -2807,7 +2807,7 @@ const pickAndUploadProfilePhoto = async () => {
                   </View>
 
                   {/* ÖZET KARTI */}
-                  <View style={{ backgroundColor: '#0D1A10', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: improved ? 'rgba(198,255,61,0.2)' : 'rgba(255,90,82,0.2)', gap: 10 }}>
+                  <View style={{ backgroundColor: C.surface2, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: improved ? 'rgba(95,168,42,0.28)' : 'rgba(226,75,74,0.28)', gap: 10 }}>
                     <Text style={{ color: improved ? C.lime : C.red, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>
                       {improved ? `−${diff}% yağ oranı` : sameish ? 'Değişim yok' : `+${Math.abs(diff)}% artış`}
                     </Text>
@@ -2834,7 +2834,7 @@ const pickAndUploadProfilePhoto = async () => {
 
                   {/* BU HIZLA GİDERSEN TAHMİNİ */}
                   {weeksToGoal != null && (
-                    <View style={{ backgroundColor: '#1A1200', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: 'rgba(255,159,28,0.25)', gap: 6 }}>
+                    <View style={{ backgroundColor: C.surface2, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: 'rgba(240,138,0,0.28)', gap: 6 }}>
                       <Text style={{ color: C.orange, fontWeight: '800', fontSize: 14 }}>⚡ Bu hızla gidersen…</Text>
                       <Text style={{ color: C.text, fontSize: 13, lineHeight: 20 }}>
                         Haftada <Text style={{ color: C.lime, fontWeight: '700' }}>~{weeklyRate.toFixed(1)}%</Text> yağ yakıyorsun.{'\n'}
