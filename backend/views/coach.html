@@ -1,319 +1,347 @@
 <!DOCTYPE html>
-<html lang="tr"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<html class="dark" lang="tr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>Hoca Paneli — GymBodyAI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#0B0D12; --surface:#111318; --anthracite:#191C22;
-    --card:rgba(25,28,34,.82); --border:#2C313A; --border2:#414938;
-    --primary:#9de656; --primary-dim:#83C93C; --on-primary:#12240a;
-    --text:#E2E2E9; --muted:#8E9196; --error:#FFB4AB; --low:#0C0E13;
-    --side-w:248px;
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: { extend: {
+      colors: {
+        "muted-gray":"#8E9196","outline-variant":"#414938","surface-variant":"#33353a",
+        "on-surface":"#e2e2e9","secondary-container":"#44474e","high-contrast-text":"#FFFFFF",
+        "error-container":"#93000a","surface-dim":"#111318","surface-bright":"#37393f",
+        "on-primary-fixed":"#0e2000","on-background":"#e2e2e9","on-primary":"#1c3700",
+        "surface-anthracite":"#191C22","primary":"#9de656","error":"#ffb4ab","neon-accent":"#83C93C",
+        "surface":"#111318","surface-container":"#1e1f25","surface-container-low":"#1a1b21",
+        "on-surface-variant":"#c1cab3","outline":"#8b947f","background":"#111318",
+        "primary-container":"#83c93c","surface-container-lowest":"#0c0e13","deep-night":"#0B0D12",
+        "surface-container-high":"#282a2f","surface-container-highest":"#33353a"
+      },
+      borderRadius:{ "DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px" },
+      spacing:{ "lg":"24px","sm":"12px","gutter":"20px","md":"16px","xl":"32px","margin-desktop":"40px","base":"8px","margin-mobile":"16px","xs":"4px" },
+      fontFamily:{ sans:["Hanken Grotesk","sans-serif"] }
+    }}
   }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font-family:'Hanken Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
-  .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;font-size:22px;line-height:1;flex:none}
+</script>
+<style>
+  body{background-color:#0B0D12;color:#e2e2e9;font-family:'Hanken Grotesk',sans-serif}
+  .glass-card{background:rgba(25,28,34,.82);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid #2C313A}
+  .neon-glow{box-shadow:0 0 15px rgba(157,230,86,.2)}
+  .neon-text-glow{text-shadow:0 0 8px rgba(157,230,86,.5)}
+  .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;line-height:1;flex:none}
+  .fill-icon{font-variation-settings:'FILL' 1}
   ::-webkit-scrollbar{width:6px;height:6px}
-  ::-webkit-scrollbar-track{background:var(--bg)}
-  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
-  ::-webkit-scrollbar-thumb:hover{background:var(--border2)}
-
-  /* Arka plan glow */
-  .bg-glow{position:fixed;border-radius:9999px;filter:blur(140px);z-index:-1;pointer-events-none;pointer-events:none}
-  .bg-glow.a{top:-12%;right:-10%;width:500px;height:500px;background:rgba(157,230,86,.05)}
-  .bg-glow.b{bottom:-12%;left:-10%;width:420px;height:420px;background:rgba(157,230,86,.045)}
-
-  /* Ortak kartlar */
-  h1{color:var(--primary);font-size:22px;margin-bottom:2px}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
-  .card{background:var(--card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px}
-  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
-  input,select{width:100%;background:var(--low);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-size:15px;font-family:inherit}
-  input:focus,select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(157,230,86,.14)}
-  button{background:var(--primary);color:var(--on-primary);border:none;border-radius:10px;padding:12px 18px;font-weight:700;font-size:15px;cursor:pointer;margin-top:12px;font-family:inherit;transition:filter .15s,transform .05s,background .15s}
-  button:active{transform:translateY(1px)}
-  button:hover{background:var(--primary-dim)}
-  button.ghost{background:transparent;color:var(--primary);border:1px solid var(--primary)}
-  button.ghost:hover{background:rgba(157,230,86,.08)}
-  button.danger{background:transparent;color:var(--error);border:1px solid rgba(255,180,171,.5);padding:5px 11px;font-size:12px;font-weight:600;margin:0}
-  button.danger:hover{background:rgba(255,180,171,.1)}
-
-  .sec-title{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;color:#fff;margin-bottom:14px}
-  .sec-title .ic{width:30px;height:30px;border-radius:9px;background:rgba(157,230,86,.14);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
-  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 6px;border-bottom:1px solid var(--border);border-radius:8px;transition:background .15s}
-  .row:last-child{border-bottom:none}
-  .row:hover{background:rgba(157,230,86,.05)}
-  .muted{color:var(--muted);font-size:12px}
-  .stat{display:flex;justify-content:space-between;padding:8px 0}
-  .stat b{color:var(--primary);font-size:18px}
-  .pill{display:inline-block;background:rgba(157,230,86,.1);color:var(--primary);padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;border:1px solid rgba(157,230,86,.2)}
-  .err{color:var(--error);font-size:13px;margin-top:8px}
-  .ok{color:var(--primary);font-size:13px;margin-top:8px}
+  ::-webkit-scrollbar-track{background:#0B0D12}
+  ::-webkit-scrollbar-thumb{background:#2C313A;border-radius:10px}
+  ::-webkit-scrollbar-thumb:hover{background:#414938}
+  input:focus,select:focus,textarea:focus{outline:none}
+  input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+  input[type=number]{-moz-appearance:textfield}
   .hidden{display:none!important}
-  .vip{color:var(--primary);font-weight:700;font-size:12px} .novip{color:var(--muted)}
-
-  /* Login ekranı */
-  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-  #loginBox{max-width:380px;width:100%;margin:0;padding:32px 26px;border-radius:20px;
-    box-shadow:0 12px 48px rgba(0,0,0,.5),0 0 0 1px rgba(157,230,86,.06);
-    background:linear-gradient(180deg,rgba(25,28,34,.9),rgba(16,20,28,.92));backdrop-filter:blur(20px)}
-  .login-logo{width:64px;height:64px;margin:0 auto 14px;border-radius:18px;display:flex;
-    align-items:center;justify-content:center;font-size:32px;
-    background:linear-gradient(135deg,#9de656,#83C93C);box-shadow:0 8px 24px rgba(157,230,86,.25)}
-  .login-title{text-align:center;font-size:22px;font-weight:800;color:#fff;margin-bottom:4px}
-  .login-desc{text-align:center;color:var(--muted);font-size:13px;margin-bottom:22px}
-  #loginBox button{width:100%;padding:14px;font-size:16px;margin-top:20px}
-
-  /* ==== Uygulama kabuğu: sidebar + topbar ==== */
-  .sidebar{position:fixed;left:0;top:0;height:100vh;width:var(--side-w);background:var(--anthracite);border-right:1px solid var(--border2);display:flex;flex-direction:column;padding:20px 12px;z-index:50}
-  .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 0;margin-bottom:26px}
-  .brand-logo{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;background:linear-gradient(135deg,#9de656,#83C93C);flex:none}
-  .brand-name{font-size:19px;font-weight:800;color:var(--primary);letter-spacing:-.02em}
-  .brand-name span{color:#fff}
-  .brand-sub{font-size:11px;color:var(--muted);font-weight:500}
-  .nav{flex:1;display:flex;flex-direction:column;gap:4px}
-  .navlink{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:10px;color:var(--muted);font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;transition:all .18s}
-  .navlink:hover{color:var(--text);background:#282A2F}
-  .navlink.active{color:var(--primary);font-weight:700;background:rgba(157,230,86,.06);box-shadow:inset -2px 0 0 var(--primary)}
-  .side-bottom{margin-top:auto;padding-top:14px;border-top:1px solid rgba(65,73,56,.4)}
-  .add-side{width:100%;display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;margin:0 0 14px}
-  .sideprofile{display:flex;align-items:center;gap:10px;padding:2px 4px}
-  .side-avatar{width:40px;height:40px;border-radius:9999px;background:var(--surface);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
-  .side-name{font-size:14px;font-weight:700;color:#fff}
-  .side-role{font-size:11px;color:var(--muted)}
-
-  .topbar{position:fixed;top:0;right:0;width:calc(100% - var(--side-w));height:64px;background:rgba(17,19,24,.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border2);display:flex;justify-content:space-between;align-items:center;padding:0 32px;z-index:40}
-  .pagetitle{font-size:18px;font-weight:700;color:var(--text);margin:0}
-  .gympill{font-size:13px;color:var(--muted)}
-
-  .main{margin-left:var(--side-w);padding-top:64px;min-height:100vh}
-  .wrap{max-width:820px;margin:0 auto;padding:32px 32px 90px}
-
-  /* Program editörü */
-  .tabs{display:none} /* sidebar ile değiştirildi */
-  .day-head{display:flex;gap:8px;align-items:center}
-  .daytabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px}
-  .daytab{flex:none;padding:10px 16px;border-radius:11px;background:var(--low);border:1px solid var(--border);cursor:pointer;font-weight:700;font-size:13px;white-space:nowrap;color:var(--text);transition:all .15s}
-  .daytab:hover{border-color:var(--border2)}
-  .daytab.on{background:var(--primary);color:var(--on-primary);border-color:var(--primary);box-shadow:0 4px 14px rgba(157,230,86,.22)}
-  .daytab.add{background:transparent;color:var(--primary);border:1px dashed var(--primary)}
-  .acc{border:1px solid var(--border);border-radius:12px;margin-bottom:8px;overflow:hidden;background:var(--low);transition:border-color .15s}
-  .acc.open{border-color:var(--primary)}
-  .acc-head{display:flex;justify-content:space-between;align-items:center;padding:14px;cursor:pointer;font-weight:700;font-size:15px;user-select:none;transition:background .15s}
-  .acc-head:hover{background:rgba(157,230,86,.05)}
-  .acc-head .cnt{font-weight:600;color:var(--muted);font-size:12px;background:var(--surface);padding:1px 9px;border-radius:20px;margin-left:8px}
-  .acc-head .arr{color:var(--primary);font-size:20px;transition:transform .2s;display:inline-block}
-  .acc.open .acc-head .arr{transform:rotate(90deg)}
-  .acc-body{display:none;padding:0 10px 10px}
-  .acc.open .acc-body{display:block}
-  .exrow2{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;background:var(--bg);margin-bottom:6px}
-  .exrow2 img{width:46px;height:46px;border-radius:8px;object-fit:cover;background:var(--surface);flex:none}
-  .exrow2 .nm{flex:1;font-size:14px;font-weight:600}
-  .exrow2 .eqb{font-size:11px;color:var(--muted);background:var(--surface);border-radius:6px;padding:2px 7px;margin-right:6px;white-space:nowrap}
-  .exsearch{width:100%;box-sizing:border-box;background:var(--low);border:1px solid var(--border);color:#fff;border-radius:10px;padding:11px 12px;font-size:14px;margin-bottom:12px;outline:none}
-  .exsearch:focus{border-color:var(--primary)}
-  .addbtn{width:34px;height:34px;border-radius:9px;background:var(--surface);color:var(--primary);font-size:20px;border:none;margin:0;padding:0;flex:none;line-height:1;transition:all .15s}
-  .addbtn:hover{filter:brightness(1.2)}
-  .addbtn.on{background:var(--primary);color:var(--on-primary)}
-  .srin{width:46px;background:var(--low);border:1px solid var(--border);border-radius:8px;padding:7px 4px;color:var(--text);text-align:center;font-size:14px}
-  .collap-head{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
-  .collap-head .arr{margin-left:auto;color:var(--primary);font-size:20px;transition:transform .2s}
-  .collap-head.open .arr{transform:rotate(90deg)}
-  .meal{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px}
-  .meal-top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-  .meal input{margin:0}
-  .meal .kcal{width:80px;flex:none;text-align:center}
-  .savebar{position:sticky;bottom:0;z-index:5;padding:14px 0 4px;margin-top:4px;background:linear-gradient(180deg,rgba(11,13,18,0),var(--bg) 35%)}
-  .chat-box{max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 2px}
-  .msg{max-width:80%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.4;word-break:break-word}
-  .msg.coach{align-self:flex-end;background:var(--primary);color:var(--on-primary);border-bottom-right-radius:4px}
-  .msg.student{align-self:flex-start;background:var(--surface);color:var(--text);border-bottom-left-radius:4px}
-  .msg .t{display:block;font-size:10px;opacity:.65;margin-top:3px;text-align:right}
-  .chat-input{display:flex;gap:8px;margin-top:10px}
-  .chat-input input{flex:1;margin:0}
-  .chat-input button{margin:0;flex:none}
-
+  /* Segment toggle */
+  .seg{padding:8px 16px;border-radius:8px;color:#8E9196;font-weight:700;font-size:13px;cursor:pointer;transition:all .15s}
+  .seg.active-seg{background:#9de656;color:#1c3700}
+  /* Nav active */
+  .navlink.active{color:#9de656;font-weight:700;background:rgba(157,230,86,.06);box-shadow:inset -2px 0 0 #9de656}
   /* Mobil: sidebar -> alt navigasyon */
   @media(max-width:900px){
-    .sidebar{width:100%;height:auto;top:auto;bottom:0;flex-direction:row;padding:6px 6px;border-right:none;border-top:1px solid var(--border2)}
-    .brand,.side-bottom{display:none}
-    .nav{flex-direction:row;justify-content:space-around;gap:0}
-    .navlink{flex-direction:column;gap:2px;font-size:10px;padding:7px 4px;flex:1}
-    .navlink .material-symbols-outlined{font-size:22px}
-    .navlink.active{background:transparent;box-shadow:none}
-    .topbar{width:100%;padding:0 16px}
-    .main{margin-left:0;padding-bottom:74px}
-    .wrap{padding:22px 16px 40px}
+    #sidebar{width:100%!important;height:auto!important;top:auto!important;bottom:0;left:0;flex-direction:row!important;padding:6px!important;border-right:none!important;border-top:1px solid #414938}
+    #sidebar .side-hideable{display:none!important}
+    #sidebar nav{flex:1;flex-direction:row!important;justify-content:space-around;gap:0!important}
+    #sidebar .navlink{flex-direction:column;gap:2px!important;font-size:10px;padding:7px 4px!important}
+    #sidebar .navlink span:last-child{font-size:10px}
+    #sidebar .navlink.active{box-shadow:none;background:transparent}
+    #topbar{width:100%!important;left:0;padding:0 16px!important}
+    #main{margin-left:0!important;padding-bottom:76px!important}
+    #topSearch{display:none!important}
+    .prog-cols{grid-template-columns:1fr!important}
+    #exLibrary{position:static!important;height:auto!important;max-height:340px}
   }
-</style></head>
-<body>
-<div class="bg-glow a"></div>
-<div class="bg-glow b"></div>
+</style>
+</head>
+<body class="overflow-x-hidden bg-deep-night">
 
-<!-- LOGIN -->
-<div id="loginScreen">
-  <div id="loginBox">
-    <div class="login-logo">🏋️</div>
-    <div class="login-title">Hoca Paneli</div>
-    <div class="login-desc">GymBody<span style="color:var(--primary)">AI</span> — öğrencilerini ve kazancını yönet</div>
-    <label>E-posta</label><input id="email" type="email" autocomplete="username" placeholder="hoca@email.com">
-    <label>Şifre</label><input id="pass" type="password" autocomplete="current-password" placeholder="••••••••">
-    <button onclick="login()">Giriş Yap →</button>
-    <div id="loginErr" class="err" style="text-align:center"></div>
+<!-- Arka plan glow -->
+<div class="fixed top-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary/5 blur-[150px] rounded-full -z-10 pointer-events-none"></div>
+<div class="fixed bottom-[-10%] left-[-10%] w-[420px] h-[420px] bg-primary/5 blur-[120px] rounded-full -z-10 pointer-events-none"></div>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginScreen" class="min-h-screen flex items-center justify-center p-md">
+  <div class="glass-card rounded-[20px] w-full max-w-sm p-xl shadow-2xl">
+    <div class="w-16 h-16 mx-auto mb-md rounded-[18px] flex items-center justify-center text-3xl" style="background:linear-gradient(135deg,#9de656,#83C93C);box-shadow:0 8px 24px rgba(157,230,86,.25)">🏋️</div>
+    <h1 class="text-center text-2xl font-extrabold text-white">Hoca Paneli</h1>
+    <p class="text-center text-muted-gray text-sm mt-1 mb-lg">GymBody<span class="text-primary">AI</span> — öğrencilerini ve kazancını yönet</p>
+    <label class="block text-sm text-muted-gray mb-xs">E-posta</label>
+    <input id="email" type="email" autocomplete="username" placeholder="hoca@email.com" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-md text-on-surface focus:border-primary transition-colors">
+    <label class="block text-sm text-muted-gray mb-xs mt-md">Şifre</label>
+    <input id="pass" type="password" autocomplete="current-password" placeholder="••••••••" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-md text-on-surface focus:border-primary transition-colors" onkeydown="if(event.key==='Enter')login()">
+    <button onclick="login()" class="w-full mt-lg bg-primary text-on-primary font-bold py-md rounded-lg hover:bg-neon-accent active:scale-95 transition-all">Giriş Yap →</button>
+    <div id="loginErr" class="text-error text-sm text-center mt-sm"></div>
   </div>
 </div>
 
-<!-- APP -->
+<!-- ============ APP ============ -->
 <div id="dash" class="hidden">
   <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-logo">🏋️</div>
+  <aside id="sidebar" class="h-screen w-64 fixed left-0 top-0 bg-surface-anthracite border-r border-outline-variant flex flex-col py-md px-sm z-50">
+    <div class="side-hideable flex items-center gap-sm px-md mb-xl">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style="background:linear-gradient(135deg,#9de656,#83C93C)">🏋️</div>
       <div>
-        <div class="brand-name">GymBody<span>AI</span></div>
-        <div class="brand-sub">Elit Performans Koçu</div>
+        <div class="text-lg font-extrabold text-primary tracking-tight leading-none">GymBody<span class="text-white">AI</span></div>
+        <div class="text-[11px] text-muted-gray mt-0.5">Elit Performans Koçu</div>
       </div>
     </div>
-    <nav class="nav">
-      <a class="navlink active" id="navStudents" onclick="showView('students')"><span class="material-symbols-outlined">group</span><span>Öğrenciler</span></a>
-      <a class="navlink" id="navProgram" onclick="showView('program')"><span class="material-symbols-outlined">fitness_center</span><span>Program</span></a>
-      <a class="navlink" id="navFinance" onclick="showView('finance')"><span class="material-symbols-outlined">person</span><span>Profil</span></a>
-      <a class="navlink" id="navLogout" onclick="logout()"><span class="material-symbols-outlined">logout</span><span>Çıkış</span></a>
+    <nav class="flex-1 flex flex-col gap-xs">
+      <a id="navStudents" onclick="showView('students')" class="navlink active flex items-center gap-md px-md py-sm rounded-lg text-muted-gray hover:text-on-surface hover:bg-surface-container-highest transition-all cursor-pointer">
+        <span class="material-symbols-outlined">group</span><span class="text-sm font-semibold">Öğrenciler</span></a>
+      <a id="navProgram" onclick="showView('program')" class="navlink flex items-center gap-md px-md py-sm rounded-lg text-muted-gray hover:text-on-surface hover:bg-surface-container-highest transition-all cursor-pointer">
+        <span class="material-symbols-outlined">fitness_center</span><span class="text-sm font-semibold">Program</span></a>
+      <a id="navFinance" onclick="showView('finance')" class="navlink flex items-center gap-md px-md py-sm rounded-lg text-muted-gray hover:text-on-surface hover:bg-surface-container-highest transition-all cursor-pointer">
+        <span class="material-symbols-outlined">person</span><span class="text-sm font-semibold">Profil</span></a>
+      <a id="navLogout" onclick="logout()" class="navlink flex items-center gap-md px-md py-sm rounded-lg text-muted-gray hover:text-on-surface hover:bg-surface-container-highest transition-all cursor-pointer">
+        <span class="material-symbols-outlined">logout</span><span class="text-sm font-semibold">Çıkış</span></a>
     </nav>
-    <div class="side-bottom">
-      <button class="add-side" onclick="showView('students');setTimeout(function(){var n=document.getElementById('newStudent');if(n)n.focus();},60)"><span class="material-symbols-outlined">add</span> Öğrenci Ekle</button>
-      <div class="sideprofile">
-        <div class="side-avatar">👤</div>
-        <div><p id="cName" class="side-name"></p><p class="side-role">Antrenör</p></div>
+    <div class="side-hideable mt-auto px-sm">
+      <button onclick="openDrawer()" class="w-full bg-primary text-on-primary py-md rounded-lg font-bold flex items-center justify-center gap-xs hover:bg-neon-accent active:scale-95 transition-all mb-md">
+        <span class="material-symbols-outlined">add</span> Öğrenci Ekle</button>
+      <div class="flex items-center gap-md p-xs border-t border-outline-variant/40 pt-md">
+        <div class="w-10 h-10 rounded-full bg-surface flex items-center justify-center border border-outline-variant text-lg">👤</div>
+        <div><p id="cName" class="text-sm font-bold text-white"></p><p class="text-[11px] text-muted-gray">Antrenör</p></div>
       </div>
     </div>
   </aside>
 
   <!-- TOPBAR -->
-  <header class="topbar">
-    <h1 id="pageTitle" class="pagetitle">Öğrenciler</h1>
-    <div class="topbar-right">
-      <span class="gympill">🏋️ Salon: <span id="cGym" class="pill">—</span></span>
+  <header id="topbar" class="fixed top-0 right-0 w-[calc(100%-16rem)] h-16 bg-surface/80 backdrop-blur-xl border-b border-outline-variant flex justify-between items-center px-margin-desktop z-40">
+    <h1 id="pageTitle" class="text-lg font-bold text-on-surface">Öğrenciler</h1>
+    <div class="flex items-center gap-lg">
+      <div id="topSearch" class="relative">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-muted-gray text-[20px]">search</span>
+        <input oninput="onStuSearch(this.value)" class="bg-surface-container-lowest border border-outline-variant rounded-full py-1.5 pl-10 pr-4 text-sm focus:border-primary transition-all w-56" placeholder="Öğrenci ara...">
+      </div>
+      <span class="text-sm text-muted-gray whitespace-nowrap">🏋️ <span id="cGym" class="text-primary font-bold">—</span></span>
     </div>
   </header>
 
   <!-- MAIN -->
-  <main class="main"><div class="wrap">
+  <main id="main" class="ml-64 pt-16 min-h-screen">
+   <div id="mainContent">
 
-    <!-- Öğrenciler + Program -->
-    <div id="mainContent">
-      <!-- VIEW 1: Öğrenciler -->
-      <div id="view1">
-        <div class="card">
-          <div class="sec-title"><span class="ic">➕</span> Öğrenci Ekle</div>
-          <input id="newStudent" type="email" placeholder="kayıtlı e-posta — ornek@mail.com">
-          <button onclick="addStudent()" style="width:100%">Ekle</button>
-          <div id="addMsg"></div>
+    <!-- ===== VIEW 1: ÖĞRENCİLER ===== -->
+    <div id="view1" class="p-margin-desktop max-w-6xl mx-auto">
+      <div class="flex justify-between items-end mb-xl flex-wrap gap-md">
+        <div>
+          <h2 class="text-3xl font-bold text-high-contrast-text">Öğrenci Dizini</h2>
+          <p class="text-muted-gray mt-xs">Öğrencilerini yönet, programlarını düzenle.</p>
         </div>
-        <div class="card">
-          <div class="sec-title"><span class="ic">👥</span> Salondaki Öğrenciler</div>
-          <div class="muted" style="margin:-8px 0 10px">Programı düzenlemek için bir öğrenciye dokun</div>
-          <div id="gymList"></div>
-        </div>
+        <button onclick="openDrawer()" class="flex items-center gap-xs px-lg py-sm bg-primary text-on-primary rounded-lg font-bold hover:bg-neon-accent active:scale-95 transition-all">
+          <span class="material-symbols-outlined text-[20px]">add</span> Öğrenci Ekle</button>
       </div>
-
-      <!-- VIEW 2: Program Editörü -->
-      <div id="view2" class="hidden">
-        <div id="noStudentMsg" class="card">
-          <div class="muted" style="text-align:center;padding:12px">← Öğrenciler sekmesinden bir öğrenci seç</div>
+      <div class="glass-card rounded-xl overflow-hidden">
+        <div class="grid grid-cols-12 gap-md px-lg py-md border-b border-outline-variant bg-surface-container-low text-muted-gray text-xs uppercase tracking-wider font-semibold">
+          <div class="col-span-5">Öğrenci</div>
+          <div class="col-span-4">Durum</div>
+          <div class="col-span-3 text-right">İşlemler</div>
         </div>
-        <div id="studentView" class="hidden">
-          <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-            <div><b id="sName" style="font-size:17px"></b><div class="muted" id="sInfo" style="margin-top:2px"></div></div>
-            <button onclick="closeStudent()" class="ghost" style="margin:0;padding:9px 14px;flex:none">← Geri</button>
-          </div>
-          <div class="card" id="sProgress"></div>
-          <!-- PROGRAM: günler + seçili günün hareketleri -->
-          <div class="card">
-            <div class="sec-title"><span class="ic">📅</span> Program</div>
-            <div class="daytabs" id="dayTabs"></div>
-            <div id="dayFocus"></div>
-            <div id="dayExCard" class="hidden" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
-              <div class="muted" style="margin-bottom:8px">Bu günün hareketleri</div>
-              <div id="dayExList"></div>
-            </div>
-          </div>
-          <!-- HAREKET KÜTÜPHANESİ -->
-          <div class="card">
-            <div class="sec-title"><span class="ic">➕</span> Hareket Kütüphanesi</div>
-            <div class="muted" style="margin:-6px 0 12px">Bölgeyi aç, hareketin yanındaki + ile seçili güne ekle</div>
-            <input id="exSearch" class="exsearch" placeholder="🔍 Hareket ara (ör. bench, squat, curl)..." oninput="onExSearch()" autocomplete="off">
-            <div id="groupAcc"></div>
-          </div>
-          <!-- BESLENME (açılır) -->
-          <div class="card">
-            <div class="collap-head" id="nutHead" onclick="toggleNut()">
-              <span class="ic" style="width:30px;height:30px;border-radius:9px;background:rgba(157,230,86,.14);display:flex;align-items:center;justify-content:center;font-size:16px">🥗</span>
-              <span style="font-size:15px;font-weight:800;color:#fff">Beslenme</span>
-              <span class="muted" style="margin-left:4px">— elle gün & öğün ekle</span>
-              <span class="arr">›</span>
-            </div>
-            <div id="nutBody" class="hidden" style="margin-top:14px">
-              <div class="daytabs" id="nutTabs"></div>
-              <div id="nutMeals"></div>
-              <button onclick="saveNutrition()" class="ghost" style="width:100%;margin-top:12px">🥗 Beslenmeyi Kaydet</button>
-              <div id="nutMsg" style="text-align:center"></div>
-            </div>
-          </div>
-          <!-- SOHBET -->
-          <div class="card">
-            <div class="sec-title"><span class="ic">💬</span> Sohbet</div>
-            <div class="chat-box" id="chatBox"><div class="muted">Yükleniyor…</div></div>
-            <div class="chat-input">
-              <input id="chatText" placeholder="Mesaj yaz…" maxlength="2000" onkeydown="if(event.key==='Enter')sendMsg()">
-              <button onclick="sendMsg()">Gönder</button>
-            </div>
-          </div>
-          <!-- YAPIŞKAN KAYDET -->
-          <div class="savebar">
-            <div id="planMsg" style="text-align:center;margin-bottom:8px"></div>
-            <button onclick="savePlan()" style="width:100%;margin:0">💾 Programı Kaydet</button>
-          </div>
-        </div>
+        <div id="stuBody" class="divide-y divide-outline-variant"></div>
+        <div class="px-lg py-md border-t border-outline-variant bg-surface-container-low/40 text-xs text-muted-gray"><span id="stuCount">—</span></div>
       </div>
     </div>
 
-    <!-- FINANS (bakiye / çekim / geçmiş / şifre) -->
-    <div id="profileMenu" class="hidden">
-      <div class="card">
-        <div class="stat"><span>Bakiye</span><b id="pBal">—</b></div>
-        <div class="stat"><span>Toplam Kazanç</span><b id="pEarn">—</b></div>
-        <div class="stat"><span>Komisyon Oranı</span><span id="pComm" class="pill">—</span></div>
-        <div class="stat"><span>Referans Kodun</span><span id="cRef" class="pill">—</span></div>
+    <!-- ===== VIEW 2: PROGRAM ===== -->
+    <div id="view2" class="hidden">
+      <!-- boş durum -->
+      <div id="noStudentMsg" class="p-margin-desktop max-w-6xl mx-auto">
+        <div class="glass-card rounded-xl p-xl text-center">
+          <span class="material-symbols-outlined text-5xl text-muted-gray">groups</span>
+          <p class="text-muted-gray mt-md">Program düzenlemek için <b class="text-on-surface">Öğrenciler</b> sekmesinden bir öğrenci seç.</p>
+          <button onclick="showView('students')" class="mt-md px-lg py-sm border border-outline-variant rounded-lg text-on-surface hover:bg-surface-container-highest transition-colors">← Öğrencilere Git</button>
+        </div>
       </div>
-      <div class="card">
-        <label>Para çekme — Tutar (TL)</label><input id="wAmount" type="number" placeholder="min 50">
-        <label>IBAN</label><input id="wIban" placeholder="TR...">
-        <button onclick="withdraw()">Para Çek</button>
-        <div id="wMsg"></div>
+
+      <div id="studentView" class="hidden flex prog-cols" style="grid-template-columns:320px 1fr;display:grid">
+        <!-- SOL: Hareket Kütüphanesi -->
+        <section id="exLibrary" class="border-r border-outline-variant h-[calc(100vh-4rem)] flex flex-col sticky top-16 overflow-hidden bg-surface-container-low">
+          <div class="p-md border-b border-outline-variant">
+            <h3 class="text-sm font-semibold text-high-contrast-text flex items-center gap-sm mb-sm">
+              <span class="material-symbols-outlined text-primary">fitness_center</span> Hareket Kütüphanesi</h3>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-gray text-[18px]">search</span>
+              <input id="exSearch" oninput="onExSearch()" autocomplete="off" placeholder="Hareket ara..." class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-2 pl-9 pr-3 text-sm text-white focus:border-primary transition-colors">
+            </div>
+          </div>
+          <div id="groupAcc" class="flex-1 overflow-y-auto p-sm space-y-sm"></div>
+        </section>
+
+        <!-- SAĞ: Program detayları -->
+        <section class="bg-surface p-lg overflow-y-auto">
+          <!-- öğrenci başlık -->
+          <div class="glass-card rounded-xl p-lg flex justify-between items-center gap-md mb-md flex-wrap">
+            <div class="flex items-center gap-md">
+              <div id="sAvatar" class="w-12 h-12 rounded-full bg-surface-container-highest border border-primary/20 flex items-center justify-center font-bold text-primary"></div>
+              <div><b id="sName" class="text-lg text-high-contrast-text"></b><div class="text-muted-gray text-sm" id="sInfo"></div></div>
+            </div>
+            <button onclick="closeStudent()" class="px-md py-sm border border-outline-variant rounded-lg text-sm text-on-surface hover:bg-surface-container-highest transition-colors">← Geri</button>
+          </div>
+          <div id="sProgress" class="glass-card rounded-xl p-lg mb-md"></div>
+
+          <!-- Antrenman / Beslenme toggle + kaydet -->
+          <div class="flex items-center justify-between mb-md flex-wrap gap-md">
+            <div class="flex bg-surface-container p-xs rounded-lg border border-outline-variant">
+              <button id="modeWorkout" class="seg active-seg" onclick="progMode('workout')">Antrenman</button>
+              <button id="modeNutrition" class="seg" onclick="progMode('nutrition')">Beslenme</button>
+            </div>
+            <div class="flex items-center gap-md">
+              <span id="planMsg" class="text-sm"></span>
+              <button onclick="savePlan()" class="px-lg py-sm bg-primary text-on-primary font-bold rounded-lg hover:bg-neon-accent active:scale-95 transition-all flex items-center gap-xs">
+                <span class="material-symbols-outlined text-[20px]">save</span> Programı Kaydet</button>
+            </div>
+          </div>
+
+          <!-- ANTRENMAN PANE -->
+          <div id="workoutPane">
+            <!-- gün sekmeleri -->
+            <div class="daytabs flex gap-sm overflow-x-auto pb-sm mb-md" id="dayTabs"></div>
+            <div id="dayFocus" class="mb-md"></div>
+            <div id="dayExCard" class="hidden">
+              <p class="text-xs text-muted-gray uppercase tracking-wider mb-sm">Bu günün hareketleri</p>
+              <div id="dayExList" class="space-y-sm"></div>
+            </div>
+            <!-- SOHBET -->
+            <div class="glass-card rounded-xl p-lg mt-lg">
+              <h4 class="text-sm font-semibold text-high-contrast-text flex items-center gap-sm mb-md"><span class="material-symbols-outlined text-primary">chat</span> Sohbet</h4>
+              <div id="chatBox" class="max-h-72 overflow-y-auto flex flex-col gap-sm p-1"><div class="text-muted-gray text-sm">Yükleniyor…</div></div>
+              <div class="flex gap-sm mt-md">
+                <input id="chatText" maxlength="2000" placeholder="Mesaj yaz…" onkeydown="if(event.key==='Enter')sendMsg()" class="flex-1 bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm text-on-surface focus:border-primary transition-colors">
+                <button onclick="sendMsg()" class="px-lg bg-primary text-on-primary font-bold rounded-lg hover:bg-neon-accent transition-colors">Gönder</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- BESLENME PANE -->
+          <div id="nutritionPane" class="hidden">
+            <div class="glass-card rounded-xl p-lg">
+              <div id="nutRing" class="mb-lg"></div>
+              <div class="daytabs flex gap-sm overflow-x-auto pb-sm mb-md" id="nutTabs"></div>
+              <div id="nutMeals" class="space-y-sm"></div>
+              <button onclick="saveNutrition()" class="w-full mt-md py-md border border-outline-variant rounded-lg text-on-surface font-bold hover:bg-surface-container-highest transition-colors">🥗 Beslenmeyi Kaydet</button>
+              <div id="nutMsg" class="text-center text-sm mt-sm"></div>
+            </div>
+          </div>
+        </section>
       </div>
-      <div class="card"><div class="muted" style="margin-bottom:8px">Geçmiş çekimler</div><div id="wList"></div></div>
-      <div class="card">
-        <div class="muted" style="margin-bottom:6px">🔒 Şifre Değiştir</div>
-        <label>Mevcut şifre</label><input id="curPass" type="password">
-        <label>Yeni şifre</label><input id="newPass" type="password" placeholder="en az 6 karakter">
-        <button onclick="changePass()">Şifreyi Güncelle</button>
-        <div id="passMsg"></div>
-      </div>
-      <button class="ghost" onclick="logout()" style="width:100%">Çıkış Yap</button>
     </div>
 
-  </div></main>
+   </div><!-- /mainContent -->
+
+   <!-- ===== VIEW 3: PROFİL ===== -->
+   <div id="profileMenu" class="hidden p-margin-desktop max-w-6xl mx-auto">
+     <!-- bento -->
+     <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-xl">
+       <div class="glass-card p-xl rounded-xl relative overflow-hidden group">
+         <div class="absolute top-0 right-0 p-lg opacity-10 group-hover:opacity-20 transition-opacity"><span class="material-symbols-outlined text-6xl">account_balance_wallet</span></div>
+         <p class="text-muted-gray text-xs uppercase tracking-widest">Bakiye</p>
+         <h3 id="pBal" class="text-primary text-4xl font-bold mt-sm neon-text-glow">—</h3>
+         <p class="text-xs text-muted-gray mt-lg">Çekime hazır tutar</p>
+       </div>
+       <div class="glass-card p-xl rounded-xl relative overflow-hidden group">
+         <div class="absolute top-0 right-0 p-lg opacity-10 group-hover:opacity-20 transition-opacity"><span class="material-symbols-outlined text-6xl">payments</span></div>
+         <p class="text-muted-gray text-xs uppercase tracking-widest">Toplam Kazanç</p>
+         <h3 id="pEarn" class="text-high-contrast-text text-4xl font-bold mt-sm">—</h3>
+         <p class="text-xs text-muted-gray mt-lg">Komisyon Oranı: <span id="pComm" class="text-primary font-bold">—</span></p>
+       </div>
+       <div class="glass-card p-xl rounded-xl">
+         <p class="text-muted-gray text-xs uppercase tracking-widest mb-sm">Referans Kodun</p>
+         <div class="flex items-center justify-between bg-surface-container-lowest p-md rounded-lg border border-outline-variant">
+           <code id="cRef" class="font-mono text-primary font-bold text-lg">—</code>
+           <button onclick="copyRef()" class="text-muted-gray hover:text-primary transition-colors" title="Kopyala"><span class="material-symbols-outlined">content_copy</span></button>
+         </div>
+         <p id="refCopied" class="text-xs text-primary mt-sm hidden">Kopyalandı ✓</p>
+       </div>
+     </div>
+
+     <div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+       <!-- çekim formu -->
+       <div class="lg:col-span-1 glass-card rounded-xl flex flex-col">
+         <div class="p-lg border-b border-outline-variant"><h4 class="text-xl font-semibold text-on-surface">Para Çek</h4><p class="text-muted-gray text-sm mt-xs">Banka hesabına hızlı çekim.</p></div>
+         <div class="p-lg space-y-md">
+           <div>
+             <label class="block text-sm text-muted-gray mb-xs">Tutar (TL)</label>
+             <div class="relative"><span class="absolute left-md top-1/2 -translate-y-1/2 text-muted-gray">₺</span>
+               <input id="wAmount" type="number" placeholder="0" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-md pl-xl pr-md text-on-surface focus:border-primary transition-colors"></div>
+             <p class="text-xs text-muted-gray mt-xs">Min. çekim: ₺50</p>
+           </div>
+           <div>
+             <label class="block text-sm text-muted-gray mb-xs">IBAN</label>
+             <input id="wIban" placeholder="TR00 0000 0000..." class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-md px-md text-on-surface uppercase tracking-wider focus:border-primary transition-colors">
+           </div>
+           <button onclick="withdraw()" class="w-full bg-primary text-on-primary font-bold py-md rounded-lg hover:bg-neon-accent active:scale-95 transition-all">Çekim Talebi Oluştur</button>
+           <div id="wMsg" class="text-sm text-center"></div>
+         </div>
+       </div>
+       <!-- çekim geçmişi -->
+       <div class="lg:col-span-2 glass-card rounded-xl flex flex-col">
+         <div class="p-lg border-b border-outline-variant"><h4 class="text-xl font-semibold text-on-surface">Geçmiş Çekimler</h4><p class="text-muted-gray text-sm mt-xs">Son işlem kaydı.</p></div>
+         <div class="overflow-x-auto">
+           <table class="w-full text-left">
+             <thead><tr class="bg-surface-container-low border-b border-outline-variant text-muted-gray text-xs uppercase tracking-wider">
+               <th class="px-lg py-md font-semibold">Tarih</th><th class="px-lg py-md font-semibold">Tutar</th>
+               <th class="px-lg py-md font-semibold">IBAN</th><th class="px-lg py-md font-semibold">Durum</th></tr></thead>
+             <tbody id="wList" class="divide-y divide-outline-variant"></tbody>
+           </table>
+         </div>
+       </div>
+     </div>
+
+     <!-- şifre + çıkış -->
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter mt-xl">
+       <div class="glass-card rounded-xl p-lg">
+         <h4 class="text-sm font-semibold text-on-surface flex items-center gap-sm mb-md"><span class="material-symbols-outlined text-primary">lock</span> Şifre Değiştir</h4>
+         <label class="block text-sm text-muted-gray mb-xs">Mevcut şifre</label>
+         <input id="curPass" type="password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-md text-on-surface focus:border-primary transition-colors">
+         <label class="block text-sm text-muted-gray mb-xs mt-md">Yeni şifre</label>
+         <input id="newPass" type="password" placeholder="en az 6 karakter" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-md text-on-surface focus:border-primary transition-colors">
+         <button onclick="changePass()" class="w-full mt-md bg-primary text-on-primary font-bold py-md rounded-lg hover:bg-neon-accent active:scale-95 transition-all">Şifreyi Güncelle</button>
+         <div id="passMsg" class="text-sm text-center mt-sm"></div>
+       </div>
+       <div class="glass-card rounded-xl p-lg flex flex-col justify-between">
+         <div><h4 class="text-sm font-semibold text-on-surface flex items-center gap-sm mb-xs"><span class="material-symbols-outlined text-error">logout</span> Oturum</h4>
+           <p class="text-muted-gray text-sm">Hesabından güvenli çıkış yap.</p></div>
+         <button onclick="logout()" class="w-full mt-md bg-error/10 border border-error/20 text-error font-bold py-md rounded-lg hover:bg-error/20 transition-colors">Çıkış Yap</button>
+       </div>
+     </div>
+   </div>
+  </main>
 </div>
+
+<!-- ===== ÖĞRENCİ EKLE PANELİ (drawer) ===== -->
+<div id="drawerOverlay" onclick="closeDrawer()" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] opacity-0 pointer-events-none transition-opacity duration-300"></div>
+<div id="drawer" class="fixed top-0 right-0 h-screen w-full max-w-sm bg-surface-anthracite border-l border-outline-variant z-[70] translate-x-full transition-transform duration-300 shadow-2xl p-xl">
+  <div class="flex justify-between items-center mb-xl">
+    <h4 class="text-xl font-bold text-high-contrast-text">Öğrenci Ekle</h4>
+    <button onclick="closeDrawer()" class="p-sm hover:bg-surface-container-highest rounded-full text-muted-gray transition-colors"><span class="material-symbols-outlined">close</span></button>
+  </div>
+  <label class="block text-xs text-muted-gray uppercase tracking-wider mb-xs">Öğrencinin E-postası</label>
+  <input id="newStudent" type="email" placeholder="ornek@mail.com" class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-md text-on-surface focus:border-primary transition-colors" onkeydown="if(event.key==='Enter')addStudent()">
+  <p class="text-xs text-muted-gray mt-sm">Not: Öğrencinin GymBodyAI uygulamasında kayıtlı olması gerekir.</p>
+  <button onclick="addStudent()" class="w-full mt-lg bg-primary text-on-primary font-bold py-md rounded-lg hover:bg-neon-accent active:scale-95 transition-all">Ekle</button>
+  <div id="addMsg" class="text-sm text-center mt-sm"></div>
+</div>
+
 <script>
   const T = () => localStorage.getItem('coachToken');
   const H = () => ({ 'Content-Type':'application/json', 'Authorization':'Bearer '+T() });
+  const esc = s => (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const initials = n => (n||'?').trim().split(/\s+/).slice(0,2).map(w=>(w[0]||'')).join('').toUpperCase();
+
   async function login(){
     const email=document.getElementById('email').value.trim(), password=document.getElementById('pass').value;
     const e=document.getElementById('loginErr'); e.textContent='';
@@ -325,6 +353,7 @@
     }catch(_){e.textContent='Bağlantı hatası';}
   }
   function logout(){localStorage.removeItem('coachToken');location.reload();}
+
   // Sidebar navigasyonu: 'students' | 'program' | 'finance'
   function showView(v){
     document.getElementById('mainContent').classList.toggle('hidden', v==='finance');
@@ -333,25 +362,68 @@
       document.getElementById('view1').classList.toggle('hidden', v!=='students');
       document.getElementById('view2').classList.toggle('hidden', v!=='program');
     }
-    var map=[['navStudents','students'],['navProgram','program'],['navFinance','finance']];
-    map.forEach(function(p){var el=document.getElementById(p[0]);if(el)el.classList.toggle('active',v===p[1]);});
+    [['navStudents','students'],['navProgram','program'],['navFinance','finance']].forEach(function(p){
+      var el=document.getElementById(p[0]); if(el) el.classList.toggle('active', v===p[1]);
+    });
     var titles={students:'Öğrenciler',program:'Program Editörü',finance:'Profil'};
-    var t=document.getElementById('pageTitle');if(t&&titles[v])t.textContent=titles[v];
+    var t=document.getElementById('pageTitle'); if(t&&titles[v]) t.textContent=titles[v];
+    var ts=document.getElementById('topSearch'); if(ts) ts.classList.toggle('hidden', v!=='students');
   }
-  // Eski isimler korunuyor (dahili çağrılar bozulmasın)
   function switchTab(n){ showView(n===1?'students':'program'); }
   function toggleProfile(){ showView('finance'); }
+
+  // Öğrenci ekle paneli
+  function openDrawer(){document.getElementById('drawer').classList.remove('translate-x-full');document.getElementById('drawerOverlay').classList.remove('opacity-0','pointer-events-none');setTimeout(function(){document.getElementById('newStudent').focus();},80);}
+  function closeDrawer(){document.getElementById('drawer').classList.add('translate-x-full');document.getElementById('drawerOverlay').classList.add('opacity-0','pointer-events-none');}
+
+  function copyRef(){
+    var c=document.getElementById('cRef').textContent||'';
+    if(navigator.clipboard) navigator.clipboard.writeText(c);
+    var m=document.getElementById('refCopied'); m.classList.remove('hidden'); setTimeout(function(){m.classList.add('hidden');},1500);
+  }
+
   let _plan=[], _exGroups={}, _curUser=null, _activeDay=0, _openGroups={};
-  let _nut=[], _nutDay=0;
+  let _nut=[], _nutDay=0, _students=[], _coachName='', _stuSearch='';
+
+  // ---- Öğrenci tablosu ----
+  function onStuSearch(v){_stuSearch=(v||'').toLowerCase();renderStudents();}
+  function renderStudents(){
+    var q=_stuSearch.trim();
+    var list=_students.filter(function(s){return !q || (s.name||'').toLowerCase().indexOf(q)>=0 || (s.email||'').toLowerCase().indexOf(q)>=0;});
+    document.getElementById('stuCount').textContent=list.length+' öğrenci'+(q?(' ('+_students.length+' toplam)'):'');
+    var b=document.getElementById('stuBody');
+    if(!list.length){b.innerHTML='<div class="px-lg py-xl text-center text-muted-gray text-sm">'+(_students.length?'Eşleşen öğrenci yok.':'Henüz öğrenci yok. Sağ üstten e-posta ile ekle.')+'</div>';return;}
+    b.innerHTML=list.map(function(s){
+      var nm=encodeURIComponent(s.name||''), coach=esc(s.coachName||_coachName);
+      var vip=s.isVip
+        ? '<span class="inline-flex items-center gap-xs px-sm py-xs rounded bg-primary/10 text-primary border border-primary/20 text-xs font-bold"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span>VIP</span>'
+        : '<span class="inline-flex items-center gap-xs px-sm py-xs rounded bg-surface-container-highest text-muted-gray border border-outline-variant text-xs font-bold">ÜYE</span>';
+      return '<div class="grid grid-cols-12 gap-md px-lg py-md items-center hover:bg-primary/[.04] transition-colors cursor-pointer" onclick="openStudent(\''+s._id+'\',decodeURIComponent(\''+nm+'\'))">'+
+        '<div class="col-span-5 flex items-center gap-md">'+
+          '<div class="w-10 h-10 rounded-lg bg-surface-container-highest border border-primary/20 flex items-center justify-center font-bold text-primary text-sm flex-none">'+initials(s.name)+'</div>'+
+          '<div class="min-w-0"><p class="text-high-contrast-text font-semibold truncate">'+esc(s.name)+'</p>'+(s.email?'<p class="text-xs text-muted-gray truncate">'+esc(s.email)+'</p>':'')+'</div>'+
+        '</div>'+
+        '<div class="col-span-4 flex items-center gap-sm flex-wrap">'+vip+'<span class="text-xs text-muted-gray">🏋️ '+coach+'</span></div>'+
+        '<div class="col-span-3 flex justify-end gap-sm">'+
+          '<button onclick="event.stopPropagation();openStudent(\''+s._id+'\',decodeURIComponent(\''+nm+'\'))" class="px-md py-sm border border-outline-variant rounded-lg text-xs font-semibold text-on-surface hover:bg-primary hover:text-on-primary hover:border-primary transition-all whitespace-nowrap">Programı Düzenle</button>'+
+          '<button onclick="event.stopPropagation();rmStudent(\''+s._id+'\')" class="p-sm rounded-lg text-muted-gray hover:text-error hover:bg-error/10 transition-colors" title="Çıkar"><span class="material-symbols-outlined text-[20px]">person_remove</span></button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
   async function openStudent(id,name){
     _curUser=id;
+    closeDrawer();
     document.getElementById('profileMenu').classList.add('hidden');
     document.getElementById('mainContent').classList.remove('hidden');
     switchTab(2);
     document.getElementById('noStudentMsg').classList.add('hidden');
     document.getElementById('studentView').classList.remove('hidden');
     document.getElementById('sName').textContent=name||'Öğrenci';
+    document.getElementById('sAvatar').textContent=initials(name);
     document.getElementById('planMsg').textContent='';
+    progMode('workout');
     if(!Object.keys(_exGroups).length){
       const er=await fetch('/coach/exercises',{headers:H()}); _exGroups=await er.json();
     }
@@ -360,21 +432,19 @@
     if(!r.ok){alert(d.error||'Yüklenemedi');closeStudent();return;}
     document.getElementById('sInfo').textContent=[d.weight?d.weight+' kg':'',d.height?d.height+' cm':''].filter(Boolean).join(' · ');
     const bs=d.bodyStats&&d.bodyStats[0];
-    document.getElementById('sProgress').innerHTML='<div class="muted" style="margin-bottom:6px">📊 İlerleme</div>'+
-      (bs?('<div class="stat"><span>Güncel kilo</span><b>'+(bs.weight||d.weight||'—')+' kg</b></div>'+
-      (bs.waist?'<div class="stat"><span>Bel</span><b>'+bs.waist+' cm</b></div>':'')+
-      (bs.shoulder?'<div class="stat"><span>Omuz</span><b>'+bs.shoulder+' cm</b></div>':''))
-      :'<div class="muted">Henüz ölçü kaydı yok.</div>');
+    document.getElementById('sProgress').innerHTML='<p class="text-xs text-muted-gray uppercase tracking-wider mb-sm">📊 İlerleme</p>'+
+      (bs?('<div class="flex justify-between py-1"><span class="text-muted-gray text-sm">Güncel kilo</span><b class="text-primary">'+(bs.weight||d.weight||'—')+' kg</b></div>'+
+      (bs.waist?'<div class="flex justify-between py-1"><span class="text-muted-gray text-sm">Bel</span><b class="text-primary">'+bs.waist+' cm</b></div>':'')+
+      (bs.shoulder?'<div class="flex justify-between py-1"><span class="text-muted-gray text-sm">Omuz</span><b class="text-primary">'+bs.shoulder+' cm</b></div>':''))
+      :'<p class="text-muted-gray text-sm">Henüz ölçü kaydı yok.</p>');
     _plan=(d.workoutPlan&&d.workoutPlan.length)?JSON.parse(JSON.stringify(d.workoutPlan)):[];
     _activeDay=0;_openGroups={};
     renderPlan();
     _nut=(d.nutritionPlan&&d.nutritionPlan.length)?JSON.parse(JSON.stringify(d.nutritionPlan)):[];
     _nutDay=0;
-    document.getElementById('nutBody').classList.add('hidden');
-    document.getElementById('nutHead').classList.remove('open');
     document.getElementById('nutMsg').textContent='';
     renderNut();
-    document.getElementById('chatBox').innerHTML='<div class="muted">Yükleniyor…</div>';
+    document.getElementById('chatBox').innerHTML='<div class="text-muted-gray text-sm">Yükleniyor…</div>';
     startChatPoll();
   }
   function closeStudent(){
@@ -383,16 +453,24 @@
     document.getElementById('noStudentMsg').classList.remove('hidden');
     switchTab(1);
   }
+  function progMode(m){
+    document.getElementById('workoutPane').classList.toggle('hidden',m!=='workout');
+    document.getElementById('nutritionPane').classList.toggle('hidden',m!=='nutrition');
+    document.getElementById('modeWorkout').classList.toggle('active-seg',m==='workout');
+    document.getElementById('modeNutrition').classList.toggle('active-seg',m==='nutrition');
+    if(m==='nutrition')renderNut();
+  }
+
   // ---- Sohbet ----
   let _chatTimer=null,_chatLastCount=-1;
-  function chatEsc(s){return s.replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function renderChat(msgs){
     var box=document.getElementById('chatBox');
-    if(!msgs.length){box.innerHTML='<div class="muted" style="text-align:center;padding:14px">Henüz mesaj yok. İlk mesajı sen yaz 👋</div>';_chatLastCount=0;return;}
+    if(!msgs.length){box.innerHTML='<div class="text-muted-gray text-sm text-center py-md">Henüz mesaj yok. İlk mesajı sen yaz 👋</div>';_chatLastCount=0;return;}
     var atBottom=box.scrollHeight-box.scrollTop-box.clientHeight<60;
     box.innerHTML=msgs.map(function(m){
       var d=new Date(m.at),hh=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
-      return '<div class="msg '+(m.from==='coach'?'coach':'student')+'">'+chatEsc(m.text)+'<span class="t">'+hh+'</span></div>';
+      var mine=m.from==='coach';
+      return '<div class="max-w-[80%] px-md py-sm rounded-2xl text-sm '+(mine?'self-end bg-primary text-on-primary rounded-br-sm':'self-start bg-surface-container-highest text-on-surface rounded-bl-sm')+'">'+esc(m.text)+'<span class="block text-[10px] opacity-60 mt-1 text-right">'+hh+'</span></div>';
     }).join('');
     if(atBottom||msgs.length!==_chatLastCount)box.scrollTop=box.scrollHeight;
     _chatLastCount=msgs.length;
@@ -409,7 +487,8 @@
   }
   function startChatPoll(){stopChatPoll();_chatLastCount=-1;loadChat();_chatTimer=setInterval(loadChat,4000);}
   function stopChatPoll(){if(_chatTimer){clearInterval(_chatTimer);_chatTimer=null;}}
-  // ---- Program editörü (gün tabları + bölge akordeon) ----
+
+  // ---- Program editörü ----
   function GINFO(key){
     var M={chest:['Göğüs','💪'],back:['Sırt','🔙'],legs:['Bacak','🦵'],shoulders:['Omuz','🏔️'],
       biceps:['Biceps','💪'],triceps:['Triceps','🔧'],arms:['Kol','💪'],abs:['Karın','🎯'],core:['Karın','🎯'],
@@ -423,42 +502,45 @@
     if(_activeDay>=_plan.length)_activeDay=Math.max(0,_plan.length-1);
     var t=document.getElementById('dayTabs');
     t.innerHTML=_plan.map(function(day,di){
-      var lbl=day.focus?day.focus:'Gün '+(di+1);
-      return '<div class="daytab'+(di===_activeDay?' on':'')+'" onclick="setDay('+di+')">'+lbl+'</div>';
-    }).join('')+'<div class="daytab add" onclick="addDay()">+ Gün</div>';
+      var on=di===_activeDay, lbl=day.focus?day.focus:'Gün '+(di+1);
+      return '<button onclick="setDay('+di+')" class="flex-none px-md py-sm rounded-xl border text-sm font-bold whitespace-nowrap transition-all '+(on?'bg-primary text-on-primary border-primary neon-glow':'bg-surface-anthracite text-on-surface border-outline-variant hover:border-primary')+'">'+esc(lbl)+'</button>';
+    }).join('')+'<button onclick="addDay()" class="flex-none px-md py-sm rounded-xl border border-dashed border-primary text-primary text-sm font-bold whitespace-nowrap">+ Gün</button>';
     var f=document.getElementById('dayFocus'), exCard=document.getElementById('dayExCard');
     if(!_plan.length){
-      f.innerHTML='<div class="muted" style="padding:8px 0">Henüz gün yok. "+ Gün" ile başla.</div>';
+      f.innerHTML='<div class="text-muted-gray text-sm py-sm">Henüz gün yok. "+ Gün" ile başla.</div>';
       exCard.classList.add('hidden');
     }else{
       var day=_plan[_activeDay];
-      f.innerHTML='<div class="day-head" style="margin-top:10px">'+
-        '<input value="'+(day.focus||'').replace(/"/g,'&quot;')+'" placeholder="Gün '+(_activeDay+1)+' odak — örn. Göğüs & Triceps" onchange="_plan['+_activeDay+'].focus=this.value;renderDays()" style="flex:1">'+
-        '<button class="danger" onclick="rmDay('+_activeDay+')">Günü Sil</button></div>';
+      f.innerHTML='<div class="flex gap-sm items-center">'+
+        '<input value="'+(day.focus||'').replace(/"/g,'&quot;')+'" placeholder="Gün '+(_activeDay+1)+' odak — örn. Göğüs & Triceps" onchange="_plan['+_activeDay+'].focus=this.value;renderDays()" class="flex-1 bg-surface-container-lowest border border-outline-variant rounded-lg px-md py-sm text-on-surface focus:border-primary transition-colors">'+
+        '<button onclick="rmDay('+_activeDay+')" class="px-md py-sm border border-error/40 text-error rounded-lg text-xs font-semibold hover:bg-error/10 transition-colors whitespace-nowrap">Günü Sil</button></div>';
       exCard.classList.remove('hidden');
     }
     renderDayEx();
   }
+  function thumb(url){ return url?'<img src="'+url+'" loading="lazy" class="w-14 h-14 rounded-lg object-cover border border-outline-variant flex-none">':'<div class="w-14 h-14 rounded-lg bg-surface-container-highest border border-outline-variant flex-none flex items-center justify-center text-muted-gray"><span class="material-symbols-outlined">exercise</span></div>'; }
   function renderDayEx(){
     var c=document.getElementById('dayExList');
     if(!_plan.length){c.innerHTML='';return;}
     var day=_plan[_activeDay];
-    if(!day.exercises||!day.exercises.length){c.innerHTML='<div class="muted" style="padding:6px 0">Henüz hareket yok. Aşağıdan bölge açıp + ile ekle.</div>';return;}
+    if(!day.exercises||!day.exercises.length){c.innerHTML='<div class="p-lg rounded-xl border-2 border-dashed border-outline-variant text-center text-muted-gray text-sm">Henüz hareket yok. Soldan bölge açıp <b>+</b> ile ekle.</div>';return;}
     c.innerHTML=day.exercises.map(function(ex,ei){
       var sr=(ex.sets||'4x10').split('x');
-      return '<div class="exrow2">'+
-        (ex.gifUrl?'<img src="'+ex.gifUrl+'" loading="lazy">':'<div style="width:46px;height:46px;border-radius:8px;background:#1C2230;flex:none"></div>')+
-        '<div class="nm">'+ex.name+'</div>'+
-        '<input class="srin" type="number" value="'+(sr[0]||'4')+'" onchange="setSR('+ei+',0,this.value)" title="Set">'+
-        '<span class="muted">x</span>'+
-        '<input class="srin" type="number" value="'+(sr[1]||'10')+'" onchange="setSR('+ei+',1,this.value)" title="Tekrar">'+
-        '<button class="danger" onclick="rmEx('+_activeDay+','+ei+')" style="margin:0">×</button>'+
-      '</div>';
+      return '<div class="p-md rounded-xl border border-outline-variant bg-surface-anthracite flex items-center justify-between gap-md">'+
+        '<div class="flex items-center gap-md min-w-0">'+thumb(ex.gifUrl)+
+          '<div class="min-w-0"><h6 class="font-semibold text-high-contrast-text truncate">'+esc(ex.name)+'</h6>'+
+          '<p class="text-muted-gray text-xs">'+(sr[0]||'4')+' set × '+(sr[1]||'10')+' tekrar</p></div></div>'+
+        '<div class="flex items-center gap-sm flex-none">'+
+          '<input type="number" value="'+(sr[0]||'4')+'" onchange="setSR('+ei+',0,this.value)" title="Set" class="w-12 h-10 bg-surface text-center rounded-lg border border-outline-variant text-sm focus:border-primary">'+
+          '<span class="text-muted-gray">×</span>'+
+          '<input type="number" value="'+(sr[1]||'10')+'" onchange="setSR('+ei+',1,this.value)" title="Tekrar" class="w-12 h-10 bg-surface text-center rounded-lg border border-outline-variant text-sm focus:border-primary">'+
+          '<button onclick="rmEx('+_activeDay+','+ei+')" class="p-sm text-muted-gray hover:text-error hover:bg-error/10 rounded-lg transition-colors"><span class="material-symbols-outlined text-[20px]">delete</span></button>'+
+        '</div></div>';
     }).join('');
   }
   function setSR(ei,idx,val){
     var ex=_plan[_activeDay].exercises[ei], sr=(ex.sets||'4x10').split('x');
-    sr[idx]=(val||'0'); ex.sets=(sr[0]||'4')+'x'+(sr[1]||'10');
+    sr[idx]=(val||'0'); ex.sets=(sr[0]||'4')+'x'+(sr[1]||'10'); renderDayEx();
   }
   function setDay(di){_activeDay=di;renderDays();renderGroups();}
   function addDay(){_plan.push({dayNumber:_plan.length+1,focus:'',exercises:[]});_activeDay=_plan.length-1;renderDays();renderGroups();}
@@ -477,29 +559,32 @@
   function onExSearch(){_exSearch=document.getElementById('exSearch').value||'';renderGroups();}
   function renderGroups(){
     var c=document.getElementById('groupAcc'), groups=Object.keys(_exGroups);
-    if(!groups.length){c.innerHTML='<div class="muted">Egzersiz listesi yüklenemedi.</div>';return;}
+    if(!groups.length){c.innerHTML='<div class="text-muted-gray text-sm p-sm">Egzersiz listesi yüklenemedi.</div>';return;}
     var q=_exSearch.toLowerCase().trim();
     var html=groups.map(function(g){
       var gi=GINFO(g), open=q?true:!!_openGroups[g];
       var shown=0;
       var items=_exGroups[g].map(function(x,i){
-        if(q && x.name.toLowerCase().indexOf(q)<0) return '';   // arama: eşleşmeyeni gizle (i korunur)
+        if(q && x.name.toLowerCase().indexOf(q)<0) return '';
         shown++;
         var inn=isInDay(x.name);
-        return '<div class="exrow2">'+
-          (x.gifUrl?'<img src="'+x.gifUrl+'" loading="lazy">':'<div style="width:46px;height:46px;border-radius:8px;background:#1C2230;flex:none"></div>')+
-          '<div class="nm">'+x.name+'</div>'+
-          (x.equipment?'<span class="eqb">'+EQ(x.equipment)+'</span>':'')+
-          '<button class="addbtn'+(inn?' on':'')+'" onclick="toggleEx(\''+g+'\','+i+')">'+(inn?'✓':'+')+'</button>'+
+        return '<div class="flex items-center justify-between p-sm rounded-lg border border-transparent hover:border-outline-variant hover:bg-surface-anthracite group cursor-pointer" onclick="toggleEx(\''+g+'\','+i+')">'+
+          '<div class="flex items-center gap-sm min-w-0">'+
+            (x.gifUrl?'<img src="'+x.gifUrl+'" loading="lazy" class="w-10 h-10 rounded object-cover border border-outline-variant grayscale group-hover:grayscale-0 transition-all flex-none">':'<div class="w-10 h-10 rounded bg-surface-container-highest border border-outline-variant flex-none"></div>')+
+            '<div class="min-w-0"><div class="text-sm truncate">'+esc(x.name)+'</div>'+(x.equipment?'<div class="text-[10px] text-muted-gray">'+esc(EQ(x.equipment))+'</div>':'')+'</div>'+
+          '</div>'+
+          '<span class="material-symbols-outlined flex-none '+(inn?'text-primary fill-icon':'text-primary opacity-0 group-hover:opacity-100')+' transition-opacity">'+(inn?'check_circle':'add_circle')+'</span>'+
         '</div>';
       }).join('');
-      if(q && shown===0) return '';   // arama: eşleşmesi olmayan grubu tümden gizle
-      return '<div class="acc'+(open?' open':'')+'">'+
-        '<div class="acc-head" onclick="toggleGroup(\''+g+'\')"><span>'+gi.e+' '+gi.tr+'<span class="cnt">'+(q?shown:_exGroups[g].length)+'</span></span><span class="arr">›</span></div>'+
-        '<div class="acc-body">'+items+'</div>'+
+      if(q && shown===0) return '';
+      return '<div>'+
+        '<button onclick="toggleGroup(\''+g+'\')" class="w-full flex justify-between items-center p-sm rounded-lg bg-surface-container-highest/50 hover:bg-surface-container-highest transition-colors mb-xs">'+
+          '<span class="text-xs font-semibold uppercase tracking-wider">'+gi.e+' '+gi.tr+'<span class="ml-2 text-[10px] text-muted-gray bg-surface px-2 py-0.5 rounded-full">'+(q?shown:_exGroups[g].length)+'</span></span>'+
+          '<span class="material-symbols-outlined text-muted-gray text-[18px] transition-transform '+(open?'rotate-180':'')+'">expand_more</span></button>'+
+        '<div class="space-y-xs px-xs '+(open?'':'hidden')+'">'+items+'</div>'+
       '</div>';
     }).join('');
-    c.innerHTML=html||'<div class="muted" style="padding:6px 0">Eşleşen hareket yok.</div>';
+    c.innerHTML=html||'<div class="text-muted-gray text-sm p-sm">Eşleşen hareket yok.</div>';
   }
   function toggleGroup(g){_openGroups[g]=!_openGroups[g];renderGroups();}
   function toggleEx(g,i){
@@ -512,39 +597,38 @@
     renderDayEx();renderGroups();
   }
   async function savePlan(){
-    const m=document.getElementById('planMsg'); m.textContent='';m.className='';
-    if(!_plan.length){m.textContent='Program boş, en az bir gün ekle.';m.className='err';return;}
+    const m=document.getElementById('planMsg'); m.textContent='';m.className='text-sm';
+    if(!_plan.length){m.textContent='Program boş, en az bir gün ekle.';m.className='text-sm text-error';return;}
     const r=await fetch('/coach/students/'+_curUser+'/program',{method:'POST',headers:H(),body:JSON.stringify({workoutPlan:_plan})});
-    const d=await r.json(); m.textContent=d.message||d.error; m.className=r.ok?'ok':'err';
+    const d=await r.json(); m.textContent=d.message||d.error; m.className='text-sm '+(r.ok?'text-primary':'text-error');
   }
-  // ---- Beslenme (açılır, elle) ----
-  function toggleNut(){
-    var b=document.getElementById('nutBody'),h=document.getElementById('nutHead');
-    var open=b.classList.contains('hidden');
-    b.classList.toggle('hidden',!open);
-    h.classList.toggle('open',open);
-  }
+
+  // ---- Beslenme ----
   function renderNut(){
     if(_nutDay>=_nut.length)_nutDay=Math.max(0,_nut.length-1);
     var t=document.getElementById('nutTabs');
     t.innerHTML=_nut.map(function(day,di){
-      return '<div class="daytab'+(di===_nutDay?' on':'')+'" onclick="nutSetDay('+di+')">Gün '+(di+1)+'</div>';
-    }).join('')+'<div class="daytab add" onclick="nutAddDay()">+ Gün</div>';
-    var c=document.getElementById('nutMeals');
-    if(!_nut.length){c.innerHTML='<div class="muted" style="padding:8px 0">Henüz gün yok. "+ Gün" ile başla.</div>';return;}
+      var on=di===_nutDay;
+      return '<button onclick="nutSetDay('+di+')" class="flex-none px-md py-sm rounded-xl border text-sm font-bold whitespace-nowrap transition-all '+(on?'bg-primary text-on-primary border-primary':'bg-surface-anthracite text-on-surface border-outline-variant hover:border-primary')+'">Gün '+(di+1)+'</button>';
+    }).join('')+'<button onclick="nutAddDay()" class="flex-none px-md py-sm rounded-xl border border-dashed border-primary text-primary text-sm font-bold">+ Gün</button>';
+    var ring=document.getElementById('nutRing'), c=document.getElementById('nutMeals');
+    if(!_nut.length){ring.innerHTML='';c.innerHTML='<div class="text-muted-gray text-sm py-sm">Henüz gün yok. "+ Gün" ile başla.</div>';return;}
     var day=_nut[_nutDay];
-    var head='<div class="day-head" style="margin:10px 0"><b style="flex:1">Gün '+(_nutDay+1)+'</b><button class="danger" onclick="nutRmDay('+_nutDay+')">Günü Sil</button></div>';
-    var meals=(day.meals||[]).map(function(m,mi){
-      return '<div class="meal"><div class="meal-top">'+
-        '<input class="nm" style="flex:1" placeholder="Öğün (örn. Kahvaltı)" value="'+(m.name||'').replace(/"/g,'&quot;')+'" onchange="nutSetMeal('+mi+',\'name\',this.value)">'+
-        '<input class="kcal" type="number" placeholder="kcal" value="'+(m.calories||'')+'" onchange="nutSetMeal('+mi+',\'calories\',this.value)">'+
-        '<button class="danger" onclick="nutRmMeal('+mi+')" style="flex:none">×</button></div>'+
-        '<input placeholder="İçerik — örn. Yulaf, yumurta, meyve" value="'+(m.items||'').replace(/"/g,'&quot;')+'" onchange="nutSetMeal('+mi+',\'items\',this.value)"></div>';
-    }).join('');
     var tot=(day.meals||[]).reduce(function(s,m){return s+(Number(m.calories)||0);},0);
-    c.innerHTML=head+meals+
-      '<button class="ghost" onclick="nutAddMeal()" style="width:100%;margin-top:4px;padding:9px">+ Öğün Ekle</button>'+
-      (tot?'<div class="muted" style="text-align:right;margin-top:8px">Toplam: <b style="color:var(--primary)">'+tot+' kcal</b></div>':'');
+    ring.innerHTML='<div class="w-32 h-32 rounded-full border-8 flex flex-col items-center justify-center mx-auto" style="border-color:#414938;border-top-color:#9de656;border-right-color:'+(tot?'#9de656':'#414938')+'">'+
+      '<span class="text-2xl font-bold text-white">'+tot+'</span><span class="text-xs text-muted-gray">kcal / gün</span></div>';
+    var head='<div class="flex justify-between items-center mb-sm"><b class="text-on-surface">Gün '+(_nutDay+1)+'</b><button onclick="nutRmDay('+_nutDay+')" class="px-md py-1 border border-error/40 text-error rounded-lg text-xs font-semibold hover:bg-error/10 transition-colors">Günü Sil</button></div>';
+    var meals=(day.meals||[]).map(function(m,mi){
+      return '<div class="p-md rounded-lg border border-outline-variant bg-surface-anthracite">'+
+        '<div class="flex gap-sm items-center mb-sm">'+
+          '<div class="w-10 h-10 rounded bg-surface-container-highest flex items-center justify-center text-primary flex-none"><span class="material-symbols-outlined text-[20px]">restaurant</span></div>'+
+          '<input placeholder="Öğün (örn. Kahvaltı)" value="'+(m.name||'').replace(/"/g,'&quot;')+'" onchange="nutSetMeal('+mi+',\'name\',this.value)" class="flex-1 bg-surface border border-outline-variant rounded-lg px-md py-sm text-sm text-on-surface focus:border-primary">'+
+          '<input type="number" placeholder="kcal" value="'+(m.calories||'')+'" onchange="nutSetMeal('+mi+',\'calories\',this.value)" class="w-20 bg-surface border border-outline-variant rounded-lg px-2 py-sm text-sm text-center text-on-surface focus:border-primary">'+
+          '<button onclick="nutRmMeal('+mi+')" class="p-sm text-muted-gray hover:text-error rounded-lg transition-colors flex-none"><span class="material-symbols-outlined text-[20px]">delete</span></button></div>'+
+        '<input placeholder="İçerik — örn. Yulaf, yumurta, meyve" value="'+(m.items||'').replace(/"/g,'&quot;')+'" onchange="nutSetMeal('+mi+',\'items\',this.value)" class="w-full bg-surface border border-outline-variant rounded-lg px-md py-sm text-sm text-on-surface focus:border-primary"></div>';
+    }).join('');
+    c.innerHTML=head+'<div class="space-y-sm">'+meals+'</div>'+
+      '<button onclick="nutAddMeal()" class="w-full mt-sm py-sm border border-dashed border-outline-variant rounded-lg text-sm text-muted-gray hover:border-primary hover:text-primary transition-colors">+ Öğün Ekle</button>';
   }
   function nutSetDay(di){_nutDay=di;renderNut();}
   function nutAddDay(){_nut.push({dayNumber:_nut.length+1,meals:[]});_nutDay=_nut.length-1;renderNut();}
@@ -553,46 +637,49 @@
   function nutRmMeal(mi){_nut[_nutDay].meals.splice(mi,1);renderNut();}
   function nutSetMeal(mi,field,val){_nut[_nutDay].meals[mi][field]=val;if(field==='calories')renderNut();}
   async function saveNutrition(){
-    var m=document.getElementById('nutMsg');m.textContent='';m.className='';
+    var m=document.getElementById('nutMsg');m.textContent='';m.className='text-center text-sm';
     var r=await fetch('/coach/students/'+_curUser+'/nutrition',{method:'POST',headers:H(),body:JSON.stringify({nutritionPlan:_nut})});
-    var d=await r.json();m.textContent=d.message||d.error;m.className=r.ok?'ok':'err';
+    var d=await r.json();m.textContent=d.message||d.error;m.className='text-center text-sm '+(r.ok?'text-primary':'text-error');
   }
+
+  // ---- Dashboard yükle ----
+  function wStatus(s){var m={pending:['Beklemede','bg-secondary-container text-on-surface border-outline-variant'],paid:['Ödendi','bg-primary/10 text-primary border-primary/30'],rejected:['Reddedildi','bg-error-container/40 text-error border-error/30']};return m[s]||[s||'—','bg-surface-container-highest text-muted-gray border-outline-variant'];}
   async function load(){
     const r=await fetch('/coach/dashboard',{headers:H()});
     if(!r.ok){logout();return;}
     const d=await r.json();
     document.getElementById('loginScreen').classList.add('hidden');
     document.getElementById('dash').classList.remove('hidden');
+    _coachName=d.name||'';
     document.getElementById('cName').textContent=d.name;
     document.getElementById('cGym').textContent=d.gymCode||'—';
     document.getElementById('cRef').textContent=d.referralCode;
     document.getElementById('pBal').textContent=(d.balance||0)+' TL';
     document.getElementById('pEarn').textContent=(d.totalEarned||0)+' TL';
     document.getElementById('pComm').textContent='%'+d.commissionRate;
-    // salon öğrencileri (varsa salon geneli ortak havuz, yoksa kendi öğrencileri)
-    const list=(d.gymStudents&&d.gymStudents.length)?d.gymStudents:(d.students||[]);
-    const gl=document.getElementById('gymList');
-    if(!list.length){gl.innerHTML='<div class="muted">Henüz öğrenci yok. Yukarıdan e-posta ile ekle.</div>';}
-    else{gl.innerHTML=list.map(s=>
-      '<div class="row" style="cursor:pointer" onclick="openStudent(\''+s._id+'\',\''+(s.name||'').replace(/[^\w çğıöşüÇĞİÖŞÜ]/g,'')+'\')">'+
-      '<div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
-      '<b>'+s.name+'</b> <span class="'+(s.isVip?'vip':'novip')+'">'+(s.isVip?'VIP':'')+'</span>'+
-      '<button class="danger" onclick="event.stopPropagation();rmStudent(\''+s._id+'\')" style="margin:0">Çıkar</button></div>'+
-      '<div style="margin-top:2px"><span class="pill">🏋️ '+(s.coachName||d.name)+'</span></div>'+
-      (s.email?'<div class="muted" style="margin-top:2px">'+s.email+'</div>':'')+'</div>'+
-      '<span style="color:var(--primary);font-size:20px">›</span></div>').join('');}
-    // çekimler
-    const wl=document.getElementById('wList');
-    wl.innerHTML=(d.withdrawals&&d.withdrawals.length)?d.withdrawals.map(w=>
-      '<div class="row"><span>'+w.amount+' TL</span><span class="pill">'+w.status+'</span></div>').join(''):'<div class="muted">Henüz çekim yok.</div>';
+    _students=(d.gymStudents&&d.gymStudents.length)?d.gymStudents:(d.students||[]);
+    renderStudents();
+    var wl=document.getElementById('wList');
+    if(d.withdrawals&&d.withdrawals.length){
+      wl.innerHTML=d.withdrawals.map(function(w){
+        var st=wStatus(w.status), dt=w.requestedAt?new Date(w.requestedAt).toLocaleDateString('tr-TR'):'—';
+        var iban=w.iban?('•••• '+String(w.iban).replace(/\s/g,'').slice(-4)):'—';
+        return '<tr class="hover:bg-surface-container-highest/50 transition-colors">'+
+          '<td class="px-lg py-md text-sm">'+dt+'</td>'+
+          '<td class="px-lg py-md text-sm font-bold text-primary">'+w.amount+' TL</td>'+
+          '<td class="px-lg py-md text-sm text-muted-gray font-mono">'+iban+'</td>'+
+          '<td class="px-lg py-md"><span class="px-sm py-xs rounded text-[10px] font-bold uppercase border '+st[1]+'">'+st[0]+'</span></td></tr>';
+      }).join('');
+    } else { wl.innerHTML='<tr><td colspan="4" class="px-lg py-xl text-center text-muted-gray text-sm">Henüz çekim yok.</td></tr>'; }
   }
   async function addStudent(){
     const email=document.getElementById('newStudent').value.trim();
-    const m=document.getElementById('addMsg'); m.textContent='';m.className='';
+    const m=document.getElementById('addMsg'); m.textContent='';m.className='text-sm text-center';
     const r=await fetch('/coach/students/add',{method:'POST',headers:H(),body:JSON.stringify({email})});
     const d=await r.json();
-    if(!r.ok){m.textContent=d.error;m.className='err';return;}
-    m.textContent=d.message;m.className='ok';document.getElementById('newStudent').value='';load();
+    if(!r.ok){m.textContent=d.error;m.className='text-sm text-center text-error';return;}
+    m.textContent=d.message;m.className='text-sm text-center text-primary';document.getElementById('newStudent').value='';
+    load(); setTimeout(closeDrawer,700);
   }
   async function rmStudent(userId){
     if(!confirm('Öğrenciyi listenden çıkar?'))return;
@@ -600,17 +687,17 @@
   }
   async function withdraw(){
     const amount=+document.getElementById('wAmount').value, iban=document.getElementById('wIban').value.trim();
-    const m=document.getElementById('wMsg'); m.textContent='';m.className='';
+    const m=document.getElementById('wMsg'); m.textContent='';m.className='text-sm text-center';
     const r=await fetch('/coach/withdraw',{method:'POST',headers:H(),body:JSON.stringify({amount,iban})});
     const d=await r.json();
-    m.textContent=d.message||d.error;m.className=r.ok?'ok':'err';if(r.ok)load();
+    m.textContent=d.message||d.error;m.className='text-sm text-center '+(r.ok?'text-primary':'text-error');if(r.ok)load();
   }
   async function changePass(){
     const currentPassword=document.getElementById('curPass').value, newPassword=document.getElementById('newPass').value;
-    const m=document.getElementById('passMsg'); m.textContent='';m.className='';
+    const m=document.getElementById('passMsg'); m.textContent='';m.className='text-sm text-center';
     const r=await fetch('/coach/change-password',{method:'POST',headers:H(),body:JSON.stringify({currentPassword,newPassword})});
     const d=await r.json();
-    m.textContent=d.message||d.error;m.className=r.ok?'ok':'err';
+    m.textContent=d.message||d.error;m.className='text-sm text-center '+(r.ok?'text-primary':'text-error');
     if(r.ok){document.getElementById('curPass').value='';document.getElementById('newPass').value='';}
   }
   if(T())load();
