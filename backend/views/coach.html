@@ -183,7 +183,7 @@
     <nav class="nav">
       <a class="navlink active" id="navStudents" onclick="showView('students')"><span class="material-symbols-outlined">group</span><span>Öğrenciler</span></a>
       <a class="navlink" id="navProgram" onclick="showView('program')"><span class="material-symbols-outlined">fitness_center</span><span>Program</span></a>
-      <a class="navlink" id="navFinance" onclick="showView('finance')"><span class="material-symbols-outlined">payments</span><span>Finans</span></a>
+      <a class="navlink" id="navFinance" onclick="showView('finance')"><span class="material-symbols-outlined">person</span><span>Profil</span></a>
       <a class="navlink" id="navLogout" onclick="logout()"><span class="material-symbols-outlined">logout</span><span>Çıkış</span></a>
     </nav>
     <div class="side-bottom">
@@ -335,7 +335,7 @@
     }
     var map=[['navStudents','students'],['navProgram','program'],['navFinance','finance']];
     map.forEach(function(p){var el=document.getElementById(p[0]);if(el)el.classList.toggle('active',v===p[1]);});
-    var titles={students:'Öğrenciler',program:'Program Editörü',finance:'Finans'};
+    var titles={students:'Öğrenciler',program:'Program Editörü',finance:'Profil'};
     var t=document.getElementById('pageTitle');if(t&&titles[v])t.textContent=titles[v];
   }
   // Eski isimler korunuyor (dahili çağrılar bozulmasın)
