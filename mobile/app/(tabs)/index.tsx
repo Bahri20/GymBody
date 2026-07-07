@@ -2564,9 +2564,14 @@ const pickAndUploadProfilePhoto = async () => {
           ) : (
             <View style={{ paddingHorizontal: 16 }}>
               <View style={[styles.gymDayCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
-                <View>
-                  <Text style={{ color: C.textMuted, fontSize: 12 }}>Hocan</Text>
-                  <Text style={{ color: C.text, fontWeight: '900', fontSize: 18 }}>🏋️ {coachData.coachName}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                  <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(95,168,42,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="barbell" size={24} color={C.lime} />
+                  </View>
+                  <View>
+                    <Text style={{ color: C.textMuted, fontSize: 12 }}>Hocan</Text>
+                    <Text style={{ color: C.text, fontWeight: '900', fontSize: 18 }}>{coachData.coachName}</Text>
+                  </View>
                 </View>
                 <TouchableOpacity activeOpacity={0.85} onPress={openCoachChat} style={{ backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
