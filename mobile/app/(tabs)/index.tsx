@@ -2406,37 +2406,61 @@ const pickAndUploadProfilePhoto = async () => {
 
   return (
     <View>
-      {currentWorkoutDay && (
-        <View style={styles.gymDayCard}>
-          <View style={styles.gymDayHeader}>
-            <Text style={styles.gymDayTitle}>{currentWorkoutDay.dayNumber}. Gün</Text>
-            <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{currentWorkoutDay.focus}</Text></View>
-          </View>
-          {currentWorkoutDay.exercises?.map((ex: any, j: number) => (
-            <View key={j} style={styles.gymExerciseRow}>
-              {ex.gifUrl && (
-                <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)}>
-                  <Ionicons name="play-circle" size={24} color="#2563EB" />
-                </TouchableOpacity>
-              )}
-              <View style={{ flex: 1, marginLeft: 8 }}>
-                <Text style={styles.gymExerciseName}>{ex.name}</Text>
-                <Text style={styles.gymExerciseSets}>{ex.sets}</Text>
+      {currentWorkoutDay && (() => {
+        const exs = currentWorkoutDay.exercises || [];
+        const total = weeklyPlan.totalDays || weeklyPlan.workoutPlan?.length || 1;
+        const estMin = exs.length * 6 + 8;
+        return (
+        <View>
+          {/* HERO — bugünkü antrenman */}
+          <View style={styles.gymDayCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: C.lime, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>BUGÜN</Text>
+                <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginTop: 3 }}>{currentWorkoutDay.focus}</Text>
+                <View style={{ flexDirection: 'row', gap: 14, marginTop: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="barbell-outline" size={15} color={C.textMuted} />
+                    <Text style={{ color: C.textSec, fontSize: 12 }}>{exs.length} hareket</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="time-outline" size={15} color={C.textMuted} />
+                    <Text style={{ color: C.textSec, fontSize: 12 }}>~{estMin} dk</Text>
+                  </View>
+                </View>
+              </View>
+              <View style={{ width: 54, height: 54, borderRadius: 27, borderWidth: 4, borderColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: C.text, fontSize: 13, fontWeight: '800' }}>{weeklyPlan.currentDay}/{total}</Text>
               </View>
             </View>
-          ))}
+            <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }}
+              style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <Ionicons name="play" size={18} color="#0B1207" />
+              <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>Antrenmana başla</Text>
+            </TouchableOpacity>
+          </View>
 
-          {/* ANTRENMAN MODU BAŞLAT */}
-          <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }} style={{ marginTop: 14 }}>
-            <LinearGradient colors={['#2563EB', '#1E40AF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={{ borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-                shadowColor: '#2563EB', shadowOpacity: 0.5, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 8 }}>
-              <Ionicons name="play" size={18} color="#FFFFFF" />
-              <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 15 }}>Antrenmanı Başlat</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          {/* HAREKETLER */}
+          <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', marginBottom: 8, marginLeft: 2 }}>Hareketler · {currentWorkoutDay.dayNumber}. gün</Text>
+          {exs.map((ex: any, j: number) => (
+            <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 7, borderWidth: 1, borderColor: C.border }}>
+              <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
+                {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{ex.name}</Text>
+                <Text style={{ color: C.textMuted, fontSize: 12 }}>{ex.sets}</Text>
+              </View>
+              {ex.gifUrl && (
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="play" size={16} color={C.lime} />
+                </TouchableOpacity>
+              )}
+            </View>
+          ))}
         </View>
-      )}
+        );
+      })()}
 
       {/* GÜNÜN BESLENME PLANI — antrenmanla aynı yerde (Analiz'den taşındı) */}
       {currentNutritionDay && (
