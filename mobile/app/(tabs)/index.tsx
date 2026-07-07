@@ -3176,6 +3176,9 @@ const pickAndUploadProfilePhoto = async () => {
                 onPress={() => openLiftEntry(lift.key, best)}
                 style={[styles.statsCard, { marginBottom: 10, paddingVertical: 14 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 11, backgroundColor: 'rgba(95,168,42,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="barbell" size={23} color={C.lime} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{lift.label}</Text>
                     <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 1 }}>{lift.muscle}</Text>
@@ -3183,7 +3186,7 @@ const pickAndUploadProfilePhoto = async () => {
                   <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
                     {best > 0 ? (
                       <>
-                        <Text style={{ color: C.text, fontWeight: '900', fontSize: 22 }}>{best} <Text style={{ fontSize: 13, color: C.textMuted }}>kg</Text></Text>
+                        <Text style={{ color: C.text, fontWeight: '900', fontSize: 26 }}>{best} <Text style={{ fontSize: 13, color: C.textMuted }}>kg</Text></Text>
                         <Text style={{ color: C.textMuted, fontSize: 11 }}>{reps} tekrar</Text>
                       </>
                     ) : (
