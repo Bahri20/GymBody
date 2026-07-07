@@ -3752,6 +3752,20 @@ const pickAndUploadProfilePhoto = async () => {
       </TouchableOpacity>
     </View>
 
+    {/* TEMA TOGGLE — aydınlık / karanlık */}
+    <TouchableOpacity activeOpacity={0.85} onPress={toggleTheme}
+      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.surface, borderRadius: 14, padding: 16, marginTop: 16, borderWidth: 1, borderColor: C.border }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Ionicons name={themeMode === 'dark' ? 'moon' : 'sunny'} size={20} color={C.lime} />
+        <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>{themeMode === 'dark' ? 'Karanlık tema' : 'Aydınlık tema'}</Text>
+      </View>
+      <View style={{ width: 52, height: 30, borderRadius: 20, backgroundColor: C.surface2, justifyContent: 'center', paddingHorizontal: 3 }}>
+        <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', alignSelf: themeMode === 'dark' ? 'flex-end' : 'flex-start' }}>
+          <Ionicons name={themeMode === 'dark' ? 'moon' : 'sunny'} size={14} color="#0B1207" />
+        </View>
+      </View>
+    </TouchableOpacity>
+
     <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await SecureStore.deleteItemAsync('userToken'); setUser(null); setToken(null); }}>
       <Ionicons name="log-out-outline" size={18} color={C.red} />
       <Text style={styles.logoutText}>ÇIKIŞ YAP</Text>
