@@ -2548,7 +2548,14 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
 
           {/* HAREKETLER */}
-          <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', marginBottom: 8, marginLeft: 2 }}>Hareketler · {currentWorkoutDay.dayNumber}. gün</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginLeft: 2 }}>
+            <Text style={{ color: C.text, fontSize: 15, fontWeight: '800' }}>Hareketler · {currentWorkoutDay.dayNumber}. gün</Text>
+            <TouchableOpacity activeOpacity={0.8} onPress={() => setDayFeedbackVisible(true)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.lime + '1A', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: C.lime + '55' }}>
+              <Ionicons name="checkmark-done" size={13} color={C.lime} />
+              <Text style={{ color: C.lime, fontWeight: '800', fontSize: 12 }}>Tamamla</Text>
+            </TouchableOpacity>
+          </View>
           {exs.map((ex: any, j: number) => (
             <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 7, borderWidth: 1, borderColor: C.border }}>
               <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
@@ -2589,12 +2596,6 @@ const pickAndUploadProfilePhoto = async () => {
         </View>
       )}
 
-      <TouchableOpacity activeOpacity={0.85} onPress={() => setDayFeedbackVisible(true)} style={{ marginTop: 8 }}>
-        <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
-          <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
-          <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{weeklyPlan.currentDay}. GÜNÜ TAMAMLADIM</Text>
-        </LinearGradient>
-      </TouchableOpacity>
     </View>
   );
 })()}
