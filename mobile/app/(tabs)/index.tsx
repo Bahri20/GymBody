@@ -4275,7 +4275,7 @@ const pickAndUploadProfilePhoto = async () => {
       {/* GÜN TAMAMLAMA FEEDBACK MODAL */}
       <Modal visible={dayFeedbackVisible} transparent animationType="slide" onRequestClose={() => { Keyboard.dismiss(); setDayFeedbackVisible(false); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} activeOpacity={1} onPress={Keyboard.dismiss} />
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} activeOpacity={1} onPress={() => { Keyboard.dismiss(); setDayFeedbackVisible(false); }} />
           <View style={{ backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, borderTopWidth: 1, borderColor: C.border }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 6 }}>💬 Bu Günü Nasıl Buldun?</Text>
             <Text style={{ fontSize: 13, color: C.textMuted, marginBottom: 16, lineHeight: 19 }}>
