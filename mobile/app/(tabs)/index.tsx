@@ -3434,20 +3434,57 @@ const pickAndUploadProfilePhoto = async () => {
           )}
 
           {/* RANK SIRASI */}
-          <View style={{ borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: C.border }}>
-            <LinearGradient colors={[RANKS[4].color + '1A', RANKS[0].color + '14']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 18 }}>
-              <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', letterSpacing: 1.2, marginBottom: 14 }}>RANK SİSTEMİ</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 3 }}>
-                {RANKS.map((r, i) => (
-                  <View key={r.key} style={{ alignItems: 'center', gap: 5, marginBottom: i * 4.5 }}>
-                    <RankBadgeSvg rankKey={r.key} color={r.color} size={32 + i * 5} />
-                    <Text style={{ color: r.color, fontSize: 8.5, fontWeight: '800' }}>{r.label}</Text>
+          {(() => {
+            const myBestRankIndex = LIFTS.reduce((best, l) => {
+              const b = user?.lifts?.[l.key]?.best || 0;
+              if (b <= 0) return best;
+              const { rankIndex } = computeRank(l.key, b, user?.weight || 70, user?.gender);
+              return Math.max(best, rankIndex);
+            }, -1);
+            const myRank = myBestRankIndex >= 0 ? RANKS[myBestRankIndex] : null;
+            return (
+              <View style={{ borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: myRank ? myRank.color + '55' : C.border }}>
+                <LinearGradient colors={myRank ? [myRank.color + '26', C.surface] : [C.surface2, C.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 18 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>RANK SİSTEMİ</Text>
+                    {myRank && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: myRank.color + '22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: myRank.color }} />
+                        <Text style={{ color: myRank.color, fontSize: 10.5, fontWeight: '800' }}>EN İYİN: {myRank.label.toUpperCase()}</Text>
+                      </View>
+                    )}
                   </View>
-                ))}
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                    {RANKS.map((r, i) => {
+                      const reached = i <= myBestRankIndex;
+                      const isCurrent = i === myBestRankIndex;
+                      return (
+                        <View key={r.key} style={{ alignItems: 'center', gap: 5, flex: 1 }}>
+                          <View style={{
+                            transform: [{ scale: isCurrent ? 1.18 : 1 }],
+                            shadowColor: isCurrent ? r.color : 'transparent',
+                            shadowOpacity: isCurrent ? 0.7 : 0,
+                            shadowRadius: 10,
+                            shadowOffset: { width: 0, height: 0 },
+                          }}>
+                            <RankBadgeSvg rankKey={r.key} color={r.color} size={reached ? 34 : 26} />
+                          </View>
+                          <Text style={{ color: reached ? r.color : C.textMuted, fontSize: isCurrent ? 9 : 8, fontWeight: isCurrent ? '900' : '700', opacity: reached ? 1 : 0.5 }}>{r.label}</Text>
+                          {isCurrent && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: r.color, marginTop: 1 }} />}
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <View style={{ flexDirection: 'row', marginTop: 6, marginHorizontal: 13, gap: 3 }}>
+                    {RANKS.slice(0, -1).map((r, i) => (
+                      <View key={r.key} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: i < myBestRankIndex ? r.color : C.surface2 }} />
+                    ))}
+                  </View>
+                  {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 14 }}>Daha doğru rank için profilde kilonu gir</Text>}
+                </LinearGradient>
               </View>
-              {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 12 }}>Daha doğru rank için profilde kilonu gir</Text>}
-            </LinearGradient>
-          </View>
+            );
+          })()}
 
           <ScrollView
             horizontal
@@ -5163,11 +5200,6 @@ const pickAndUploadProfilePhoto = async () => {
       <Modal visible={!!challengeScreen} transparent animationType="slide" onRequestClose={() => { setChallengeScreen(null); setChallengeSharePhoto(null); }}>
         <TouchableOpacity activeOpacity={1} onPress={() => { setChallengeScreen(null); setChallengeSharePhoto(null); setChallengeResult(null); }} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'flex-end' }}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
-            <TouchableOpacity onPress={() => { setChallengeScreen(null); setChallengeSharePhoto(null); setChallengeResult(null); }}
-              style={{ position: 'absolute', top: 18, right: 18, backgroundColor: C.surface2, borderRadius: 16, padding: 6 }}>
-              <Ionicons name="close" size={20} color={C.textMuted} />
-            </TouchableOpacity>
-
             {/* CREATE: sadece hareket seç, kilo yok */}
             {challengeScreen === 'create' && (
               <View>
