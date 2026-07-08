@@ -3457,8 +3457,6 @@ const pickAndUploadProfilePhoto = async () => {
             const progress = (nextThreshold && best > 0) ? Math.min(1, best / nextThreshold) : (best > 0 ? 1 : 0);
             // Epley formülü ile tahmini 1RM (tek tekrar max) — sıkleti tekrar sayısından bağımsız kıyaslar
             const estimated1RM = best > 0 ? (reps > 1 ? Math.round(best * (1 + reps / 30)) : best) : 0;
-            // Sıradaki hedef: aynı tekrarda ~%2.5 daha ağır, en yakın 2.5 kg'a yuvarla
-            const nextTarget = best > 0 ? Math.round((best * 1.025) / 2.5) * 2.5 : 0;
             const accentColor = rank ? rank.color : C.lime;
 
             return (
@@ -3499,16 +3497,10 @@ const pickAndUploadProfilePhoto = async () => {
                   )}
                 </View>
 
-                {best > 0 && (
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-                    <View style={{ flex: 1, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
-                      <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>TAHMİNİ 1RM</Text>
-                      <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{estimated1RM} kg</Text>
-                    </View>
-                    <View style={{ flex: 1, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
-                      <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>SIRADAKİ HEDEF</Text>
-                      <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{nextTarget} kg</Text>
-                    </View>
+                {best > 0 && reps > 1 && (
+                  <View style={{ marginTop: 12, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
+                    <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>TAHMİNİ 1RM</Text>
+                    <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{estimated1RM} kg</Text>
                   </View>
                 )}
 
