@@ -3446,6 +3446,14 @@ const pickAndUploadProfilePhoto = async () => {
             </LinearGradient>
           </View>
 
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+            snapToInterval={Dimensions.get('window').width * 0.82 + 12}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 4 }}
+            style={{ marginHorizontal: -16, marginBottom: 12 }}
+          >
           {LIFTS.map((lift) => {
             const liftData = user?.lifts?.[lift.key];
             const best = liftData?.best || 0;
@@ -3465,7 +3473,7 @@ const pickAndUploadProfilePhoto = async () => {
             return (
               <TouchableOpacity key={lift.key} activeOpacity={0.75}
                 onPress={() => openLiftEntry(lift.key, best)}
-                style={{ marginBottom: 12, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: best > 0 ? accentColor + '40' : C.border }}>
+                style={{ width: Dimensions.get('window').width * 0.82, marginRight: 12, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: best > 0 ? accentColor + '40' : C.border }}>
                 <LinearGradient colors={best > 0 ? [accentColor + '1F', C.surface] : [C.surface, C.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <View style={{ width: 44, height: 44, borderRadius: 11, backgroundColor: accentColor + '1F', alignItems: 'center', justifyContent: 'center' }}>
@@ -3504,6 +3512,11 @@ const pickAndUploadProfilePhoto = async () => {
                   <View style={{ marginTop: 12, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
                     <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>TAHMİNİ 1RM</Text>
                     <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{estimated1RM} kg</Text>
+                    {reps > 1 && (
+                      <Text style={{ color: C.textMuted, fontSize: 9, marginTop: 3, textAlign: 'center', paddingHorizontal: 10 }}>
+                        Bunu direkt denemeye kalkma, kademeli çık ⚠️
+                      </Text>
+                    )}
                   </View>
                 )}
 
@@ -3550,6 +3563,7 @@ const pickAndUploadProfilePhoto = async () => {
               </TouchableOpacity>
             );
           })}
+          </ScrollView>
 
           {/* ARKADAŞ MEYDAN OKUMASI */}
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20, marginTop: 4 }}>
