@@ -643,6 +643,9 @@ export default function App() {
   const [coachChatInput, setCoachChatInput] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const coachPollRef = useRef<any>(null);
+  // İç içe yatay kaydırmalı şeritler (Max Güç kartları, güç geçmişi grafiği) etkileşimdeyken
+  // dıştaki sekme-değiştirme swipe'ını (swipePanResponder) devre dışı bırakmak için
+  const nestedCarouselActive = useRef(false);
   const [gymTab, setGymTab] = useState<'program' | 'max'>('program');
   const [gifModalUrl, setGifModalUrl] = useState<string | null>(null);
   const [gifFrame, setGifFrame] = useState(0); // 2 kareli statik görseli ard arda oynat (mini animasyon)
@@ -2259,7 +2262,7 @@ const pickAndUploadProfilePhoto = async () => {
   );
 
   const swipePanResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 20 && Math.abs(g.dy) < 60,
+    onMoveShouldSetPanResponder: (_, g) => !nestedCarouselActive.current && Math.abs(g.dx) > 20 && Math.abs(g.dy) < 60,
     onPanResponderRelease: (_, g) => {
       if (Math.abs(g.dx) < 40) return;
       const tabKeys = TABS.map(t => t.key);
@@ -3453,6 +3456,9 @@ const pickAndUploadProfilePhoto = async () => {
             snapToInterval={Dimensions.get('window').width * 0.82 + 12}
             contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 4 }}
             style={{ marginHorizontal: -16, marginBottom: 12 }}
+            onTouchStart={() => { nestedCarouselActive.current = true; }}
+            onTouchEnd={() => { nestedCarouselActive.current = false; }}
+            onTouchCancel={() => { nestedCarouselActive.current = false; }}
           >
           {LIFTS.map((lift) => {
             const liftData = user?.lifts?.[lift.key];
@@ -3595,6 +3601,9 @@ const pickAndUploadProfilePhoto = async () => {
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
                   style={{ marginHorizontal: -16 }}
+                  onTouchStart={() => { nestedCarouselActive.current = true; }}
+                  onTouchEnd={() => { nestedCarouselActive.current = false; }}
+                  onTouchCancel={() => { nestedCarouselActive.current = false; }}
                 >
                   {liftsWithHistory.map((lift) => {
                     const rawHistory: { weight: number; date: string }[] = user.lifts[lift.key].history;
