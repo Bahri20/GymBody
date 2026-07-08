@@ -3458,7 +3458,8 @@ const pickAndUploadProfilePhoto = async () => {
             const nextThreshold = nextRank ? (STD[lift.key]?.[gender]?.[rankIndex + 1] ?? 0) * bw : null;
             const progress = (nextThreshold && best > 0) ? Math.min(1, best / nextThreshold) : (best > 0 ? 1 : 0);
             // Epley formülü ile tahmini 1RM (tek tekrar max) — sıkleti tekrar sayısından bağımsız kıyaslar
-            const estimated1RM = best > 0 ? (reps > 1 ? Math.round(best * (1 + reps / 30)) : best) : 0;
+            // Epley (÷30) yüksek tekrarlarda çok iyimser tahmin veriyor — daha muhafazakar ÷55 kullanıyoruz
+            const estimated1RM = best > 0 ? (reps > 1 ? Math.round(best * (1 + reps / 55)) : best) : 0;
             const accentColor = rank ? rank.color : C.lime;
 
             return (
