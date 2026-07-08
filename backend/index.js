@@ -1382,6 +1382,12 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
       }
     }
 
+    // Kullanıcının sevdiği/yediği yemeklere göre beslenme planını sınırla
+    let foodPreferenceDirective = '';
+    if (user.favoriteFoods && user.favoriteFoods.length) {
+      foodPreferenceDirective = `Kullanıcının yediği/sevdiği yemekler: ${user.favoriteFoods.join(', ')}. Beslenme planını SADECE bu yiyecekler ve bunların yakın, ucuz, ulaşılabilir alternatifleri üzerine kur. Kullanıcının belirtmediği egzotik/pahalı/alışılmadık ürünleri (ör. badem yağı, chia, quinoa, avokado) ÖNERME. Öğünleri bu temel yiyecekleri farklı porsiyon/pişirme yöntemleriyle çeşitlendirerek kur.`;
+    }
+
     const prompt = `
 Sen bir kişisel antrenör ve diyetisyensin. Aşağıdaki bilgilere göre ${programDays} günlük döngü antrenman ve beslenme programı hazırla:
 
@@ -1397,6 +1403,7 @@ Sen bir kişisel antrenör ve diyetisyensin. Aşağıdaki bilgilere göre ${prog
 - ${restrictionsText}
 - Alerji/kısıtlama: ${allergy || 'yok'}
 ${fatDirective ? `- BESLENME DİREKTİFİ (MUTLAKA UYGULA): ${fatDirective}` : ''}
+${foodPreferenceDirective ? `- YEMEK TERCİHİ (MUTLAKA UYGULA): ${foodPreferenceDirective}` : ''}
 - Önceki programa genel kullanıcı yorumu: ${feedback || 'yok'}
 ${dayFeedbacksText ? `- Önceki programın günlük geri bildirimleri (mutlaka dikkate al):\n${dayFeedbacksText}` : ''}
 ${prevExercisesText ? `- Önceki döngüde kullanılan egzersizler (bunları TEKRAR KULLANMA, tamamen farklı varyasyonlar seç): ${prevExercisesText}` : ''}
@@ -2137,6 +2144,38 @@ app.get('/exercises', authMiddleware, async (req, res) => {
     }
     res.json(grouped);
   } catch (err) { res.status(500).json({ error: "Kütüphane yüklenemedi." }); }
+});
+
+// Favori egzersiz ve yemekler
+app.get('/favorites', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('favoriteExercises favoriteFoods');
+    res.json({ favoriteExercises: user?.favoriteExercises || [], favoriteFoods: user?.favoriteFoods || [] });
+  } catch (err) { res.status(500).json({ error: "Favoriler getirilemedi." }); }
+});
+
+// Egzersiz favorisini aç/kapat (name = kütüphanedeki tekil kimlik)
+app.post('/favorites', authMiddleware, async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Egzersiz adı gerekli." });
+    const user = await User.findById(req.userId).select('favoriteExercises');
+    const isFav = (user?.favoriteExercises || []).includes(name);
+    const update = isFav ? { $pull: { favoriteExercises: name } } : { $addToSet: { favoriteExercises: name } };
+    const updated = await User.findByIdAndUpdate(req.userId, update, { new: true }).select('favoriteExercises');
+    res.json({ favoriteExercises: updated.favoriteExercises || [] });
+  } catch (err) { res.status(500).json({ error: "Favori güncellenemedi." }); }
+});
+
+// Sevdiği/yediği yemekleri kaydet (beslenme AI'sına yön verir)
+app.post('/favorite-foods', authMiddleware, async (req, res) => {
+  try {
+    const { foods } = req.body;
+    if (!Array.isArray(foods)) return res.status(400).json({ error: "foods bir dizi olmalı." });
+    const cleaned = foods.map(f => String(f).trim()).filter(Boolean).slice(0, 50);
+    const updated = await User.findByIdAndUpdate(req.userId, { favoriteFoods: cleaned }, { new: true }).select('favoriteFoods');
+    res.json({ favoriteFoods: updated.favoriteFoods || [] });
+  } catch (err) { res.status(500).json({ error: "Yemek tercihleri kaydedilemedi." }); }
 });
 
 // Kas grubuna göre egzersiz listesi (program editörü — hoca buradan seçer)

@@ -25,6 +25,8 @@ const userSchema = new mongoose.Schema({
   discountRate: { type: Number, default: 0 },
   pushToken: { type: String },
   badges: [{ type: String }],
+  favoriteExercises: [{ type: String }], // egzersiz name'leri (kütüphane key'i = name)
+  favoriteFoods: [{ type: String }], // kullanıcının sevdiği/yediği yemekler (beslenme AI'sına yön verir)
   // Engellenen kullanıcılar (arkadaşlık/mesajlaşmadan gizlenir) — UGC moderasyon zorunluluğu
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   // Aylık rozetler — her ay performansa göre kazanılır, stack'lenir (Efsane ×2 gibi)

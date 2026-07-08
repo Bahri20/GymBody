@@ -628,9 +628,12 @@ export default function App() {
   const [gymGoal, setGymGoal] = useState<'definition' | 'bulk' | 'maintain'>('definition');
   const [weeklyPlan, setWeeklyPlan] = useState<any>(null);
   const [gymLoading, setGymLoading] = useState(false);
-  const [gymPlanTab, setGymPlanTab] = useState<'workout' | 'nutrition'>('workout');
   const [mealTab, setMealTab] = useState<'plan' | 'analiz'>('analiz');
   const [analizTab, setAnalizTab] = useState<'gelisim' | 'beslenme'>('gelisim');
+  // Sevdiğim yemekler (beslenme AI'sına yön verir)
+  const [foodInput, setFoodInput] = useState('');
+  const [foodChips, setFoodChips] = useState<string[]>([]);
+  const [savingFoods, setSavingFoods] = useState(false);
   // PT (hoca) durumu
   const [coachData, setCoachData] = useState<any>({ hasCoach: false });
   const [coachChatVisible, setCoachChatVisible] = useState(false);
@@ -665,6 +668,35 @@ export default function App() {
       setLibData(res.data || {});
     } catch { showToast('Kütüphane yüklenemedi.', 'error'); }
     finally { setLibLoading(false); }
+  };
+  const toggleFavExercise = async (name: string) => {
+    const prevFavs: string[] = user?.favoriteExercises || [];
+    const isFav = prevFavs.includes(name);
+    const nextFavs = isFav ? prevFavs.filter((n) => n !== name) : [...prevFavs, name];
+    setUser((u: any) => ({ ...u, favoriteExercises: nextFavs }));
+    try {
+      await axios.post(`${API_URL}/favorites`, { name }, { headers: { Authorization: `Bearer ${token}` } });
+    } catch {
+      setUser((u: any) => ({ ...u, favoriteExercises: prevFavs }));
+      showToast('Favori güncellenemedi.', 'error');
+    }
+  };
+  const addFoodChip = () => {
+    const v = foodInput.trim();
+    if (!v) return;
+    if (!foodChips.includes(v)) setFoodChips((prev) => [...prev, v]);
+    setFoodInput('');
+  };
+  const removeFoodChip = (v: string) => setFoodChips((prev) => prev.filter((f) => f !== v));
+  const saveFoodChips = async () => {
+    setSavingFoods(true);
+    try {
+      const res = await axios.post(`${API_URL}/favorite-foods`, { foods: foodChips }, { headers: { Authorization: `Bearer ${token}` } });
+      setUser((u: any) => ({ ...u, favoriteFoods: res.data.favoriteFoods || foodChips }));
+      showToast('Yemek tercihlerin kaydedildi.', 'success');
+    } catch {
+      showToast('Kaydedilemedi, tekrar dene.', 'error');
+    } finally { setSavingFoods(false); }
   };
   const [dayFeedbackVisible, setDayFeedbackVisible] = useState(false);
   const [dayFeedbackText, setDayFeedbackText] = useState('');
@@ -984,6 +1016,7 @@ export default function App() {
     setGoalAge(user.age ? String(user.age) : '');
     setGoalGender(user.gender === 'female' ? 'female' : 'male');
     setGoalTarget(user.targetWeight ? String(user.targetWeight) : '');
+    setFoodChips(user.favoriteFoods || []);
     // İlk giriş → karşılama modalını göster
     if (!user.onboarded) { onboardingDoneRef.current = false; setWelcomeVisible(true); }
   }
@@ -2196,6 +2229,30 @@ const pickAndUploadProfilePhoto = async () => {
   { key: 'profile', label: 'Profil', icon: 'person-outline' as const, gym: false },
 ];
 
+  // Hareket gösterme modalı — hem normal ekranlardan (kütüphane, gün listesi) hem de
+  // "Antrenmana başla" modu içinden açılabilir. İkisi ayrı üst-düzey <Modal> (sibling)
+  // olunca iOS'ta üst üste binme sırası bozuluyordu (antrenman modalı üstte kalıyor,
+  // gif ancak o kapanınca görünüyordu). Antrenman modu içindeyken bu fonksiyon o
+  // modalın İÇİNE (nested) render edilir — iOS'ta modal-üstüne-modal doğru çalışır.
+  const renderGifViewerModal = () => (
+    <Modal visible={!!gifModalUrl} transparent animationType="fade" onRequestClose={() => setGifModalUrl(null)}>
+      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setGifModalUrl(null)}>
+       {gifModalUrl && (() => {
+         const twoFrame = /\/[01]\.jpg$/i.test(gifModalUrl);
+         const cur = twoFrame && gifFrame === 0 ? gifModalUrl.replace(/\/1\.jpg$/i, '/0.jpg') : gifModalUrl;
+         return (
+           <ExpoImage
+             source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(cur)}`, headers: { Authorization: `Bearer ${token}` } }}
+             style={{ width: 308, height: 308, borderRadius: 16 }}
+             contentFit="contain"
+             transition={250}
+           />
+         );
+       })()}
+      </TouchableOpacity>
+    </Modal>
+  );
+
   const swipePanResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 20 && Math.abs(g.dy) < 60,
     onPanResponderRelease: (_, g) => {
@@ -3016,6 +3073,88 @@ const pickAndUploadProfilePhoto = async () => {
       {/* ===== YEMEK SEKMESİ ===== */}
       {currentTab === 'analiz' && analizTab === 'beslenme' && (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 16 }}>
+
+          {/* PLAN | ANALİZ geçişi */}
+          <View style={{ flexDirection: 'row', backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 14, padding: 4, marginBottom: 16, marginTop: 8 }}>
+            <TouchableOpacity onPress={() => setMealTab('analiz')} style={[{ flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center', paddingVertical: 10, borderRadius: 11 }, mealTab === 'analiz' && { backgroundColor: AZ_DARK.lime }]}>
+              <Ionicons name="scan-outline" size={16} color={mealTab === 'analiz' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
+              <Text style={{ fontWeight: '700', color: mealTab === 'analiz' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>Analiz</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setMealTab('plan')} style={[{ flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center', paddingVertical: 10, borderRadius: 11 }, mealTab === 'plan' && { backgroundColor: AZ_DARK.lime }]}>
+              <Ionicons name="calendar-outline" size={16} color={mealTab === 'plan' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
+              <Text style={{ fontWeight: '700', color: mealTab === 'plan' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>Plan</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mealTab === 'plan' && (
+          <View>
+            {/* SEVDİĞİM YEMEKLER */}
+            <View style={{ borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, backgroundColor: AZ_DARK.glass }}>
+              <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 15, marginBottom: 4 }}>Sevdiğim Yemekler</Text>
+              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5, marginBottom: 12, lineHeight: 17 }}>Yapay zeka beslenme planını burada yazdığın yemeklere göre kurar — badem yağı gibi tuhaf şeyler değil, senin yediklerin önerilir.</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                <TextInput
+                  style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, color: AZ_DARK.onSurface, fontSize: 14 }}
+                  placeholder="örn. yumurta, tavuk, pilav"
+                  placeholderTextColor={AZ_DARK.onSurfaceVariant}
+                  value={foodInput}
+                  onChangeText={setFoodInput}
+                  onSubmitEditing={addFoodChip}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity onPress={addFoodChip} style={{ width: 46, borderRadius: 12, backgroundColor: AZ_DARK.lime, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="add" size={22} color={AZ_DARK.onLime} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: foodChips.length ? 14 : 0 }}>
+                {foodChips.map((f) => (
+                  <View key={f} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: AZ_DARK.limeSoft10, borderWidth: 1, borderColor: AZ_DARK.limeSoft30, borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12 }}>
+                    <Text style={{ color: AZ_DARK.onSurface, fontSize: 13 }}>{f}</Text>
+                    <TouchableOpacity onPress={() => removeFoodChip(f)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                      <Ionicons name="close" size={14} color={AZ_DARK.onSurfaceVariant} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity activeOpacity={0.85} onPress={saveFoodChips} disabled={savingFoods}
+                style={{ backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', opacity: savingFoods ? 0.6 : 1 }}>
+                {savingFoods ? <ActivityIndicator size="small" color={AZ_DARK.onLime} /> : (
+                  <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14, letterSpacing: 0.5 }}>KAYDET</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* HAFTALIK BESLENME PLANI */}
+            {!userStats.isVip ? (
+              <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,159,28,0.1)', borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,159,28,0.3)' }}>
+                <Ionicons name="lock-closed" size={18} color={C.orange} />
+                <Text style={{ flex: 1, color: C.text, fontSize: 12.5, fontWeight: '600' }}>Haftalık AI beslenme planı VIP'e özel. Yukarıdan yemeklerini kaydet, VIP olunca sana göre plan üretilsin.</Text>
+                <Ionicons name="chevron-forward" size={16} color={C.orange} />
+              </TouchableOpacity>
+            ) : (() => {
+              const nutritionDay = weeklyPlan?.nutritionPlan?.find((d: any) => d.dayNumber === weeklyPlan.currentDay);
+              if (!nutritionDay) return (
+                <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>Henüz haftalık programın yok. GymBody programını oluşturduğunda beslenme planın da burada görünür.</Text>
+              );
+              return (
+                <View style={styles.gymDayCard}>
+                  <View style={styles.gymDayHeader}>
+                    <Text style={styles.gymDayTitle}>🍽️ Bugünün Beslenme Planı</Text>
+                    <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{nutritionDay.totalCalories} kcal</Text></View>
+                  </View>
+                  {nutritionDay.meals?.map((meal: any, j: number) => (
+                    <View key={j} style={styles.gymMealRow}>
+                      <Text style={styles.gymMealName}>{meal.name}</Text>
+                      <Text style={styles.gymMealItems}>{meal.items}</Text>
+                      <Text style={styles.gymMealCal}>{meal.calories} kcal</Text>
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
+          </View>
+          )}
 
           {mealTab === 'analiz' && (
           <View>
@@ -4326,12 +4465,15 @@ const pickAndUploadProfilePhoto = async () => {
                   </View>
                 )}
               </ScrollView>
+              {/* Hareket gösterme modalı BURADA (antrenman modalının içinde, nested) —
+                  iOS'ta modal-üstüne-modal doğru çalışır, sibling modallerde olduğu gibi
+                  arkada kalıp "programa başlayı kapatınca görünme" sorunu olmaz. */}
+              {renderGifViewerModal()}
             </View>
           </Modal>
         );
       })()}
 
-      {/* GIF MODAL */}
       {/* PT — HOCA SOHBET MODALI */}
       <Modal visible={coachChatVisible} transparent animationType="slide" onRequestClose={closeCoachChat}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -4367,23 +4509,10 @@ const pickAndUploadProfilePhoto = async () => {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={!!gifModalUrl} transparent animationType="fade" onRequestClose={() => setGifModalUrl(null)}>
-        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setGifModalUrl(null)}>
-         {gifModalUrl && (() => {
-           // 2 kareli statik görsel (.../0.jpg başlangıç, .../1.jpg bitiş) → ard arda oynat
-           const twoFrame = /\/[01]\.jpg$/i.test(gifModalUrl);
-           const cur = twoFrame && gifFrame === 0 ? gifModalUrl.replace(/\/1\.jpg$/i, '/0.jpg') : gifModalUrl;
-           return (
-             <ExpoImage
-               source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(cur)}`, headers: { Authorization: `Bearer ${token}` } }}
-               style={{ width: 308, height: 308, borderRadius: 16 }}
-               contentFit="contain"
-               transition={250}
-             />
-           );
-         })()}
-        </TouchableOpacity>
-      </Modal>
+      {/* Antrenman modu açıkken bu aynı modal, o modalın İÇİNDE (nested) ayrıca render
+          ediliyor — bkz. workoutActive Modal'ın içi. Burada tekrar açılırsa iOS'ta
+          sibling-modal üst üste binme sorunu geri gelir. */}
+      {!workoutActive && renderGifViewerModal()}
 
       {/* EGZERSİZ KÜTÜPHANESİ MODAL */}
       <Modal visible={libVisible} animationType="slide" onRequestClose={() => { if (libDetail) setLibDetail(null); else setLibVisible(false); }}>
@@ -4438,29 +4567,51 @@ const pickAndUploadProfilePhoto = async () => {
               </View>
               {libLoading ? (
                 <ActivityIndicator color={C.lime} style={{ marginTop: 50 }} />
-              ) : (
-                <FlatList
-                  data={(() => {
-                    const all = Object.entries(libData).flatMap(([g, arr]) => (arr as any[]).map((x) => ({ ...x, _group: g })));
-                    const q = libSearch.toLowerCase().trim();
-                    return all.filter((x) => (libGroup === 'Tümü' || x._group === libGroup) && (!q || x.name.toLowerCase().includes(q)));
-                  })()}
-                  keyExtractor={(it: any) => it.name}
-                  numColumns={2}
-                  contentContainerStyle={{ padding: 12 }}
-                  columnWrapperStyle={{ gap: 10 }}
-                  renderItem={({ item }: any) => (
-                    <TouchableOpacity onPress={() => setLibDetail(item)} activeOpacity={0.85} style={{ flex: 1, maxWidth: '48%', backgroundColor: C.surface, borderRadius: 12, marginBottom: 10, overflow: 'hidden' }}>
+              ) : (() => {
+                const favSet = new Set<string>(user?.favoriteExercises || []);
+                const allExercises = Object.entries(libData).flatMap(([g, arr]) => (arr as any[]).map((x) => ({ ...x, _group: g })));
+                const q = libSearch.toLowerCase().trim();
+                const filtered = allExercises.filter((x) => (libGroup === 'Tümü' || x._group === libGroup) && (!q || x.name.toLowerCase().includes(q)));
+                const favExercises = allExercises.filter((x) => favSet.has(x.name));
+                const renderCard = (item: any, extraStyle?: any) => (
+                  <TouchableOpacity key={item.name} onPress={() => setLibDetail(item)} activeOpacity={0.85} style={[{ flex: 1, maxWidth: '48%', backgroundColor: C.surface, borderRadius: 12, marginBottom: 10, overflow: 'hidden' }, extraStyle]}>
+                    <View>
                       <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(item.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: 110, backgroundColor: C.surface2 }} contentFit="cover" />
-                      <View style={{ padding: 9 }}>
-                        <Text numberOfLines={2} style={{ color: C.text, fontSize: 13, fontWeight: '600' }}>{item.name}</Text>
-                        {!!item.equipment && <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 3 }}>{item.equipment}</Text>}
+                      <TouchableOpacity
+                        onPress={(e) => { e.stopPropagation(); toggleFavExercise(item.name); }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Ionicons name={favSet.has(item.name) ? 'star' : 'star-outline'} size={15} color={favSet.has(item.name) ? C.lime : '#fff'} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={{ padding: 9 }}>
+                      <Text numberOfLines={2} style={{ color: C.text, fontSize: 13, fontWeight: '600' }}>{item.name}</Text>
+                      {!!item.equipment && <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 3 }}>{item.equipment}</Text>}
+                    </View>
+                  </TouchableOpacity>
+                );
+                return (
+                  <FlatList
+                    data={filtered}
+                    keyExtractor={(it: any) => it.name}
+                    numColumns={2}
+                    contentContainerStyle={{ padding: 12 }}
+                    columnWrapperStyle={{ gap: 10 }}
+                    renderItem={({ item }: any) => renderCard(item)}
+                    ListHeaderComponent={favExercises.length ? (
+                      <View style={{ marginBottom: 6 }}>
+                        <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, marginBottom: 10, paddingHorizontal: 2 }}>⭐ Favorilerim</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 4 }}>
+                          {favExercises.map((item) => renderCard(item, { maxWidth: 150, width: 150 }))}
+                        </ScrollView>
+                        <View style={{ height: 1, backgroundColor: C.surface2, marginVertical: 14 }} />
                       </View>
-                    </TouchableOpacity>
-                  )}
-                  ListEmptyComponent={<Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 }}>Eşleşen hareket yok.</Text>}
-                />
-              )}
+                    ) : null}
+                    ListEmptyComponent={<Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 }}>Eşleşen hareket yok.</Text>}
+                  />
+                );
+              })()}
             </>
           )}
         </View>
