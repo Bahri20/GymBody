@@ -3460,7 +3460,15 @@ const pickAndUploadProfilePhoto = async () => {
             onTouchEnd={() => { nestedCarouselActive.current = false; }}
             onTouchCancel={() => { nestedCarouselActive.current = false; }}
           >
-          {LIFTS.map((lift) => {
+          {[...LIFTS].sort((a, b) => {
+            const bwSort = user?.weight || 70;
+            const bestA = user?.lifts?.[a.key]?.best || 0;
+            const bestB = user?.lifts?.[b.key]?.best || 0;
+            const rA = computeRank(a.key, bestA, bwSort, user?.gender).rankIndex;
+            const rB = computeRank(b.key, bestB, bwSort, user?.gender).rankIndex;
+            if (rB !== rA) return rB - rA; // rütbe yüksek önde
+            return (bestB / bwSort) - (bestA / bwSort); // eşit rütbede oran yüksek önde
+          }).map((lift) => {
             const liftData = user?.lifts?.[lift.key];
             const best = liftData?.best || 0;
             const reps = liftData?.reps || 1;
@@ -5153,8 +5161,8 @@ const pickAndUploadProfilePhoto = async () => {
 
       {/* ARKADAŞ MEYDAN OKUMASI MODALI */}
       <Modal visible={!!challengeScreen} transparent animationType="slide" onRequestClose={() => { setChallengeScreen(null); setChallengeSharePhoto(null); }}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+        <TouchableOpacity activeOpacity={1} onPress={() => { setChallengeScreen(null); setChallengeSharePhoto(null); setChallengeResult(null); }} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'flex-end' }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
             <TouchableOpacity onPress={() => { setChallengeScreen(null); setChallengeSharePhoto(null); setChallengeResult(null); }}
               style={{ position: 'absolute', top: 18, right: 18, backgroundColor: C.surface2, borderRadius: 16, padding: 6 }}>
               <Ionicons name="close" size={20} color={C.textMuted} />
@@ -5331,8 +5339,8 @@ const pickAndUploadProfilePhoto = async () => {
                 </View>
               </View>
             )}
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* SİKLET SIRASI PAYLAŞIM KARTI MODALI */}
