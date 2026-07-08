@@ -734,6 +734,7 @@ export default function App() {
   // Güç sıralaması — PR girişi modalı & paylaşım
   const [liftModal, setLiftModal] = useState<string | null>(null); // hangi hareket düzenleniyor
   const [liftInput, setLiftInput] = useState('');
+  const [liftRepsInput, setLiftRepsInput] = useState('1');
   const [liftSaving, setLiftSaving] = useState(false);
   const [shareLiftKey, setShareLiftKey] = useState<string | null>(null); // paylaşım kartı için
   // Siklet liderlik tablosu
@@ -763,15 +764,17 @@ export default function App() {
     }
     setLiftModal(liftKey);
     setLiftInput(currentBest ? String(currentBest) : '');
+    setLiftRepsInput(currentBest ? String(user?.lifts?.[liftKey]?.reps || 1) : '1');
   };
 
   // Güç sıralaması — PR kaydet
   const saveLift = async () => {
     const w = parseFloat(liftInput.replace(',', '.'));
+    const r = Math.max(1, Math.min(50, parseInt(liftRepsInput, 10) || 1));
     if (!liftModal || !(w > 0)) { showToast('Geçerli bir ağırlık gir.', 'error'); return; }
     setLiftSaving(true);
     try {
-      const res = await axios.post(`${API_URL}/update-lift`, { lift: liftModal, weight: w, forceUpdate: true }, {
+      const res = await axios.post(`${API_URL}/update-lift`, { lift: liftModal, weight: w, reps: r, forceUpdate: true }, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const prevBest = user?.lifts?.[liftModal]?.best || 0;
@@ -3426,17 +3429,19 @@ const pickAndUploadProfilePhoto = async () => {
           )}
 
           {/* RANK SIRASI */}
-          <View style={[styles.statsCard, { marginBottom: 14 }]}>
-            <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', letterSpacing: 1.2, marginBottom: 14 }}>RANK SİSTEMİ</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 3 }}>
-              {RANKS.map((r, i) => (
-                <View key={r.key} style={{ alignItems: 'center', gap: 5, marginBottom: i * 4.5 }}>
-                  <RankBadgeSvg rankKey={r.key} color={r.color} size={32 + i * 5} />
-                  <Text style={{ color: r.color, fontSize: 8.5, fontWeight: '800' }}>{r.label}</Text>
-                </View>
-              ))}
-            </View>
-            {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 12 }}>Daha doğru rank için profilde kilonu gir</Text>}
+          <View style={{ borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: C.border }}>
+            <LinearGradient colors={[RANKS[4].color + '1A', RANKS[0].color + '14']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 18 }}>
+              <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', textAlign: 'center', letterSpacing: 1.2, marginBottom: 14 }}>RANK SİSTEMİ</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 3 }}>
+                {RANKS.map((r, i) => (
+                  <View key={r.key} style={{ alignItems: 'center', gap: 5, marginBottom: i * 4.5 }}>
+                    <RankBadgeSvg rankKey={r.key} color={r.color} size={32 + i * 5} />
+                    <Text style={{ color: r.color, fontSize: 8.5, fontWeight: '800' }}>{r.label}</Text>
+                  </View>
+                ))}
+              </View>
+              {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 12 }}>Daha doğru rank için profilde kilonu gir</Text>}
+            </LinearGradient>
           </View>
 
           {LIFTS.map((lift) => {
@@ -3450,14 +3455,20 @@ const pickAndUploadProfilePhoto = async () => {
             const gender = user?.gender === 'Kadın' ? 'kadin' : 'erkek';
             const nextThreshold = nextRank ? (STD[lift.key]?.[gender]?.[rankIndex + 1] ?? 0) * bw : null;
             const progress = (nextThreshold && best > 0) ? Math.min(1, best / nextThreshold) : (best > 0 ? 1 : 0);
+            // Epley formülü ile tahmini 1RM (tek tekrar max) — sıkleti tekrar sayısından bağımsız kıyaslar
+            const estimated1RM = best > 0 ? (reps > 1 ? Math.round(best * (1 + reps / 30)) : best) : 0;
+            // Sıradaki hedef: aynı tekrarda ~%2.5 daha ağır, en yakın 2.5 kg'a yuvarla
+            const nextTarget = best > 0 ? Math.round((best * 1.025) / 2.5) * 2.5 : 0;
+            const accentColor = rank ? rank.color : C.lime;
 
             return (
               <TouchableOpacity key={lift.key} activeOpacity={0.75}
                 onPress={() => openLiftEntry(lift.key, best)}
-                style={[styles.statsCard, { marginBottom: 10, paddingVertical: 14 }]}>
+                style={{ marginBottom: 12, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: best > 0 ? accentColor + '40' : C.border }}>
+                <LinearGradient colors={best > 0 ? [accentColor + '1F', C.surface] : [C.surface, C.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 11, backgroundColor: 'rgba(95,168,42,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="barbell" size={23} color={C.lime} />
+                  <View style={{ width: 44, height: 44, borderRadius: 11, backgroundColor: accentColor + '1F', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="barbell" size={23} color={accentColor} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{lift.label}</Text>
@@ -3487,8 +3498,22 @@ const pickAndUploadProfilePhoto = async () => {
                     </View>
                   )}
                 </View>
+
+                {best > 0 && (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <View style={{ flex: 1, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
+                      <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>TAHMİNİ 1RM</Text>
+                      <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{estimated1RM} kg</Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
+                      <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>SIRADAKİ HEDEF</Text>
+                      <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{nextTarget} kg</Text>
+                    </View>
+                  </View>
+                )}
+
                 {best > 0 && nextRank && nextThreshold && (
-                  <View style={{ marginTop: 10 }}>
+                  <View style={{ marginTop: 12 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                       <Text style={{ color: C.textMuted, fontSize: 10 }}>Sonraki: {nextRank.label}</Text>
                       <Text style={{ color: C.textMuted, fontSize: 10 }}>{best} / {Math.round(nextThreshold)} kg</Text>
@@ -3526,6 +3551,7 @@ const pickAndUploadProfilePhoto = async () => {
                     <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '600' }}>Paylaş</Text>
                   </TouchableOpacity>
                 )}
+                </LinearGradient>
               </TouchableOpacity>
             );
           })}
@@ -4983,6 +5009,20 @@ const pickAndUploadProfilePhoto = async () => {
                     />
                     <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>kg</Text>
                   </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                    <TextInput
+                      value={liftRepsInput}
+                      onChangeText={setLiftRepsInput}
+                      keyboardType="numeric"
+                      placeholder="Kaç tekrar?"
+                      placeholderTextColor={C.textMuted}
+                      style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, color: C.text, fontSize: 18, fontWeight: '700' }}
+                    />
+                    <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>tekrar</Text>
+                  </View>
+                  <Text style={{ color: C.textMuted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>
+                    Tek seferde kaldırdıysan "1" bırak. Birden fazla tekrar yaptıysan gerçek 1RM'in daha doğru hesaplanır.
+                  </Text>
                   <TouchableOpacity onPress={saveLift} disabled={liftSaving} activeOpacity={0.85}
                     style={{ marginTop: 16, backgroundColor: C.orange, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}>
                     {liftSaving ? <ActivityIndicator color="#0B0D12" /> : <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Kaydet</Text>}

@@ -814,9 +814,10 @@ app.get('/me', authMiddleware, async (req, res) => {
 // Güç sıralaması — bir hareketin PR'ını (max ağırlık) kaydet
 app.post('/update-lift', authMiddleware, async (req, res) => {
   try {
-    const { lift, weight, forceUpdate } = req.body;
+    const { lift, weight, reps, forceUpdate } = req.body;
     const allowed = ['bench', 'squat', 'deadlift', 'ohp', 'latpull', 'curl', 'lateral'];
     const w = parseFloat(weight);
+    const r = Math.max(1, Math.min(50, parseInt(reps, 10) || 1));
     if (!allowed.includes(lift) || !(w > 0) || w > 1000) {
       return res.status(400).json({ error: "Geçersiz hareket veya ağırlık." });
     }
@@ -836,8 +837,8 @@ app.post('/update-lift', authMiddleware, async (req, res) => {
 
     const lifts = user.lifts || {};
     const entry = lifts[lift] || { best: 0, history: [] };
-    entry.history = [...(entry.history || []), { weight: w, date: new Date() }].slice(-60);
-    if (forceUpdate || w > (entry.best || 0)) entry.best = w;
+    entry.history = [...(entry.history || []), { weight: w, reps: r, date: new Date() }].slice(-60);
+    if (forceUpdate || w > (entry.best || 0)) { entry.best = w; entry.reps = r; }
     lifts[lift] = entry;
     user.lifts = lifts;
     user.markModified('lifts');
