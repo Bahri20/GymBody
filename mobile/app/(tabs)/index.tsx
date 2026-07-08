@@ -2550,6 +2550,9 @@ const pickAndUploadProfilePhoto = async () => {
                 <Text style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{ex.name}</Text>
                 <Text style={{ color: C.textMuted, fontSize: 12 }}>{ex.sets}</Text>
               </View>
+              <TouchableOpacity activeOpacity={0.8} onPress={() => toggleFavExercise(ex.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name={(user?.favoriteExercises || []).includes(ex.name) ? 'star' : 'star-outline'} size={18} color={(user?.favoriteExercises || []).includes(ex.name) ? C.lime : C.textMuted} />
+              </TouchableOpacity>
               {ex.gifUrl && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="play" size={16} color={C.lime} />

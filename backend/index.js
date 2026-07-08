@@ -1327,11 +1327,19 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     // güvenlik: filtre havuzu çok küçülttüyse (eksik metadata) tümüne düş
     if (availableExercises.length < 24) availableExercises = allExercises;
     // Kas grubuna göre grupla + her grubu karıştır → AI dengeli ve çeşitli seçsin
+    const favSet = new Set(user.favoriteExercises || []);
     const byGroup = {};
     for (const e of availableExercises) (byGroup[e.bodyPart || 'Diğer'] ||= []).push(e.name);
+    // Her grup içinde favori hareketleri başa al (AI'ın önceliklendirmesi için) + " (FAVORİ)" işaretle
     const exerciseListText = Object.entries(byGroup)
-      .map(([g, names]) => `${g}: ${[...names].sort(() => Math.random() - 0.5).join(', ')}`)
+      .map(([g, names]) => {
+        const shuffled = [...names].sort(() => Math.random() - 0.5);
+        const favs = shuffled.filter(n => favSet.has(n)).map(n => `${n} (FAVORİ)`);
+        const rest = shuffled.filter(n => !favSet.has(n));
+        return `${g}: ${[...favs, ...rest].join(', ')}`;
+      })
       .join('\n');
+    const favCount = [...favSet].filter(n => availableExercises.some(e => e.name === n)).length;
 
     const DAY_STRUCTURES = {
       2: [
@@ -1407,6 +1415,7 @@ ${foodPreferenceDirective ? `- YEMEK TERCİHİ (MUTLAKA UYGULA): ${foodPreferenc
 - Önceki programa genel kullanıcı yorumu: ${feedback || 'yok'}
 ${dayFeedbacksText ? `- Önceki programın günlük geri bildirimleri (mutlaka dikkate al):\n${dayFeedbacksText}` : ''}
 ${prevExercisesText ? `- Önceki döngüde kullanılan egzersizler (bunları TEKRAR KULLANMA, tamamen farklı varyasyonlar seç): ${prevExercisesText}` : ''}
+${favCount ? `- FAVORİ HAREKETLER (ÖNCELİK VER): Kullanıcı listede "(FAVORİ)" ile işaretli ${favCount} hareketi özellikle seviyor. Her günün egzersizlerini seçerken, ilgili kas grubunda favori bir hareket varsa ÖNCE onu kullan; favoriler yetmeyen veya olmayan slotları listenin geri kalanından tamamla. Egzersiz adını yazarken "(FAVORİ)" ibaresini EKLEME, sade isim yaz.` : ''}
 
 GÜN YAPISI — BU KURALLARA HARFIYEN UY, DEĞIŞTIRME:
 ${dayStructureText}
