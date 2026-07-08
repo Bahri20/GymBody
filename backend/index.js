@@ -884,9 +884,10 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
 
     const ranked = users
       .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && normGender(u.gender) === myGender)
-      .map(u => ({ id: String(u._id), name: u.name || 'Anonim', best: u.lifts?.[lift]?.best || 0, photo: u.profilePhoto || u.googlePhoto || null }))
+      .map(u => ({ id: String(u._id), name: u.name || 'Anonim', best: u.lifts?.[lift]?.best || 0, reps: u.lifts?.[lift]?.reps || 1, photo: u.profilePhoto || u.googlePhoto || null }))
       .filter(u => u.best > 0)
-      .sort((a, b) => b.best - a.best);
+      // Önce kg (yüksek önde), kg eşitse fazla tekrar önde
+      .sort((a, b) => b.best - a.best || b.reps - a.reps);
 
     // İsim maskele: "Bahri İlhan" → "Bahri İ."
     const mask = (n) => {
@@ -964,9 +965,10 @@ app.get('/my-lift-ranks', authMiddleware, async (req, res) => {
     const ranks = {};
     for (const lift of lifts) {
       const sorted = users
-        .map(u => ({ id: String(u._id), best: u.lifts?.[lift]?.best || 0 }))
+        .map(u => ({ id: String(u._id), best: u.lifts?.[lift]?.best || 0, reps: u.lifts?.[lift]?.reps || 1 }))
         .filter(u => u.best > 0)
-        .sort((a, b) => b.best - a.best);
+        // Önce kg (yüksek önde), kg eşitse fazla tekrar önde
+        .sort((a, b) => b.best - a.best || b.reps - a.reps);
       const r = sorted.findIndex(u => u.id === myId) + 1;
       if (r > 0) ranks[lift] = { rank: r, total: sorted.length };
     }
