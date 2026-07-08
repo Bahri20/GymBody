@@ -3085,15 +3085,15 @@ const pickAndUploadProfilePhoto = async () => {
       {currentTab === 'analiz' && analizTab === 'beslenme' && (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 16 }}>
 
-          {/* PLAN | ANALİZ geçişi */}
-          <View style={{ flexDirection: 'row', backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 14, padding: 4, marginBottom: 16, marginTop: 8 }}>
-            <TouchableOpacity onPress={() => setMealTab('analiz')} style={[{ flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center', paddingVertical: 10, borderRadius: 11 }, mealTab === 'analiz' && { backgroundColor: AZ_DARK.lime }]}>
-              <Ionicons name="scan-outline" size={16} color={mealTab === 'analiz' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-              <Text style={{ fontWeight: '700', color: mealTab === 'analiz' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>Analiz</Text>
+          {/* PLAN | ANALİZ geçişi — alt sekme (üstteki Gelişim/Beslenme kutusuyla karışmasın diye hafif underline stili) */}
+          <View style={{ flexDirection: 'row', gap: 24, marginBottom: 18, marginTop: 6, borderBottomWidth: 1, borderBottomColor: AZ_DARK.glassBorderFaint }}>
+            <TouchableOpacity onPress={() => setMealTab('analiz')} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: mealTab === 'analiz' ? AZ_DARK.lime : 'transparent' }}>
+              <Ionicons name="scan-outline" size={15} color={mealTab === 'analiz' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant} />
+              <Text style={{ fontWeight: '800', color: mealTab === 'analiz' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant, fontSize: 14 }}>Analiz</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setMealTab('plan')} style={[{ flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center', alignItems: 'center', paddingVertical: 10, borderRadius: 11 }, mealTab === 'plan' && { backgroundColor: AZ_DARK.lime }]}>
-              <Ionicons name="calendar-outline" size={16} color={mealTab === 'plan' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-              <Text style={{ fontWeight: '700', color: mealTab === 'plan' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>Plan</Text>
+            <TouchableOpacity onPress={() => setMealTab('plan')} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: mealTab === 'plan' ? AZ_DARK.lime : 'transparent' }}>
+              <Ionicons name="calendar-outline" size={15} color={mealTab === 'plan' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant} />
+              <Text style={{ fontWeight: '800', color: mealTab === 'plan' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant, fontSize: 14 }}>Plan</Text>
             </TouchableOpacity>
           </View>
 
