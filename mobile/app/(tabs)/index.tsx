@@ -3442,9 +3442,10 @@ const pickAndUploadProfilePhoto = async () => {
               acc.push(Math.max(rankIndex, 0)); // henüz bronza ulaşmamışsa 0 (bronz altı) say
               return acc;
             }, []);
-            const myBestRankIndex = recordedRankIndexes.length
-              ? Math.round(recordedRankIndexes.reduce((s, r) => s + r, 0) / recordedRankIndexes.length)
+            const rawAvgRankIndex = recordedRankIndexes.length
+              ? recordedRankIndexes.reduce((s, r) => s + r, 0) / recordedRankIndexes.length
               : -1;
+            const myBestRankIndex = rawAvgRankIndex >= 0 ? Math.round(rawAvgRankIndex) : -1;
             const myRank = myBestRankIndex >= 0 ? RANKS[myBestRankIndex] : null;
             return (
               <View style={{ borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: myRank ? myRank.color + '55' : C.border }}>
@@ -3480,9 +3481,14 @@ const pickAndUploadProfilePhoto = async () => {
                     })}
                   </View>
                   <View style={{ flexDirection: 'row', marginTop: 6, marginHorizontal: 13, gap: 3 }}>
-                    {RANKS.slice(0, -1).map((r, i) => (
-                      <View key={r.key} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: i < myBestRankIndex ? r.color : C.surface2 }} />
-                    ))}
+                    {RANKS.slice(0, -1).map((r, i) => {
+                      const filled = Math.max(0, Math.min(1, rawAvgRankIndex - i));
+                      return (
+                        <View key={r.key} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: C.surface2, overflow: 'hidden' }}>
+                          <View style={{ width: `${filled * 100}%`, height: '100%', backgroundColor: r.color, borderRadius: 2 }} />
+                        </View>
+                      );
+                    })}
                   </View>
                   {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 14 }}>Daha doğru rank için profilde kilonu gir</Text>}
                 </LinearGradient>
