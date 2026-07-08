@@ -3497,7 +3497,7 @@ const pickAndUploadProfilePhoto = async () => {
                   )}
                 </View>
 
-                {best > 0 && reps > 1 && (
+                {best > 0 && (
                   <View style={{ marginTop: 12, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
                     <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>TAHMİNİ 1RM</Text>
                     <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{estimated1RM} kg</Text>
