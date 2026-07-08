@@ -3435,10 +3435,15 @@ const pickAndUploadProfilePhoto = async () => {
 
           {/* RANK SIRASI */}
           {(() => {
+            // NOT: hareketin kendi rütbesi (kart üzerinde gösterilen) sadece kg'ye göre hesaplanır,
+            // burada değişmiyor. Sadece ORTALAMA hesaplanırken tekrar sayısı da (1RM üzerinden) katkı yapsın.
             const recordedRankIndexes = LIFTS.reduce<number[]>((acc, l) => {
-              const b = user?.lifts?.[l.key]?.best || 0;
+              const liftData = user?.lifts?.[l.key];
+              const b = liftData?.best || 0;
               if (b <= 0) return acc;
-              const { rankIndex } = computeRank(l.key, b, user?.weight || 70, user?.gender);
+              const liftReps = liftData?.reps || 1;
+              const est1RM = liftReps > 1 ? Math.round(b * (1 + liftReps / 55)) : b;
+              const { rankIndex } = computeRank(l.key, est1RM, user?.weight || 70, user?.gender);
               acc.push(Math.max(rankIndex, 0)); // henüz bronza ulaşmamışsa 0 (bronz altı) say
               return acc;
             }, []);
