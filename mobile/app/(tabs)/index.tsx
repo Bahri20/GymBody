@@ -185,9 +185,10 @@ const STD: Record<string, { erkek: number[]; kadin: number[] }> = {
   squat:    { erkek: [0.75, 1.00, 1.50, 1.75, 2.25, 2.60], kadin: [0.50, 0.75, 1.00, 1.25, 1.60, 1.90] },
   deadlift: { erkek: [1.00, 1.25, 1.75, 2.25, 2.75, 3.10], kadin: [0.60, 0.90, 1.25, 1.60, 2.00, 2.30] },
   ohp:      { erkek: [0.35, 0.50, 0.65, 0.80, 1.00, 1.15], kadin: [0.20, 0.30, 0.45, 0.55, 0.70, 0.85] },
-  // Gerçek dünya standartlarına göre kalibre (novice 0.60-0.90, intermediate 0.90-1.20, advanced 1.20-1.50, elite 1.50+)
-  latpull:  { erkek: [0.60, 0.75, 0.90, 1.20, 1.40, 1.60], kadin: [0.40, 0.55, 0.70, 0.85, 1.00, 1.15] },
-  curl:     { erkek: [0.30, 0.40, 0.55, 0.70, 0.85, 1.00], kadin: [0.20, 0.28, 0.38, 0.50, 0.60, 0.72] },
+  // Kablo/makine hareketi — ağır sıklette (90kg+) gerçek salon deneyimine göre ~%15-20 aşağı kalibre edildi
+  // (kullanıcı geri bildirimi: 92kg vücut, 95kg zar zor kalkıyor, gerçek salonlarda tipik max 100-130kg)
+  latpull:  { erkek: [0.50, 0.65, 0.80, 1.00, 1.20, 1.40], kadin: [0.30, 0.45, 0.60, 0.75, 0.90, 1.05] },
+  curl:     { erkek: [0.25, 0.35, 0.45, 0.60, 0.75, 0.90], kadin: [0.15, 0.22, 0.30, 0.40, 0.50, 0.60] },
   // Lateral raise tek dumbbell/cable (tek kol) — izolasyon, vücut ağırlığıyla az ölçeklenir
   lateral:  { erkek: [0.06, 0.09, 0.12, 0.16, 0.20, 0.25], kadin: [0.04, 0.06, 0.09, 0.12, 0.15, 0.18] },
 };
