@@ -3435,12 +3435,16 @@ const pickAndUploadProfilePhoto = async () => {
 
           {/* RANK SIRASI */}
           {(() => {
-            const myBestRankIndex = LIFTS.reduce((best, l) => {
+            const recordedRankIndexes = LIFTS.reduce<number[]>((acc, l) => {
               const b = user?.lifts?.[l.key]?.best || 0;
-              if (b <= 0) return best;
+              if (b <= 0) return acc;
               const { rankIndex } = computeRank(l.key, b, user?.weight || 70, user?.gender);
-              return Math.max(best, rankIndex);
-            }, -1);
+              acc.push(Math.max(rankIndex, 0)); // henüz bronza ulaşmamışsa 0 (bronz altı) say
+              return acc;
+            }, []);
+            const myBestRankIndex = recordedRankIndexes.length
+              ? Math.round(recordedRankIndexes.reduce((s, r) => s + r, 0) / recordedRankIndexes.length)
+              : -1;
             const myRank = myBestRankIndex >= 0 ? RANKS[myBestRankIndex] : null;
             return (
               <View style={{ borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: myRank ? myRank.color + '55' : C.border }}>
@@ -3450,7 +3454,7 @@ const pickAndUploadProfilePhoto = async () => {
                     {myRank && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: myRank.color + '22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10 }}>
                         <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: myRank.color }} />
-                        <Text style={{ color: myRank.color, fontSize: 10.5, fontWeight: '800' }}>EN İYİN: {myRank.label.toUpperCase()}</Text>
+                        <Text style={{ color: myRank.color, fontSize: 10.5, fontWeight: '800' }}>ORTALAMA: {myRank.label.toUpperCase()}</Text>
                       </View>
                     )}
                   </View>
