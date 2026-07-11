@@ -43,6 +43,14 @@ Notifications.setNotificationHandler({
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
+const APP_TABS = [
+  { key: 'analiz', label: 'Analiz', icon: 'analytics-outline' as const, gym: false },
+  { key: 'pt', label: 'PT', icon: 'person-circle-outline' as const, gym: false },
+  { key: 'gymBody', label: 'GymBody', icon: 'barbell-outline' as const, gym: true },
+  { key: 'stats', label: 'Max Güç', icon: 'trophy-outline' as const, gym: false },
+  { key: 'profile', label: 'Profil', icon: 'person-outline' as const, gym: false },
+];
+
 // Grafik için maksimum N etiket göster, aradakileri boşalt
 function sparseLabels(items: any[], maxLabels = 5, fn: (item: any) => string): string[] {
   if (items.length <= maxLabels) return items.map(fn);
@@ -742,6 +750,8 @@ export default function App() {
 
   // SEKME YÖNETİMİ: 'gallery' | 'meal' | 'profile'
   const [currentTab, setCurrentTab] = useState('analiz');
+  const currentTabRef = useRef(currentTab);
+  currentTabRef.current = currentTab;
 
   // Max Güç kartlarındaki gif thumbnail'leri için — kütüphaneyi sessizce (modal açmadan) bir kez çek
   useEffect(() => {
@@ -2099,13 +2109,7 @@ const pickAndUploadProfilePhoto = async () => {
   };
 
   // --- ANA UYGULAMA EKRANI ---
-  const TABS = [
-  { key: 'analiz', label: 'Analiz', icon: 'analytics-outline' as const, gym: false },
-  { key: 'pt', label: 'PT', icon: 'person-circle-outline' as const, gym: false },
-  { key: 'gymBody', label: 'GymBody', icon: 'barbell-outline' as const, gym: true },
-  { key: 'stats', label: 'Max Güç', icon: 'trophy-outline' as const, gym: false },
-  { key: 'profile', label: 'Profil', icon: 'person-outline' as const, gym: false },
-];
+  const TABS = APP_TABS;
 
   // Hareket gösterme modalı — hem normal ekranlardan (kütüphane, gün listesi) hem de
   // "Antrenmana başla" modu içinden açılabilir. İkisi ayrı üst-düzey <Modal> (sibling)
@@ -2131,29 +2135,33 @@ const pickAndUploadProfilePhoto = async () => {
     </Modal>
   );
 
-  const swipePanResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => !nestedCarouselActive.current && Math.abs(g.dx) > 20 && Math.abs(g.dy) < 60,
-    onPanResponderRelease: (_, g) => {
-      if (Math.abs(g.dx) < 40) return;
-      const tabKeys = TABS.map(t => t.key);
-      const idx = tabKeys.indexOf(currentTab);
-      if (g.dx < 0 && idx < TABS.length - 1) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx + 1]); }
-      if (g.dx > 0 && idx > 0) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx - 1]); }
-    },
-  });
+  const swipePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => !nestedCarouselActive.current && Math.abs(g.dx) > 20 && Math.abs(g.dy) < 60,
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) < 40) return;
+        const tabKeys = APP_TABS.map(t => t.key);
+        const idx = tabKeys.indexOf(currentTabRef.current);
+        if (g.dx < 0 && idx < APP_TABS.length - 1) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx + 1]); }
+        if (g.dx > 0 && idx > 0) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx - 1]); }
+      },
+    })
+  ).current;
 
   // Kas haritası figürü üstünde sağa kaydır → ön, sola kaydır → arka (dış sekme-değiştirme swipe'ı ile çakışmasın diye nestedCarouselActive kullanılır)
-  const muscleMapPanResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 18 && Math.abs(g.dy) < 50,
-    onPanResponderGrant: () => { nestedCarouselActive.current = true; },
-    onPanResponderRelease: (_, g) => {
-      nestedCarouselActive.current = false;
-      if (Math.abs(g.dx) < 28) return;
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setBodyMapView(g.dx > 0 ? 'front' : 'back');
-    },
-    onPanResponderTerminate: () => { nestedCarouselActive.current = false; },
-  });
+  const muscleMapPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 18 && Math.abs(g.dy) < 50,
+      onPanResponderGrant: () => { nestedCarouselActive.current = true; },
+      onPanResponderRelease: (_, g) => {
+        nestedCarouselActive.current = false;
+        if (Math.abs(g.dx) < 28) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setBodyMapView(g.dx > 0 ? 'front' : 'back');
+      },
+      onPanResponderTerminate: () => { nestedCarouselActive.current = false; },
+    })
+  ).current;
 
   return (
   <View style={[styles.container, { paddingTop: insets.top + 10 }]} {...swipePanResponder.panHandlers}>
