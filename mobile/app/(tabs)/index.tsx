@@ -449,13 +449,13 @@ const MUSCLE_LIFT_MAP: Record<string, string[]> = LIFTS.reduce((acc, l) => {
   return acc;
 }, {} as Record<string, string[]>);
 
-// Bir hareketin (varsa reps'e göre tahmini 1RM ile) rank index'i, hiç veri yoksa -1
+// Bir hareketin rank index'i, hiç veri yoksa -1. NOT: ham best kullanılır (Epley 1RM DEĞİL) —
+// kart üzerinde gösterilen rank ile birebir aynı olsun diye; yoksa kas ortalaması, kartlardaki
+// tekil rank'ların hiçbirinde olmayan daha yüksek bir rank'a "sıçrayabilir" (kafa karıştırıcı).
 function estRankIndex(liftKey: string, liftData: any, bodyweight: number, gender?: string): number {
   const best = liftData?.best || 0;
   if (best <= 0) return -1;
-  const reps = liftData?.reps || 1;
-  const est1RM = reps > 1 && !REP_BASED_LIFTS.has(liftKey) ? Math.round(best * (1 + reps / 55)) : best;
-  return computeRank(liftKey, est1RM, bodyweight, gender).rankIndex;
+  return computeRank(liftKey, best, bodyweight, gender).rankIndex;
 }
 
 // Kas bazlı ortalama: o kasa bağlı hareketlerin rank ortalaması (kayıtlı olanlar üzerinden)
@@ -516,12 +516,13 @@ function bestForPeriod(liftKey: string, liftData: any, period: TrendPeriod): { b
 }
 
 function computeMuscleRankForPeriod(muscleKey: string, liftsData: Record<string, any>, bodyweight: number, gender: string | undefined, period: TrendPeriod): number {
+  // NOT: bestForPeriod farklı tekrar sayılarını kıyaslamak için Epley kullanır ama ham ağırlığı
+  // döner — rank'a çevirirken tekrar bir daha uygulanmaz (kartlardaki rank ile tutarlı kalsın diye).
   const idxs = (MUSCLE_LIFT_MAP[muscleKey] || [])
     .map((k) => {
-      const { best, reps } = bestForPeriod(k, liftsData?.[k], period);
+      const { best } = bestForPeriod(k, liftsData?.[k], period);
       if (best <= 0) return -1;
-      const est = REP_BASED_LIFTS.has(k) || reps <= 1 ? best : Math.round(best * (1 + reps / 55));
-      return computeRank(k, est, bodyweight, gender).rankIndex;
+      return computeRank(k, best, bodyweight, gender).rankIndex;
     })
     .filter((i) => i >= 0);
   if (!idxs.length) return -1;
@@ -2337,6 +2338,19 @@ const pickAndUploadProfilePhoto = async () => {
     },
   });
 
+  // Kas haritası figürü üstünde sağa kaydır → ön, sola kaydır → arka (dış sekme-değiştirme swipe'ı ile çakışmasın diye nestedCarouselActive kullanılır)
+  const muscleMapPanResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 18 && Math.abs(g.dy) < 50,
+    onPanResponderGrant: () => { nestedCarouselActive.current = true; },
+    onPanResponderRelease: (_, g) => {
+      nestedCarouselActive.current = false;
+      if (Math.abs(g.dx) < 28) return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setBodyMapView(g.dx > 0 ? 'front' : 'back');
+    },
+    onPanResponderTerminate: () => { nestedCarouselActive.current = false; },
+  });
+
   return (
   <View style={[styles.container, { paddingTop: insets.top + 10 }]} {...swipePanResponder.panHandlers}>
       <StatusBar style="light" />
@@ -3531,21 +3545,58 @@ const pickAndUploadProfilePhoto = async () => {
                     </View>
                   </View>
 
-                  <View style={{ alignItems: 'center' }}>
-                    <MuscleBodyMap
-                      width={Math.min(160, Dimensions.get('window').width * 0.38)}
-                      view={bodyMapView}
-                      ranks={muscleRanksMap}
-                      rankColors={{ bronz: RANKS[0].color, gumus: RANKS[1].color, altin: RANKS[2].color, platin: RANKS[3].color, elmas: RANKS[4].color, efsane: RANKS[5].color }}
-                      defaultColor={C.surface2}
-                      baseColor={C.surface2}
-                      outlineColor={C.border}
-                      strokeColor="rgba(0,0,0,0.35)"
-                      detailColor="rgba(0,0,0,0.25)"
-                      showLabels={false}
-                      onMusclePress={(key) => setSelectedMuscle((prev) => (prev === key ? null : key))}
-                    />
+                  {/* Rank sırası — bronzdan efsaneye artan boyutlu noktalar, mevcut seviye beyaz halkalı */}
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 5, marginBottom: 10, height: 16 }}>
+                    {RANKS.map((r, i) => {
+                      const reached = displayIdx >= i;
+                      const isCurrent = displayIdx === i;
+                      const dotSize = 5 + i * 1.7;
+                      return (
+                        <View key={r.key} style={{
+                          width: isCurrent ? dotSize + 5 : dotSize, height: isCurrent ? dotSize + 5 : dotSize,
+                          borderRadius: 99, backgroundColor: r.color, opacity: reached ? 1 : 0.25,
+                          borderWidth: isCurrent ? 1.5 : 0, borderColor: '#fff',
+                        }} />
+                      );
+                    })}
                   </View>
+
+                  {(() => {
+                    const mapWidth = Math.min(160, Dimensions.get('window').width * 0.38);
+                    const mapHeight = mapWidth * 514 / 230;
+                    // rank yükseldikçe arkadaki bloom büyür ve belirginleşir (bronz en soluk, efsane en parlak)
+                    const glowSize = displayRank ? mapWidth * (1.3 + displayIdx * 0.16) : 0;
+                    const glowCoreOpacity = displayRank ? 0.16 + displayIdx * 0.065 : 0;
+                    return (
+                      <View style={{ width: mapWidth, height: mapHeight, alignSelf: 'center' }} {...muscleMapPanResponder.panHandlers}>
+                        {displayRank && (
+                          <Svg width={glowSize} height={glowSize} style={{ position: 'absolute', top: mapHeight / 2 - glowSize / 2, left: mapWidth / 2 - glowSize / 2 }} pointerEvents="none">
+                            <Defs>
+                              <RadialGradient id={`muscleGlow-${displayRank.key}`} cx="50%" cy="50%" r="50%">
+                                <Stop offset="0%" stopColor={displayRank.color} stopOpacity={glowCoreOpacity} />
+                                <Stop offset="45%" stopColor={displayRank.color} stopOpacity={glowCoreOpacity * 0.55} />
+                                <Stop offset="100%" stopColor={displayRank.color} stopOpacity={0} />
+                              </RadialGradient>
+                            </Defs>
+                            <Circle cx={glowSize / 2} cy={glowSize / 2} r={glowSize / 2} fill={`url(#muscleGlow-${displayRank.key})`} />
+                          </Svg>
+                        )}
+                        <MuscleBodyMap
+                          width={mapWidth}
+                          view={bodyMapView}
+                          ranks={muscleRanksMap}
+                          rankColors={{ bronz: RANKS[0].color, gumus: RANKS[1].color, altin: RANKS[2].color, platin: RANKS[3].color, elmas: RANKS[4].color, efsane: RANKS[5].color }}
+                          defaultColor={C.surface2}
+                          baseColor={C.surface2}
+                          outlineColor={C.border}
+                          strokeColor="rgba(0,0,0,0.35)"
+                          detailColor="rgba(0,0,0,0.25)"
+                          showLabels={false}
+                          onMusclePress={(key) => setSelectedMuscle((prev) => (prev === key ? null : key))}
+                        />
+                      </View>
+                    );
+                  })()}
 
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
                     <Text style={{ flex: 1, color: C.textMuted, fontSize: 11, marginRight: 8 }}>
@@ -3561,6 +3612,7 @@ const pickAndUploadProfilePhoto = async () => {
                         <Text style={{ fontSize: 9, fontWeight: '800', color: displayRank ? displayRank.color : C.textMuted }}>{selectedMuscleLabel.toUpperCase()}</Text>
                       )}
                       <RankBadgeSvg rankKey={displayRank?.key || 'bronz'} color={displayRank ? displayRank.color : C.textMuted} size={22} />
+                      {displayRank && <Text style={{ fontSize: 10, fontWeight: '900', color: displayRank.color }}>{displayRank.label.toUpperCase()}</Text>}
                       {displayRank && <Ionicons name="share-social" size={11} color={displayRank.color} />}
                     </TouchableOpacity>
                   </View>

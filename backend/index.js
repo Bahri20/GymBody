@@ -91,15 +91,15 @@ function liftRankIndex(liftKey, best, bodyweight, gender) {
   for (let i = 0; i < th.length; i++) if (ratio >= th[i]) idx = i;
   return idx;
 }
+// NOT: ham l.best kullanılır (Epley 1RM DEĞİL) — mobile app'teki hareket kartında gösterilen
+// rank ile birebir aynı olsun diye, yoksa ortalama tekil hareketlerin rank'ından yükseğe çıkabilir.
 function muscleRankIndex(muscleKey, lifts, bodyweight, gender) {
   const keys = MUSCLE_LIFT_MAP[muscleKey] || [];
   const idxs = [];
   for (const k of keys) {
     const l = (lifts || {})[k];
     if (!l || !(l.best > 0)) continue;
-    const reps = l.reps || 1;
-    const est = (MUSCLE_REP_BASED.has(k) || reps <= 1) ? l.best : Math.round(l.best * (1 + reps / 55));
-    const idx = liftRankIndex(k, est, bodyweight, gender);
+    const idx = liftRankIndex(k, l.best, bodyweight, gender);
     if (idx >= 0) idxs.push(idx);
   }
   if (!idxs.length) return -1;
