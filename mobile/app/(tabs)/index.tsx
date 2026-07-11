@@ -23,6 +23,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Path, Ellipse, G, Circle, Defs, LinearGradient as SvgLinearGradient, RadialGradient, Stop, ClipPath, Rect } from 'react-native-svg';
+import MuscleBodyMap, { MUSCLE_NAMES } from '../../components/MuscleBodyMap';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -160,15 +161,40 @@ function parseExSets(raw: string): { sets: number; repsLabel: string } {
   return { sets: n ? parseInt(n[1]) : 3, repsLabel: '10' };
 }
 
+// muscleKey: MuscleBodyMap bileşenindeki kas bölgesi anahtarı (bkz. mobile/components/MuscleBodyMap.tsx)
+// unit: 'tekrar' ise ağırlık değil tekrar sayısı kaydedilir (rank hesabı vücut ağırlığına bölünmez)
+// libraryName: backend ExerciseGif koleksiyonundaki tam isim (gif eşleşmesi için)
 const LIFTS = [
-  { key: 'bench',    label: 'Bench Press',  icon: '🏋️', muscle: 'Göğüs' },
-  { key: 'squat',    label: 'Squat',        icon: '🦵', muscle: 'Bacak' },
-  { key: 'deadlift', label: 'Deadlift',     icon: '🔩', muscle: 'Sırt' },
-  { key: 'ohp',      label: 'Shoulder Press', icon: '💪', muscle: 'Omuz' },
-  { key: 'latpull',  label: 'Lat Pull Down',icon: '🦅', muscle: 'Kanat' },
-  { key: 'curl',     label: 'Barbell Curl', icon: '💥', muscle: 'Kol' },
-  { key: 'lateral',  label: 'Lateral Raise', icon: '🦾', muscle: 'Omuz Yan', hint: 'Tek dumbbell / cable ağırlığı' },
+  { key: 'bench',    label: 'Bench Press',  icon: '🏋️', muscle: 'Göğüs', muscleKey: 'gogus', libraryName: 'Bench Press' },
+  { key: 'squat',    label: 'Barbell Squat', icon: '🦵', muscle: 'Bacak', muscleKey: 'kuad', libraryName: 'Barbell Squat' },
+  { key: 'deadlift', label: 'Deadlift',     icon: '🔩', muscle: 'Bel', muscleKey: 'bel', libraryName: 'Deadlift' },
+  { key: 'ohp',      label: 'Shoulder Press', icon: '💪', muscle: 'Omuz', muscleKey: 'omuz', libraryName: 'Barbell Shoulder Press' },
+  { key: 'latpull',  label: 'Lat Pull Down',icon: '🦅', muscle: 'Sırt', muscleKey: 'sirt', libraryName: 'Lat Pulldown' },
+  { key: 'curl',     label: 'Barbell Curl', icon: '💥', muscle: 'Biceps', muscleKey: 'biceps', libraryName: 'Barbell Curl' },
+  { key: 'lateral',  label: 'Lateral Raise', icon: '🦾', muscle: 'Omuz', muscleKey: 'omuz', hint: 'Tek dumbbell / cable ağırlığı', libraryName: 'Dumbbell Lateral Raise' },
+
+  { key: 'inclinebench', label: 'Incline Bench Press', icon: '📐', muscle: 'Göğüs', muscleKey: 'gogus', libraryName: 'Barbell Incline Bench Press - Medium Grip' },
+  { key: 'cablecrossover', label: 'Cable Crossover', icon: '✖️', muscle: 'Göğüs', muscleKey: 'gogus', libraryName: 'Cable Crossover' },
+  { key: 'dumbbellcurl', label: 'Dumbbell Biceps Curl', icon: '💪', muscle: 'Biceps', muscleKey: 'biceps', hint: 'Tek dumbbell ağırlığı', libraryName: 'Dumbbell Bicep Curl' },
+  { key: 'hammercurl', label: 'Hammer Curl', icon: '🔨', muscle: 'Biceps', muscleKey: 'biceps', hint: 'Tek dumbbell ağırlığı', libraryName: 'Hammer Curls' },
+  { key: 'reversecurl', label: 'Reverse Curl', icon: '🔁', muscle: 'Ön Kol', muscleKey: 'onkol', libraryName: 'Reverse Barbell Curl' },
+  { key: 'cablecrunch', label: 'Cable Crunch', icon: '🔻', muscle: 'Karın', muscleKey: 'karin', libraryName: 'Cable Crunch' },
+  { key: 'situp', label: 'Sit-Up', icon: '🔺', muscle: 'Karın', muscleKey: 'karin', unit: 'tekrar', libraryName: '3/4 Sit-Up' },
+  { key: 'legext', label: 'Leg Extension', icon: '🦿', muscle: 'Bacak', muscleKey: 'kuad', libraryName: 'Leg Extension' },
+  { key: 'tricepext', label: 'Cable Tricep Extension', icon: '💢', muscle: 'Triceps', muscleKey: 'triceps', hint: 'Tek taraf (tek kol) ağırlığı', libraryName: 'Cable One Arm Tricep Extension' },
+  { key: 'triceppushdown', label: 'Tricep Pushdown', icon: '⬇️', muscle: 'Triceps', muscleKey: 'triceps', libraryName: 'Tricep Pushdown' },
+  { key: 'seatedrow', label: 'Seated Cable Row', icon: '🚣', muscle: 'Sırt', muscleKey: 'sirt', libraryName: 'Seated Cable Row' },
+  { key: 'barbellrow', label: 'Barbell Row', icon: '🎣', muscle: 'Sırt', muscleKey: 'sirt', libraryName: 'Bent Over Barbell Row' },
+  { key: 'shrug', label: 'Barbell Shrug', icon: '🎽', muscle: 'Trapez', muscleKey: 'trapez', libraryName: 'Barbell Shrug' },
+  { key: 'hipthrust', label: 'Hip Thrust', icon: '🍑', muscle: 'Kalça', muscleKey: 'kalca', libraryName: 'Barbell Hip Thrust' },
+  { key: 'glutebridge', label: 'Glute Bridge', icon: '🌉', muscle: 'Kalça', muscleKey: 'kalca', libraryName: 'Barbell Glute Bridge' },
+  { key: 'rdl', label: 'Romanian Deadlift', icon: '🦵', muscle: 'Arka Bacak', muscleKey: 'arkabacak', libraryName: 'Romanian Deadlift' },
+  { key: 'legcurl', label: 'Leg Curl', icon: '🦿', muscle: 'Arka Bacak', muscleKey: 'arkabacak', libraryName: 'Leg Curl' },
+  { key: 'calfraise', label: 'Calf Raise', icon: '🦶', muscle: 'Kalf', muscleKey: 'kalf', hint: 'Tek dumbbell ağırlığı', libraryName: 'Calf Raises' },
 ] as const;
+
+// tekrar-bazlı (kg değil) hareketler — computeRank'ta vücut ağırlığına bölünmez
+const REP_BASED_LIFTS = new Set(['situp']);
 
 const RANKS = [
   { key: 'bronz',  label: 'Bronz',  emoji: '🥉', color: '#CD7F32' },
@@ -191,6 +217,29 @@ const STD: Record<string, { erkek: number[]; kadin: number[] }> = {
   curl:     { erkek: [0.25, 0.35, 0.45, 0.60, 0.75, 0.90], kadin: [0.15, 0.22, 0.30, 0.40, 0.50, 0.60] },
   // Lateral raise tek dumbbell/cable (tek kol) — izolasyon, vücut ağırlığıyla az ölçeklenir
   lateral:  { erkek: [0.06, 0.09, 0.12, 0.16, 0.20, 0.25], kadin: [0.04, 0.06, 0.09, 0.12, 0.15, 0.18] },
+
+  // Aşağıdakiler taslak eşikler — gerçek kullanıcı verisiyle kalibre edilmedi, sahada ince ayar gerekebilir.
+  inclinebench:    { erkek: [0.40, 0.60, 0.85, 1.05, 1.25, 1.50], kadin: [0.25, 0.38, 0.55, 0.70, 0.85, 1.00] },
+  cablecrossover:  { erkek: [0.15, 0.25, 0.35, 0.45, 0.55, 0.65], kadin: [0.10, 0.16, 0.22, 0.29, 0.36, 0.43] },
+  dumbbellcurl:    { erkek: [0.12, 0.18, 0.24, 0.32, 0.40, 0.48], kadin: [0.08, 0.11, 0.16, 0.20, 0.25, 0.30] },
+  hammercurl:      { erkek: [0.13, 0.19, 0.26, 0.34, 0.42, 0.50], kadin: [0.08, 0.12, 0.17, 0.21, 0.26, 0.31] },
+  reversecurl:     { erkek: [0.15, 0.22, 0.30, 0.40, 0.50, 0.60], kadin: [0.10, 0.14, 0.19, 0.25, 0.31, 0.37] },
+  cablecrunch:     { erkek: [0.30, 0.45, 0.60, 0.80, 1.00, 1.20], kadin: [0.20, 0.30, 0.40, 0.52, 0.65, 0.78] },
+  // Sit-Up tekrar bazlı — bu diziler kg/vücut oranı değil, doğrudan tekrar sayısı eşiği
+  situp:           { erkek: [15, 25, 40, 60, 80, 100], kadin: [12, 20, 32, 48, 65, 85] },
+  legext:          { erkek: [0.40, 0.60, 0.85, 1.10, 1.40, 1.70], kadin: [0.28, 0.42, 0.60, 0.78, 1.00, 1.20] },
+  // Cable One Arm Tricep Extension tek kol
+  tricepext:       { erkek: [0.10, 0.15, 0.20, 0.27, 0.34, 0.41], kadin: [0.06, 0.09, 0.13, 0.17, 0.21, 0.26] },
+  triceppushdown:  { erkek: [0.25, 0.38, 0.52, 0.68, 0.85, 1.02], kadin: [0.16, 0.24, 0.33, 0.43, 0.54, 0.65] },
+  seatedrow:       { erkek: [0.50, 0.70, 0.90, 1.15, 1.40, 1.65], kadin: [0.32, 0.45, 0.60, 0.77, 0.94, 1.11] },
+  barbellrow:      { erkek: [0.45, 0.65, 0.90, 1.15, 1.40, 1.65], kadin: [0.28, 0.41, 0.57, 0.73, 0.89, 1.05] },
+  shrug:           { erkek: [0.75, 1.00, 1.50, 2.00, 2.50, 3.00], kadin: [0.50, 0.65, 1.00, 1.35, 1.70, 2.00] },
+  hipthrust:       { erkek: [0.75, 1.10, 1.60, 2.10, 2.60, 3.10], kadin: [0.60, 0.90, 1.35, 1.80, 2.30, 2.80] },
+  glutebridge:     { erkek: [0.65, 0.95, 1.40, 1.85, 2.30, 2.75], kadin: [0.50, 0.75, 1.15, 1.55, 1.95, 2.40] },
+  rdl:             { erkek: [0.75, 1.00, 1.40, 1.80, 2.20, 2.60], kadin: [0.45, 0.68, 0.95, 1.25, 1.55, 1.85] },
+  legcurl:         { erkek: [0.30, 0.45, 0.60, 0.80, 1.00, 1.20], kadin: [0.20, 0.30, 0.42, 0.55, 0.68, 0.82] },
+  // Calf raise tek dumbbell
+  calfraise:       { erkek: [0.25, 0.40, 0.60, 0.85, 1.10, 1.35], kadin: [0.16, 0.26, 0.40, 0.56, 0.72, 0.88] },
 };
 
 // Bir hareketin rank durumunu hesapla. Döner: { rankIndex (-1=henüz bronz değil), ratio, nextWeight, progress }
@@ -198,7 +247,7 @@ function computeRank(liftKey: string, best: number, bodyweight: number, gender?:
   const g = String(gender || '').toLowerCase();
   const isFemale = g === 'female' || g === 'kadın' || g === 'kadin';
   const thresholds = STD[liftKey][isFemale ? 'kadin' : 'erkek'];
-  const bw = bodyweight && bodyweight > 0 ? bodyweight : 70;
+  const bw = REP_BASED_LIFTS.has(liftKey) ? 1 : (bodyweight && bodyweight > 0 ? bodyweight : 70);
   const ratio = best / bw;
   let rankIndex = -1;
   for (let i = 0; i < thresholds.length; i++) {
@@ -391,171 +440,101 @@ function RankBadgeSvg({ rankKey, color, size = 44 }: { rankKey: string; color: s
   );
 }
 
-// Kas grubu → egzersiz eşleştirme
-const MUSCLE_LIFT_MAP: Record<string, string[]> = {
-  chest:     ['bench'],
-  shoulders: ['ohp', 'lateral'],
-  arms:      ['curl'],
-  legs:      ['squat'],
-  back:      ['latpull', 'deadlift'],
-};
+// 13 kas bölgesi — MuscleBodyMap bileşenindeki MUSCLE_NAMES anahtarlarıyla birebir aynı olmalı
+const MUSCLE_KEYS = ['trapez', 'omuz', 'gogus', 'biceps', 'onkol', 'karin', 'kuad', 'triceps', 'sirt', 'bel', 'kalca', 'arkabacak', 'kalf'];
 
-function getMuscleColor(
-  muscleKey: string,
-  liftsData: Record<string, number>,
-  bodyweight: number,
-  gender?: string
-): string {
-  const liftKeys = MUSCLE_LIFT_MAP[muscleKey] || [];
-  let best = -1;
-  for (const k of liftKeys) {
-    const b = liftsData[k] || 0;
-    if (b > 0) {
-      const { rankIndex } = computeRank(k, b, bodyweight, gender);
-      if (rankIndex > best) best = rankIndex;
-    }
-  }
-  if (best < 0) return '#1E2335';
-  return RANKS[best].color + 'CC'; // slight transparency
+// Kas grubu → egzersiz eşleştirme — LIFTS'teki muscleKey alanından türetilir (tek kaynak, çift bakım yok)
+const MUSCLE_LIFT_MAP: Record<string, string[]> = LIFTS.reduce((acc, l) => {
+  (acc[l.muscleKey] = acc[l.muscleKey] || []).push(l.key);
+  return acc;
+}, {} as Record<string, string[]>);
+
+// Bir hareketin (varsa reps'e göre tahmini 1RM ile) rank index'i, hiç veri yoksa -1
+function estRankIndex(liftKey: string, liftData: any, bodyweight: number, gender?: string): number {
+  const best = liftData?.best || 0;
+  if (best <= 0) return -1;
+  const reps = liftData?.reps || 1;
+  const est1RM = reps > 1 && !REP_BASED_LIFTS.has(liftKey) ? Math.round(best * (1 + reps / 55)) : best;
+  return computeRank(liftKey, est1RM, bodyweight, gender).rankIndex;
 }
 
-function MuscleSilhouette({ liftsData, bodyweight, gender }: {
-  liftsData: Record<string, number>;
-  bodyweight: number;
-  gender?: string;
-}) {
-  const mc = (key: string) => getMuscleColor(key, liftsData, bodyweight, gender);
-  const chest     = mc('chest');
-  const shoulders = mc('shoulders');
-  const arms      = mc('arms');
-  const legs      = mc('legs');
-  const back      = mc('back');
-  const inactive  = '#1E2335';
-  const isOn = (c: string) => c !== inactive + 'CC' && c !== inactive;
+// Kas bazlı ortalama: o kasa bağlı hareketlerin rank ortalaması (kayıtlı olanlar üzerinden)
+function computeMuscleRank(muscleKey: string, liftsData: Record<string, any>, bodyweight: number, gender?: string): number {
+  const idxs = (MUSCLE_LIFT_MAP[muscleKey] || [])
+    .map((k) => estRankIndex(k, liftsData?.[k], bodyweight, gender))
+    .filter((i) => i >= 0);
+  if (!idxs.length) return -1;
+  return Math.round(idxs.reduce((s, i) => s + i, 0) / idxs.length);
+}
 
-  // Sabit koordinat — viewBox 140x290
-  return (
-    <Svg width={150} height={290} viewBox="0 0 140 290">
-      <Defs>
-        <SvgLinearGradient id="ms_body" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#3C4060" stopOpacity="1"/>
-          <Stop offset="1" stopColor="#252838" stopOpacity="1"/>
-        </SvgLinearGradient>
-        <SvgLinearGradient id="ms_skin" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#454869" stopOpacity="1"/>
-          <Stop offset="1" stopColor="#32354E" stopOpacity="1"/>
-        </SvgLinearGradient>
-        <RadialGradient id="ms_glow" cx="50%" cy="35%" r="55%">
-          <Stop offset="0" stopColor="#fff" stopOpacity="0.14"/>
-          <Stop offset="1" stopColor="#fff" stopOpacity="0"/>
-        </RadialGradient>
-      </Defs>
+// Genel vücut ortalaması: kas bölgesi ortalamalarının ortalaması (hareketi çok olan kas haksız ağırlık kazanmaz)
+function computeBodyAverageRank(liftsData: Record<string, any>, bodyweight: number, gender?: string): number {
+  const idxs = MUSCLE_KEYS
+    .map((mk) => computeMuscleRank(mk, liftsData, bodyweight, gender))
+    .filter((i) => i >= 0);
+  if (!idxs.length) return -1;
+  return Math.round(idxs.reduce((s, i) => s + i, 0) / idxs.length);
+}
 
-      {/* ── KAS RENK OVERLAY (önce çiz, üstüne silüet gelecek) ── */}
+// MuscleBodyMap'e geçilecek { kas: rankKey } haritası — hareketi olmayan kaslar boş kalır (default gri)
+function buildMuscleRanksMap(liftsData: Record<string, any>, bodyweight: number, gender?: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const mk of MUSCLE_KEYS) {
+    const idx = computeMuscleRank(mk, liftsData, bodyweight, gender);
+    if (idx >= 0) out[mk] = RANKS[idx].key;
+  }
+  return out;
+}
 
-      {/* Omuz */}
-      <Ellipse cx={28}  cy={76} rx={16} ry={14} fill={shoulders} opacity={0.9}/>
-      <Ellipse cx={112} cy={76} rx={16} ry={14} fill={shoulders} opacity={0.9}/>
-      {/* Trapez (boyundan omuzlara) */}
-      <Path d="M52,58 Q38,54 28,64 L32,78 Q44,68 70,66 Q96,68 108,78 L112,64 Q102,54 88,58 Z" fill={shoulders} opacity={0.75}/>
+// ======================= KAS GELİŞİMİ (ZAMAN İÇİNDE KARŞILAŞTIRMA) =======================
+// "best" alanı en son girilen değer olabilir (forceUpdate ile üzerine yazılıyor), gerçek geçmiş
+// durumu her zaman `history` dizisinden çıkarılır — bu yüzden mevcut rank hesaplarından AYRI
+// bir fonksiyon ailesi: buradaki 'now' bilerek `entry.best` kullanır (ana karttakiyle birebir
+// aynı görünsün diye), 'first'/'1m' ise history'den geriye dönük en iyiyi bulur.
+type TrendPeriod = 'now' | '1m' | 'first';
 
-      {/* Göğüs */}
-      <Path d="M52,68 Q44,70 42,86 Q42,96 54,97 L68,96 L68,68 Z" fill={chest} opacity={0.9}/>
-      <Path d="M88,68 Q96,70 98,86 Q98,96 86,97 L72,96 L72,68 Z" fill={chest} opacity={0.9}/>
-      <Path d="M68,68 L72,68 L72,97 Q70,98 68,97 Z" fill={chest} opacity={0.7}/>
+function bestForPeriod(liftKey: string, liftData: any, period: TrendPeriod): { best: number; reps: number } {
+  if (period === 'now') return { best: liftData?.best || 0, reps: liftData?.reps || 1 };
+  const history: { weight: number; reps?: number; date: string }[] = liftData?.history || [];
+  if (!history.length) return { best: 0, reps: 1 };
+  if (period === 'first') {
+    const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return { best: sorted[0].weight, reps: sorted[0].reps || 1 };
+  }
+  // '1m' — 30 gün önceye kadar kayıtlı en iyi değer
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  const pool = history.filter((h) => new Date(h.date) <= cutoff);
+  if (!pool.length) return { best: 0, reps: 1 };
+  const isRep = REP_BASED_LIFTS.has(liftKey);
+  const scoreOf = (h: { weight: number; reps?: number }) => {
+    const r = h.reps || 1;
+    return isRep ? h.weight : (r > 1 ? h.weight * (1 + r / 55) : h.weight);
+  };
+  const bestEntry = pool.reduce((best, h) => (scoreOf(h) > scoreOf(best) ? h : best), pool[0]);
+  return { best: bestEntry.weight, reps: bestEntry.reps || 1 };
+}
 
-      {/* Lat (ön görünüm yan) */}
-      <Path d="M42,74 Q34,88 36,106 Q38,114 46,112 Q50,100 50,80 Z" fill={back} opacity={0.85}/>
-      <Path d="M98,74 Q106,88 104,106 Q102,114 94,112 Q90,100 90,80 Z" fill={back} opacity={0.85}/>
+function computeMuscleRankForPeriod(muscleKey: string, liftsData: Record<string, any>, bodyweight: number, gender: string | undefined, period: TrendPeriod): number {
+  const idxs = (MUSCLE_LIFT_MAP[muscleKey] || [])
+    .map((k) => {
+      const { best, reps } = bestForPeriod(k, liftsData?.[k], period);
+      if (best <= 0) return -1;
+      const est = REP_BASED_LIFTS.has(k) || reps <= 1 ? best : Math.round(best * (1 + reps / 55));
+      return computeRank(k, est, bodyweight, gender).rankIndex;
+    })
+    .filter((i) => i >= 0);
+  if (!idxs.length) return -1;
+  return Math.round(idxs.reduce((s, i) => s + i, 0) / idxs.length);
+}
 
-      {/* Kol üst (biseps) */}
-      <Path d="M14,72 Q8,84 10,106 Q12,116 22,114 Q28,112 28,100 L28,70 Z" fill={arms} opacity={0.85}/>
-      <Path d="M126,72 Q132,84 130,106 Q128,116 118,114 Q112,112 112,100 L112,70 Z" fill={arms} opacity={0.85}/>
-
-      {/* Önkol */}
-      <Path d="M10,112 Q6,126 8,148 Q10,158 18,156 Q26,154 26,142 L24,112 Z" fill={arms} opacity={0.7}/>
-      <Path d="M130,112 Q134,126 132,148 Q130,158 122,156 Q114,154 114,142 L116,112 Z" fill={arms} opacity={0.7}/>
-
-      {/* Bacak üst (quad) */}
-      <Path d="M44,178 Q38,198 40,228 Q42,240 52,240 Q62,240 64,226 L62,178 Z" fill={legs} opacity={0.9}/>
-      <Path d="M96,178 Q102,198 100,228 Q98,240 88,240 Q78,240 76,226 L78,178 Z" fill={legs} opacity={0.9}/>
-
-      {/* Baldır */}
-      <Path d="M40,238 Q36,254 38,274 Q40,282 50,280 Q60,278 60,266 L58,238 Z" fill={legs} opacity={0.75}/>
-      <Path d="M100,238 Q104,254 102,274 Q100,282 90,280 Q80,278 80,266 L82,238 Z" fill={legs} opacity={0.75}/>
-
-      {/* ── VÜCUT SİLÜETİ (renk overlay'in üstünde, şeffaf gövde) ── */}
-
-      {/* Kafa */}
-      <Ellipse cx={70} cy={18} rx={18} ry={18} fill="url(#ms_skin)"/>
-      {/* Saç */}
-      <Path d="M52,14 Q54,4 70,2 Q86,4 88,14 Q80,8 70,8 Q60,8 52,14 Z" fill="#22243A"/>
-
-      {/* Boyun */}
-      <Rect x={62} y={34} width={16} height={20} rx={4} fill="url(#ms_skin)"/>
-
-      {/* Gövde (torso) */}
-      <Path d="M42,54 Q32,56 32,68 L30,130 Q30,148 36,158 L44,170 L96,170 L104,158 Q110,148 110,130 L108,68 Q108,56 98,54 Z" fill="url(#ms_body)"/>
-
-      {/* Omuz kapağı */}
-      <Ellipse cx={28}  cy={76} rx={16} ry={14} fill="url(#ms_skin)" opacity={0.35}/>
-      <Ellipse cx={112} cy={76} rx={16} ry={14} fill="url(#ms_skin)" opacity={0.35}/>
-
-      {/* Kol üst */}
-      <Path d="M14,72 Q8,84 10,106 Q12,116 22,114 Q28,112 28,100 L28,70 Z" fill="url(#ms_skin)" opacity={0.4}/>
-      <Path d="M126,72 Q132,84 130,106 Q128,116 118,114 Q112,112 112,100 L112,70 Z" fill="url(#ms_skin)" opacity={0.4}/>
-
-      {/* Önkol */}
-      <Path d="M10,112 Q6,126 8,148 Q10,158 18,156 Q26,154 26,142 L24,112 Z" fill="url(#ms_skin)" opacity={0.5}/>
-      <Path d="M130,112 Q134,126 132,148 Q130,158 122,156 Q114,154 114,142 L116,112 Z" fill="url(#ms_skin)" opacity={0.5}/>
-
-      {/* El */}
-      <Ellipse cx={17} cy={162} rx={9} ry={7} fill="url(#ms_skin)"/>
-      <Ellipse cx={123} cy={162} rx={9} ry={7} fill="url(#ms_skin)"/>
-
-      {/* Kalça */}
-      <Path d="M44,166 Q38,172 38,182 L102,182 Q102,172 96,166 Z" fill="url(#ms_body)"/>
-
-      {/* Bacak üst */}
-      <Path d="M44,178 Q38,198 40,228 Q42,240 52,240 Q62,240 64,226 L62,178 Z" fill="url(#ms_skin)" opacity={0.4}/>
-      <Path d="M96,178 Q102,198 100,228 Q98,240 88,240 Q78,240 76,226 L78,178 Z" fill="url(#ms_skin)" opacity={0.4}/>
-
-      {/* Baldır */}
-      <Path d="M40,238 Q36,254 38,274 Q40,282 50,280 Q60,278 60,266 L58,238 Z" fill="url(#ms_skin)" opacity={0.5}/>
-      <Path d="M100,238 Q104,254 102,274 Q100,282 90,280 Q80,278 80,266 L82,238 Z" fill="url(#ms_skin)" opacity={0.5}/>
-
-      {/* Ayak */}
-      <Ellipse cx={49} cy={283} rx={13} ry={6} fill="url(#ms_skin)"/>
-      <Ellipse cx={91} cy={283} rx={13} ry={6} fill="url(#ms_skin)"/>
-
-      {/* ── PARLAMA / GLOW (aktif kaslarda) ── */}
-      {isOn(shoulders) && <>
-        <Ellipse cx={28} cy={72} rx={8} ry={5} fill="#fff" opacity={0.18}/>
-        <Ellipse cx={112} cy={72} rx={8} ry={5} fill="#fff" opacity={0.18}/>
-      </>}
-      {isOn(chest) && <>
-        <Ellipse cx={56} cy={78} rx={9} ry={6} fill="#fff" opacity={0.16}/>
-        <Ellipse cx={84} cy={78} rx={9} ry={6} fill="#fff" opacity={0.16}/>
-      </>}
-      {isOn(arms) && <>
-        <Ellipse cx={19} cy={88} rx={5} ry={10} fill="#fff" opacity={0.14}/>
-        <Ellipse cx={121} cy={88} rx={5} ry={10} fill="#fff" opacity={0.14}/>
-      </>}
-      {isOn(legs) && <>
-        <Ellipse cx={52} cy={204} rx={9} ry={18} fill="#fff" opacity={0.13}/>
-        <Ellipse cx={88} cy={204} rx={9} ry={18} fill="#fff" opacity={0.13}/>
-      </>}
-
-      {/* Karın çizgileri (anatomik detay) */}
-      <Path d="M58,100 L58,162 M70,98 L70,162 M82,100 L82,162" stroke="#fff" strokeWidth={0.7} opacity={0.07}/>
-      <Path d="M44,114 L96,114 M44,128 L96,128 M44,142 L96,142 M44,156 L96,156" stroke="#fff" strokeWidth={0.7} opacity={0.07}/>
-      {/* Göğüs orta çizgisi */}
-      <Path d="M70,66 L70,98" stroke="#fff" strokeWidth={0.8} opacity={0.1}/>
-
-      {/* Genel parlaklık */}
-      <Path d="M42,54 Q32,56 32,68 L30,130 Q30,148 36,158 L44,170 L96,170 L104,158 Q110,148 110,130 L108,68 Q108,56 98,54 Z" fill="url(#ms_glow)"/>
-    </Svg>
-  );
+function buildMuscleRanksMapForPeriod(liftsData: Record<string, any>, bodyweight: number, gender: string | undefined, period: TrendPeriod): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const mk of MUSCLE_KEYS) {
+    const idx = computeMuscleRankForPeriod(mk, liftsData, bodyweight, gender, period);
+    if (idx >= 0) out[mk] = RANKS[idx].key;
+  }
+  return out;
 }
 
 // ⚠️ Google Cloud Console > Credentials'tan al, buraya yapıştır
@@ -647,6 +626,11 @@ export default function App() {
   // dıştaki sekme-değiştirme swipe'ını (swipePanResponder) devre dışı bırakmak için
   const nestedCarouselActive = useRef(false);
   const [gymTab, setGymTab] = useState<'program' | 'max'>('program');
+  const [bodyMapView, setBodyMapView] = useState<'front' | 'back'>('front');
+  const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
+  const [muscleTrendVisible, setMuscleTrendVisible] = useState(false);
+  const [trendPeriod, setTrendPeriod] = useState<'1m' | 'first'>('1m');
+  const [trendView, setTrendView] = useState<'front' | 'back'>('front');
   const [gifModalUrl, setGifModalUrl] = useState<string | null>(null);
   const [gifFrame, setGifFrame] = useState(0); // 2 kareli statik görseli ard arda oynat (mini animasyon)
   // Egzersiz kütüphanesi
@@ -674,6 +658,13 @@ export default function App() {
     } catch { showToast('Kütüphane yüklenemedi.', 'error'); }
     finally { setLibLoading(false); }
   };
+  const gifByLiftName = useMemo(() => {
+    const m: Record<string, string> = {};
+    Object.values(libData).forEach((arr) => (arr as any[]).forEach((e) => {
+      if (e?.name && e?.gifUrl) m[String(e.name).toLowerCase().trim()] = e.gifUrl;
+    }));
+    return m;
+  }, [libData]);
   const toggleFavExercise = async (name: string) => {
     const prevFavs: string[] = user?.favoriteExercises || [];
     const isFav = prevFavs.includes(name);
@@ -724,15 +715,35 @@ export default function App() {
   const [ptSelectedDay, setPtSelectedDay] = useState(1);
 
   // Egzersiz adından lift key bul (fuzzy)
+  // NOT: daha özel kalıplar (incline, romanian, hammer, seated row...) genel kalıplardan
+  // (bench, deadlift, curl, latpull...) ÖNCE kontrol edilir — yoksa yanlış hareketle eşleşir.
   const exToLiftKey = (name: string): string | null => {
     const n = name.toLowerCase();
+    if (/incline bench|incline press/.test(n)) return 'inclinebench';
+    if (/crossover/.test(n)) return 'cablecrossover';
     if (/bench|göğüs|chest/.test(n)) return 'bench';
+    if (/leg extension/.test(n)) return 'legext';
     if (/squat|diz|leg press/.test(n)) return 'squat';
-    if (/deadlift|deadl|rdl|romanian/.test(n)) return 'deadlift';
+    if (/romanian|\brdl\b/.test(n)) return 'rdl';
+    if (/leg curl|hamstring curl/.test(n)) return 'legcurl';
+    if (/deadlift|deadl/.test(n)) return 'deadlift';
+    if (/hip thrust/.test(n)) return 'hipthrust';
+    if (/glute bridge/.test(n)) return 'glutebridge';
     if (/overhead|ohp|shoulder press|omuz press/.test(n)) return 'ohp';
     if (/lateral|yan kaldır/.test(n)) return 'lateral';
+    if (/hammer curl/.test(n)) return 'hammercurl';
+    if (/reverse curl/.test(n)) return 'reversecurl';
+    if (/dumbbell curl|dumbbell bicep/.test(n)) return 'dumbbellcurl';
     if (/curl|biseps|bicep/.test(n)) return 'curl';
-    if (/lat pull|pulldown|lat machine|barbell row|kürek/.test(n)) return 'latpull';
+    if (/seated (cable )?row/.test(n)) return 'seatedrow';
+    if (/barbell row|bent over row|kürek/.test(n)) return 'barbellrow';
+    if (/lat pull|pulldown|lat machine/.test(n)) return 'latpull';
+    if (/shrug/.test(n)) return 'shrug';
+    if (/tricep.*pushdown|pushdown/.test(n)) return 'triceppushdown';
+    if (/tricep.*extension/.test(n)) return 'tricepext';
+    if (/cable crunch/.test(n)) return 'cablecrunch';
+    if (/sit-?up|mekik/.test(n)) return 'situp';
+    if (/calf raise|kalf/.test(n)) return 'calfraise';
     return null;
   };
 
@@ -776,7 +787,8 @@ export default function App() {
   const saveLift = async () => {
     const w = parseFloat(liftInput.replace(',', '.'));
     const r = Math.max(1, Math.min(50, parseInt(liftRepsInput, 10) || 1));
-    if (!liftModal || !(w > 0)) { showToast('Geçerli bir ağırlık gir.', 'error'); return; }
+    const liftMeta = LIFTS.find(l => l.key === liftModal);
+    if (!liftModal || !(w > 0)) { showToast((liftMeta as any)?.unit === 'tekrar' ? 'Geçerli bir tekrar sayısı gir.' : 'Geçerli bir ağırlık gir.', 'error'); return; }
     setLiftSaving(true);
     try {
       const res = await axios.post(`${API_URL}/update-lift`, { lift: liftModal, weight: w, reps: r, forceUpdate: true }, {
@@ -820,6 +832,28 @@ export default function App() {
     }
   };
 
+  // Kas grubu bazlı liderlik tablosu
+  const [muscleLeaderboardKey, setMuscleLeaderboardKey] = useState<string | null>(null);
+  const [muscleLeaderboardData, setMuscleLeaderboardData] = useState<any>(null);
+  const [muscleLeaderboardLoading, setMuscleLeaderboardLoading] = useState(false);
+  const openMuscleLeaderboard = async (muscleKey: string) => {
+    setMuscleLeaderboardKey(muscleKey);
+    setMuscleLeaderboardData(null);
+    setMuscleLeaderboardLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/muscle-leaderboard`, {
+        params: { muscle: muscleKey },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setMuscleLeaderboardData(res.data);
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Sıralama getirilemedi.', 'error');
+      setMuscleLeaderboardKey(null);
+    } finally {
+      setMuscleLeaderboardLoading(false);
+    }
+  };
+
   // Tüm hareketlerdeki siklet sıramı çek (inline gösterim için)
   const fetchMyLiftRanks = async () => {
     if (!token || !userStats.isVip) return;
@@ -838,6 +872,8 @@ export default function App() {
   const shareCardRef = useRef<ViewShot>(null);
   const liftShareRef = useRef<ViewShot>(null);
   const rankShareRef = useRef<ViewShot>(null);
+  const bodyShareRef = useRef<ViewShot>(null);
+  const [shareBodyRank, setShareBodyRank] = useState(false); // vücut ortalaması rozeti paylaşım kartı
   // Siklet sırası paylaşımı
   const [rankShareData, setRankShareData] = useState<any>(null);
   const [rankSharePhoto, setRankSharePhoto] = useState<string | null>(null);
@@ -901,6 +937,15 @@ export default function App() {
 
   // SEKME YÖNETİMİ: 'gallery' | 'meal' | 'profile'
   const [currentTab, setCurrentTab] = useState('analiz');
+
+  // Max Güç kartlarındaki gif thumbnail'leri için — kütüphaneyi sessizce (modal açmadan) bir kez çek
+  useEffect(() => {
+    if (currentTab === 'stats' && token && Object.keys(libData).length === 0) {
+      axios.get(`${API_URL}/exercises`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => setLibData(res.data || {}))
+        .catch(() => {});
+    }
+  }, [currentTab, token]);
 
   // Yemek Kalori Ölçer State'leri
   const [mealImage, setMealImage] = useState<string | null>(null);
@@ -1308,6 +1353,26 @@ const captureLiftShare = async () => {
     showToast(err?.message || 'Paylaşım başarısız.', 'error');
   } finally {
     setShareLiftKey(null);
+  }
+};
+
+// Vücut ortalaması rozetini paylaş
+const captureBodyShare = async () => {
+  try {
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) { showToast('Paylaşım bu cihazda desteklenmiyor.', 'error'); return; }
+    await new Promise(r => setTimeout(r, 300)); // kartın render olmasını bekle
+    const uri = await (bodyShareRef.current as any)?.capture();
+    if (!uri) { showToast('Görsel oluşturulamadı.', 'error'); return; }
+    const dest = FileSystem.documentDirectory + 'gymbodyai_vucut_rank.jpg';
+    const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
+    await FileSystem.deleteAsync(dest, { idempotent: true });
+    await FileSystem.copyAsync({ from: srcUri, to: dest });
+    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: 'GymBodyAI Vücut Rozetim' });
+  } catch (err: any) {
+    showToast(err?.message || 'Paylaşım başarısız.', 'error');
+  } finally {
+    setShareBodyRank(false);
   }
 };
 
@@ -3434,73 +3499,91 @@ const pickAndUploadProfilePhoto = async () => {
             </TouchableOpacity>
           )}
 
-          {/* RANK SIRASI */}
+          {/* KAS HARİTASI — kas bazlı ortalama renklendirir; bir kas seçiliyse rozet+arkaplan o kasa göre değişir */}
           {(() => {
-            // NOT: hareketin kendi rütbesi (kart üzerinde gösterilen) sadece kg'ye göre hesaplanır,
-            // burada değişmiyor. Sadece ORTALAMA hesaplanırken tekrar sayısı da (1RM üzerinden) katkı yapsın.
-            const recordedRankIndexes = LIFTS.reduce<number[]>((acc, l) => {
-              const liftData = user?.lifts?.[l.key];
-              const b = liftData?.best || 0;
-              if (b <= 0) return acc;
-              const liftReps = liftData?.reps || 1;
-              const est1RM = liftReps > 1 ? Math.round(b * (1 + liftReps / 55)) : b;
-              const { rankIndex } = computeRank(l.key, est1RM, user?.weight || 70, user?.gender);
-              acc.push(Math.max(rankIndex, 0)); // henüz bronza ulaşmamışsa 0 (bronz altı) say
-              return acc;
-            }, []);
-            const rawAvgRankIndex = recordedRankIndexes.length
-              ? recordedRankIndexes.reduce((s, r) => s + r, 0) / recordedRankIndexes.length
-              : -1;
-            const myBestRankIndex = rawAvgRankIndex >= 0 ? Math.round(rawAvgRankIndex) : -1;
-            const myRank = myBestRankIndex >= 0 ? RANKS[myBestRankIndex] : null;
+            const liftsData = user?.lifts || {};
+            const bw = user?.weight || 70;
+            const muscleRanksMap = buildMuscleRanksMap(liftsData, bw, user?.gender);
+            const bodyAvgIdx = computeBodyAverageRank(liftsData, bw, user?.gender);
+            const selectedMuscleLabel = selectedMuscle ? MUSCLE_NAMES[selectedMuscle] : null;
+            const displayIdx = selectedMuscle ? computeMuscleRank(selectedMuscle, liftsData, bw, user?.gender) : bodyAvgIdx;
+            const displayRank = displayIdx >= 0 ? RANKS[displayIdx] : null;
             return (
-              <View style={{ borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: myRank ? myRank.color + '55' : C.border }}>
-                <LinearGradient colors={myRank ? [myRank.color + '26', C.surface] : [C.surface2, C.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 18 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                    <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>RANK SİSTEMİ</Text>
-                    {myRank && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: myRank.color + '22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10 }}>
-                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: myRank.color }} />
-                        <Text style={{ color: myRank.color, fontSize: 10.5, fontWeight: '800' }}>ORTALAMA: {myRank.label.toUpperCase()}</Text>
-                      </View>
-                    )}
+              <View style={{ borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: displayRank ? displayRank.color + '55' : C.border }}>
+                <LinearGradient colors={displayRank ? [displayRank.color + '26', C.surface] : [C.surface2, C.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>KAS HARİTASI</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity onPress={() => setMuscleTrendVisible(true)}
+                      style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="trending-up" size={16} color={C.textSec} />
+                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 20, padding: 3 }}>
+                      <TouchableOpacity onPress={() => setBodyMapView('front')}
+                        style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: bodyMapView === 'front' ? C.orange : 'transparent' }}>
+                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: bodyMapView === 'front' ? '#0B0D12' : C.textMuted }}>Ön</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setBodyMapView('back')}
+                        style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: bodyMapView === 'back' ? C.orange : 'transparent' }}>
+                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: bodyMapView === 'back' ? '#0B0D12' : C.textMuted }}>Arka</Text>
+                      </TouchableOpacity>
+                    </View>
+                    </View>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                    {RANKS.map((r, i) => {
-                      const reached = i <= myBestRankIndex;
-                      const isCurrent = i === myBestRankIndex;
-                      return (
-                        <View key={r.key} style={{ alignItems: 'center', gap: 5, flex: 1 }}>
-                          <View style={{
-                            transform: [{ scale: isCurrent ? 1.18 : 1 }],
-                            shadowColor: isCurrent ? r.color : 'transparent',
-                            shadowOpacity: isCurrent ? 0.7 : 0,
-                            shadowRadius: 10,
-                            shadowOffset: { width: 0, height: 0 },
-                          }}>
-                            <RankBadgeSvg rankKey={r.key} color={r.color} size={reached ? 34 : 26} />
-                          </View>
-                          <Text style={{ color: reached ? r.color : C.textMuted, fontSize: isCurrent ? 9 : 8, fontWeight: isCurrent ? '900' : '700', opacity: reached ? 1 : 0.5 }}>{r.label}</Text>
-                          {isCurrent && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: r.color, marginTop: 1 }} />}
-                        </View>
-                      );
-                    })}
+
+                  <View style={{ alignItems: 'center' }}>
+                    <MuscleBodyMap
+                      width={Math.min(160, Dimensions.get('window').width * 0.38)}
+                      view={bodyMapView}
+                      ranks={muscleRanksMap}
+                      rankColors={{ bronz: RANKS[0].color, gumus: RANKS[1].color, altin: RANKS[2].color, platin: RANKS[3].color, elmas: RANKS[4].color, efsane: RANKS[5].color }}
+                      defaultColor={C.surface2}
+                      baseColor={C.surface2}
+                      outlineColor={C.border}
+                      strokeColor="rgba(0,0,0,0.35)"
+                      detailColor="rgba(0,0,0,0.25)"
+                      showLabels={false}
+                      onMusclePress={(key) => setSelectedMuscle((prev) => (prev === key ? null : key))}
+                    />
                   </View>
-                  <View style={{ flexDirection: 'row', marginTop: 6, marginHorizontal: 13, gap: 3 }}>
-                    {RANKS.slice(0, -1).map((r, i) => {
-                      const filled = Math.max(0, Math.min(1, rawAvgRankIndex - i));
-                      return (
-                        <View key={r.key} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: C.surface2, overflow: 'hidden' }}>
-                          <View style={{ width: `${filled * 100}%`, height: '100%', backgroundColor: r.color, borderRadius: 2 }} />
-                        </View>
-                      );
-                    })}
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+                    <Text style={{ flex: 1, color: C.textMuted, fontSize: 11, marginRight: 8 }}>
+                      {selectedMuscleLabel ? `${selectedMuscleLabel} hareketleri gösteriliyor — tekrar dokun, kapat` : 'Bir kasa dokun, o kasın hareketlerini gör'}
+                    </Text>
+                    {/* Ortalama rozeti — sağda; kas seçiliyse o kasın rankını gösterir, dokununca paylaşım kartı açılır */}
+                    <TouchableOpacity
+                      disabled={!displayRank}
+                      onPress={() => setShareBodyRank(true)}
+                      activeOpacity={0.8}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: displayRank ? displayRank.color + '22' : C.surface2, borderWidth: 1, borderColor: displayRank ? displayRank.color : C.border, borderRadius: 20, paddingVertical: 5, paddingHorizontal: 8 }}>
+                      {selectedMuscleLabel && (
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: displayRank ? displayRank.color : C.textMuted }}>{selectedMuscleLabel.toUpperCase()}</Text>
+                      )}
+                      <RankBadgeSvg rankKey={displayRank?.key || 'bronz'} color={displayRank ? displayRank.color : C.textMuted} size={22} />
+                      {displayRank && <Ionicons name="share-social" size={11} color={displayRank.color} />}
+                    </TouchableOpacity>
                   </View>
-                  {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 14 }}>Daha doğru rank için profilde kilonu gir</Text>}
+                  {selectedMuscle && (
+                    <TouchableOpacity onPress={() => openMuscleLeaderboard(selectedMuscle)} activeOpacity={0.8}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 10 }}>
+                      <Ionicons name="trophy-outline" size={13} color={displayRank ? displayRank.color : C.textMuted} />
+                      <Text style={{ color: displayRank ? displayRank.color : C.textMuted, fontSize: 11.5, fontWeight: '700' }}>{selectedMuscleLabel} sıralamasını gör →</Text>
+                    </TouchableOpacity>
+                  )}
+                  {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 8 }}>Daha doğru rank için profilde kilonu gir</Text>}
                 </LinearGradient>
               </View>
             );
           })()}
+
+          {selectedMuscle && (
+            <TouchableOpacity onPress={() => setSelectedMuscle(null)} activeOpacity={0.8}
+              style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface2, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12, marginBottom: 10 }}>
+              <Ionicons name="close-circle" size={15} color={C.textMuted} />
+              <Text style={{ color: C.textSec, fontSize: 12, fontWeight: '700' }}>{MUSCLE_NAMES[selectedMuscle]} · Tümünü göster</Text>
+            </TouchableOpacity>
+          )}
 
           <ScrollView
             horizontal
@@ -3513,7 +3596,7 @@ const pickAndUploadProfilePhoto = async () => {
             onTouchEnd={() => { nestedCarouselActive.current = false; }}
             onTouchCancel={() => { nestedCarouselActive.current = false; }}
           >
-          {[...LIFTS].sort((a, b) => {
+          {LIFTS.filter((l) => !selectedMuscle || l.muscleKey === selectedMuscle).sort((a, b) => {
             const bwSort = user?.weight || 70;
             const bestA = user?.lifts?.[a.key]?.best || 0;
             const bestB = user?.lifts?.[b.key]?.best || 0;
@@ -3525,17 +3608,20 @@ const pickAndUploadProfilePhoto = async () => {
             const liftData = user?.lifts?.[lift.key];
             const best = liftData?.best || 0;
             const reps = liftData?.reps || 1;
+            const isRepBased = (lift as any).unit === 'tekrar';
+            const unitLabel = isRepBased ? 'tekrar' : 'kg';
             const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
             const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
             const nextRank = rankIndex < RANKS.length - 1 ? RANKS[rankIndex + 1] : null;
             const bw = user?.weight || 80;
             const gender = user?.gender === 'Kadın' ? 'kadin' : 'erkek';
-            const nextThreshold = nextRank ? (STD[lift.key]?.[gender]?.[rankIndex + 1] ?? 0) * bw : null;
+            const nextThreshold = nextRank ? (STD[lift.key]?.[gender]?.[rankIndex + 1] ?? 0) * (isRepBased ? 1 : bw) : null;
             const progress = (nextThreshold && best > 0) ? Math.min(1, best / nextThreshold) : (best > 0 ? 1 : 0);
             // Epley formülü ile tahmini 1RM (tek tekrar max) — sıkleti tekrar sayısından bağımsız kıyaslar
             // Epley (÷30) yüksek tekrarlarda çok iyimser tahmin veriyor — daha muhafazakar ÷55 kullanıyoruz
-            const estimated1RM = best > 0 ? (reps > 1 ? Math.round(best * (1 + reps / 55)) : best) : 0;
+            const estimated1RM = best > 0 ? (reps > 1 && !isRepBased ? Math.round(best * (1 + reps / 55)) : best) : 0;
             const accentColor = rank ? rank.color : C.lime;
+            const gifUrl = (lift as any).libraryName ? gifByLiftName[(lift as any).libraryName.toLowerCase().trim()] : null;
 
             return (
               <TouchableOpacity key={lift.key} activeOpacity={0.75}
@@ -3543,9 +3629,16 @@ const pickAndUploadProfilePhoto = async () => {
                 style={{ width: Dimensions.get('window').width * 0.82, marginRight: 12, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: best > 0 ? accentColor + '40' : C.border }}>
                 <LinearGradient colors={best > 0 ? [accentColor + '1F', C.surface] : [C.surface, C.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 11, backgroundColor: accentColor + '1F', alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="barbell" size={23} color={accentColor} />
-                  </View>
+                  <TouchableOpacity
+                    disabled={!gifUrl}
+                    onPress={(e) => { e.stopPropagation(); if (gifUrl) setGifModalUrl(gifUrl); }}
+                    style={{ width: 44, height: 44, borderRadius: 11, backgroundColor: accentColor + '1F', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {gifUrl ? (
+                      <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                    ) : (
+                      <Ionicons name="barbell" size={23} color={accentColor} />
+                    )}
+                  </TouchableOpacity>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{lift.label}</Text>
                     <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 1 }}>{lift.muscle}</Text>
@@ -3553,8 +3646,8 @@ const pickAndUploadProfilePhoto = async () => {
                   <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
                     {best > 0 ? (
                       <>
-                        <Text style={{ color: C.text, fontWeight: '900', fontSize: 26 }}>{best} <Text style={{ fontSize: 13, color: C.textMuted }}>kg</Text></Text>
-                        <Text style={{ color: C.textMuted, fontSize: 11 }}>{reps} tekrar</Text>
+                        <Text style={{ color: C.text, fontWeight: '900', fontSize: 26 }}>{best} <Text style={{ fontSize: 13, color: C.textMuted }}>{unitLabel}</Text></Text>
+                        {!isRepBased && <Text style={{ color: C.textMuted, fontSize: 11 }}>{reps} tekrar</Text>}
                       </>
                     ) : (
                       <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>+ Gir</Text>
@@ -3575,7 +3668,7 @@ const pickAndUploadProfilePhoto = async () => {
                   )}
                 </View>
 
-                {best > 0 && (
+                {best > 0 && !isRepBased && (
                   <View style={{ marginTop: 12, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
                     <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>TAHMİNİ 1RM</Text>
                     <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{estimated1RM} kg</Text>
@@ -3591,7 +3684,7 @@ const pickAndUploadProfilePhoto = async () => {
                   <View style={{ marginTop: 12 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                       <Text style={{ color: C.textMuted, fontSize: 10 }}>Sonraki: {nextRank.label}</Text>
-                      <Text style={{ color: C.textMuted, fontSize: 10 }}>{best} / {Math.round(nextThreshold)} kg</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 10 }}>{best} / {Math.round(nextThreshold)} {unitLabel}</Text>
                     </View>
                     <View style={{ height: 5, backgroundColor: C.surface2, borderRadius: 3, overflow: 'hidden' }}>
                       <View style={{ height: 5, width: `${Math.round(progress * 100)}%`, backgroundColor: rank ? rank.color : C.lime, borderRadius: 3 }} />
@@ -5063,13 +5156,15 @@ const pickAndUploadProfilePhoto = async () => {
             {(() => {
               const lift = LIFTS.find(l => l.key === liftModal);
               if (!lift) return null;
+              const isRepBased = (lift as any).unit === 'tekrar';
+              const unitLabel = isRepBased ? 'tekrar' : 'kg';
               const best = user?.lifts?.[liftModal!]?.best || 0;
               return (
                 <>
                   <Text style={{ fontSize: 34, textAlign: 'center', marginBottom: 6 }}>{lift.icon}</Text>
                   <Text style={{ color: C.text, fontWeight: '800', fontSize: 19, textAlign: 'center' }}>{lift.label}</Text>
                   <Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: (lift as any).hint ? 8 : 18 }}>
-                    {lift.muscle} • Şu anki rekor: {best ? `${best} kg` : '—'}
+                    {lift.muscle} • Şu anki rekor: {best ? `${best} ${unitLabel}` : '—'}
                   </Text>
                   {(lift as any).hint && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 16 }}>
@@ -5082,25 +5177,27 @@ const pickAndUploadProfilePhoto = async () => {
                       value={liftInput}
                       onChangeText={setLiftInput}
                       keyboardType="numeric"
-                      placeholder="Kaç kg?"
+                      placeholder={isRepBased ? 'Kaç tekrar?' : 'Kaç kg?'}
                       placeholderTextColor={C.textMuted}
                       style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, color: C.text, fontSize: 18, fontWeight: '700' }}
                     />
-                    <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>kg</Text>
+                    <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>{unitLabel}</Text>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
-                    <TextInput
-                      value={liftRepsInput}
-                      onChangeText={setLiftRepsInput}
-                      keyboardType="numeric"
-                      placeholder="Kaç tekrar?"
-                      placeholderTextColor={C.textMuted}
-                      style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, color: C.text, fontSize: 18, fontWeight: '700' }}
-                    />
-                    <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>tekrar</Text>
-                  </View>
+                  {!isRepBased && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                      <TextInput
+                        value={liftRepsInput}
+                        onChangeText={setLiftRepsInput}
+                        keyboardType="numeric"
+                        placeholder="Kaç tekrar?"
+                        placeholderTextColor={C.textMuted}
+                        style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, color: C.text, fontSize: 18, fontWeight: '700' }}
+                      />
+                      <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>tekrar</Text>
+                    </View>
+                  )}
                   <Text style={{ color: C.textMuted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>
-                    Tek seferde kaldırdıysan "1" bırak. Birden fazla tekrar yaptıysan gerçek 1RM'in daha doğru hesaplanır.
+                    {isRepBased ? 'Tek seferde (dinlenmeden) yapabildiğin en yüksek tekrar sayısını gir.' : 'Tek seferde kaldırdıysan "1" bırak. Birden fazla tekrar yaptıysan gerçek 1RM\'in daha doğru hesaplanır.'}
                   </Text>
                   <TouchableOpacity onPress={saveLift} disabled={liftSaving} activeOpacity={0.85}
                     style={{ marginTop: 16, backgroundColor: C.orange, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}>
@@ -5179,7 +5276,7 @@ const pickAndUploadProfilePhoto = async () => {
                                 </TouchableOpacity>
                               );
                             })()}
-                            <Text style={{ color: row.isMe ? C.orange : C.textSec, fontWeight: '800', fontSize: 15, minWidth: 52, textAlign: 'right' }}>{row.best} kg</Text>
+                            <Text style={{ color: row.isMe ? C.orange : C.textSec, fontWeight: '800', fontSize: 15, minWidth: 52, textAlign: 'right' }}>{row.best} {(lift as any)?.unit === 'tekrar' ? 'tekrar' : 'kg'}</Text>
                           </View>
                         )) : (
                           <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginVertical: 30 }}>
@@ -5191,7 +5288,7 @@ const pickAndUploadProfilePhoto = async () => {
                             borderRadius: 12, marginTop: 6, backgroundColor: 'rgba(255,159,28,0.14)', borderWidth: 1, borderColor: C.orange }}>
                             <Text style={{ width: 30, textAlign: 'center', fontSize: 14, fontWeight: '800', color: C.orange }}>#{leaderboardData.myRank}</Text>
                             <Text style={{ flex: 1, color: C.orange, fontWeight: '800', fontSize: 14 }}>Sen</Text>
-                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{leaderboardData.myBest} kg</Text>
+                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{leaderboardData.myBest} {(lift as any)?.unit === 'tekrar' ? 'tekrar' : 'kg'}</Text>
                           </View>
                         )}
                       </ScrollView>
@@ -5203,6 +5300,97 @@ const pickAndUploadProfilePhoto = async () => {
                           <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Sıranı Paylaş</Text>
                         </TouchableOpacity>
                       )}
+                    </>
+                  ) : null}
+                </>
+              );
+            })()}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* KAS GRUBU LİDERLİK TABLOSU MODALI */}
+      <Modal visible={!!muscleLeaderboardKey} transparent animationType="slide" onRequestClose={() => setMuscleLeaderboardKey(null)}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setMuscleLeaderboardKey(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: C.bgAlt, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: insets.bottom + 24, maxHeight: '82%' }}>
+            {(() => {
+              const muscleName = muscleLeaderboardKey ? MUSCLE_NAMES[muscleLeaderboardKey] : '';
+              return (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="trophy" size={22} color={RANKS[4].color} />
+                      <View>
+                        <Text style={{ color: C.text, fontWeight: '800', fontSize: 19 }}>{muscleName}</Text>
+                        {muscleLeaderboardData?.bracket && (
+                          <Text style={{ color: C.orange, fontWeight: '700', fontSize: 13, marginTop: 1 }}>
+                            🏋️ {muscleLeaderboardData.genderLabel ? `${muscleLeaderboardData.genderLabel} · ` : ''}{String(muscleLeaderboardData.bracket).replace(' kg', '')} sikleti
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <TouchableOpacity onPress={() => setMuscleLeaderboardKey(null)} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+                      <Ionicons name="close" size={24} color={C.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {muscleLeaderboardLoading ? (
+                    <ActivityIndicator size="large" color={C.orange} style={{ marginVertical: 40 }} />
+                  ) : muscleLeaderboardData ? (
+                    <>
+                      <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 8, marginBottom: 16 }}>
+                        {muscleLeaderboardData.total} kişi yarışıyor · Senin sıran: {muscleLeaderboardData.myRank > 0 ? `#${muscleLeaderboardData.myRank}` : '—'}
+                      </Text>
+                      <ScrollView showsVerticalScrollIndicator={false}>
+                        {muscleLeaderboardData.top10?.length > 0 ? muscleLeaderboardData.top10.map((row: any) => (
+                          <View key={row.rank} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9,
+                            paddingHorizontal: 10, borderRadius: 12, marginBottom: 6,
+                            backgroundColor: row.isMe ? 'rgba(255,159,28,0.14)' : C.surface,
+                            borderWidth: row.isMe ? 1 : 0, borderColor: C.orange }}>
+                            <Text style={{ width: 26, textAlign: 'center', fontSize: row.rank <= 3 ? 18 : 13, fontWeight: '800',
+                              color: row.rank === 1 ? '#FFD700' : row.rank === 2 ? '#C0C0C0' : row.rank === 3 ? '#CD7F32' : C.textSec }}>
+                              {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${row.rank}`}
+                            </Text>
+                            {row.photo ? (
+                              <Image source={{ uri: row.photo }} style={{ width: 34, height: 34, borderRadius: 17 }} />
+                            ) : (
+                              <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border }}>
+                                <Text style={{ color: C.textSec, fontWeight: '800', fontSize: 14 }}>{(row.name?.[0] || '?').toUpperCase()}</Text>
+                              </View>
+                            )}
+                            <Text style={{ flex: 1, color: row.isMe ? C.orange : C.text, fontWeight: row.isMe ? '800' : '600', fontSize: 14 }} numberOfLines={1}>
+                              {row.name}{row.isMe ? ' (sen)' : ''}
+                            </Text>
+                            {!row.isMe && row.id && (() => {
+                              const sent = rankSentIds.includes(row.id) || String(row.friendStatus || '').startsWith('sent');
+                              const accepted = String(row.friendStatus || '').includes('accepted');
+                              const incoming = String(row.friendStatus || '').startsWith('received');
+                              if (accepted) return <Ionicons name="checkmark-circle" size={22} color={C.green} />;
+                              if (sent) return <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>İstendi</Text>;
+                              if (incoming) return <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>Sana istek</Text>;
+                              return (
+                                <TouchableOpacity onPress={() => { sendFriendRequest(row.id); setRankSentIds(prev => [...prev, row.id]); }}
+                                  style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(198,255,61,0.14)', borderWidth: 1, borderColor: C.lime, alignItems: 'center', justifyContent: 'center' }}>
+                                  <Ionicons name="person-add" size={16} color={C.lime} />
+                                </TouchableOpacity>
+                              );
+                            })()}
+                            <Text style={{ color: RANKS.find(r => r.key === row.rankKey)?.color || C.textSec, fontWeight: '800', fontSize: 13, minWidth: 52, textAlign: 'right' }}>{row.rankLabel}</Text>
+                          </View>
+                        )) : (
+                          <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginVertical: 30 }}>
+                            Bu siklette henüz kimse bu kas grubunda rank almamış. İlk sen ol! 💪
+                          </Text>
+                        )}
+                        {muscleLeaderboardData.myRank > 20 && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 12,
+                            borderRadius: 12, marginTop: 6, backgroundColor: 'rgba(255,159,28,0.14)', borderWidth: 1, borderColor: C.orange }}>
+                            <Text style={{ width: 30, textAlign: 'center', fontSize: 14, fontWeight: '800', color: C.orange }}>#{muscleLeaderboardData.myRank}</Text>
+                            <Text style={{ flex: 1, color: C.orange, fontWeight: '800', fontSize: 14 }}>Sen</Text>
+                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{muscleLeaderboardData.myRankLabel || '—'}</Text>
+                          </View>
+                        )}
+                      </ScrollView>
                     </>
                   ) : null}
                 </>
@@ -5506,6 +5694,145 @@ const pickAndUploadProfilePhoto = async () => {
             );
           })()}
         </View>
+      </Modal>
+
+      {/* VÜCUT ORTALAMASI ROZETİ PAYLAŞIMI */}
+      <Modal visible={shareBodyRank} transparent animationType="fade" onRequestClose={() => setShareBodyRank(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <TouchableOpacity onPress={() => setShareBodyRank(false)} style={{ position: 'absolute', top: insets.top + 16, right: 20, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: 8 }}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+          {(() => {
+            const liftsData = user?.lifts || {};
+            const bw = user?.weight || 70;
+            const muscleRanksMap = buildMuscleRanksMap(liftsData, bw, user?.gender);
+            const bodyAvgIdx = computeBodyAverageRank(liftsData, bw, user?.gender);
+            const displayIdx = selectedMuscle ? computeMuscleRank(selectedMuscle, liftsData, bw, user?.gender) : bodyAvgIdx;
+            const rank = displayIdx >= 0 ? RANKS[displayIdx] : RANKS[0];
+            const shareLabel = selectedMuscle ? `${MUSCLE_NAMES[selectedMuscle].toUpperCase()} ORTALAMASI` : 'VÜCUT ORTALAMASI';
+            return (
+              <>
+                <ViewShot ref={bodyShareRef} options={{ format: 'jpg', quality: 0.95 }}>
+                  <View style={{ width: 320, borderRadius: 32, overflow: 'hidden', borderWidth: 1.5, borderColor: rank.color + '66' }}>
+                    <LinearGradient colors={[rank.color + '2E', '#0E1118', '#0B0D12']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ paddingVertical: 26, paddingHorizontal: 20, alignItems: 'center' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="barbell" size={15} color={rank.color} />
+                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 3 }}>GYMBODY<Text style={{ color: C.lime }}>AI</Text></Text>
+                      </View>
+                      <View style={{ marginTop: 14 }}>
+                        <MuscleBodyMap
+                          width={270}
+                          view="both"
+                          ranks={muscleRanksMap}
+                          rankColors={{ bronz: RANKS[0].color, gumus: RANKS[1].color, altin: RANKS[2].color, platin: RANKS[3].color, elmas: RANKS[4].color, efsane: RANKS[5].color }}
+                          defaultColor="#2A2E40"
+                          baseColor="#2A2E40"
+                          outlineColor="#3A3F55"
+                          strokeColor="rgba(0,0,0,0.4)"
+                          detailColor="rgba(0,0,0,0.3)"
+                          showLabels={false}
+                        />
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: rank.color + '22', borderColor: rank.color, borderWidth: 1, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 6 }}>
+                        <RankBadgeSvg rankKey={rank.key} color={rank.color} size={26} />
+                        <Text style={{ color: rank.color, fontSize: 18, fontWeight: '900', letterSpacing: 1.5 }}>{rank.label.toUpperCase()}</Text>
+                      </View>
+                      <Text style={{ color: C.textSec, fontSize: 12.5, fontWeight: '700', marginTop: 10, letterSpacing: 0.5 }}>{shareLabel}</Text>
+                    </LinearGradient>
+                  </View>
+                </ViewShot>
+                <TouchableOpacity onPress={captureBodyShare} activeOpacity={0.85}
+                  style={{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 32 }}>
+                  <Ionicons name="share-social" size={18} color="#0B0D12" />
+                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Paylaş</Text>
+                </TouchableOpacity>
+              </>
+            );
+          })()}
+        </View>
+      </Modal>
+
+      {/* KAS GELİŞİMİ — zaman içinde karşılaştırma */}
+      <Modal visible={muscleTrendVisible} transparent animationType="fade" onRequestClose={() => setMuscleTrendVisible(false)}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setMuscleTrendVisible(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', padding: 20 }}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: C.bgAlt, borderRadius: 24, padding: 18, borderWidth: 1, borderColor: C.border }}>
+            {(() => {
+              const liftsData = user?.lifts || {};
+              const bw = user?.weight || 70;
+              const thenMap = buildMuscleRanksMapForPeriod(liftsData, bw, user?.gender, trendPeriod);
+              const nowMap = buildMuscleRanksMapForPeriod(liftsData, bw, user?.gender, 'now');
+              const rankColorsProp = { bronz: RANKS[0].color, gumus: RANKS[1].color, altin: RANKS[2].color, platin: RANKS[3].color, elmas: RANKS[4].color, efsane: RANKS[5].color };
+              const changes = MUSCLE_KEYS.map((mk) => ({
+                mk,
+                thenIdx: computeMuscleRankForPeriod(mk, liftsData, bw, user?.gender, trendPeriod),
+                nowIdx: computeMuscleRankForPeriod(mk, liftsData, bw, user?.gender, 'now'),
+              })).filter((c) => c.nowIdx > c.thenIdx);
+              const periodLabel = trendPeriod === 'first' ? 'İlk Kayıt' : '1 Ay Önce';
+              return (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <Text style={{ color: C.text, fontWeight: '800', fontSize: 17 }}>Kas Gelişimi</Text>
+                    <TouchableOpacity onPress={() => setMuscleTrendVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close" size={22} color={C.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+                    <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 20, padding: 3 }}>
+                      <TouchableOpacity onPress={() => setTrendPeriod('1m')}
+                        style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 16, backgroundColor: trendPeriod === '1m' ? C.orange : 'transparent' }}>
+                        <Text style={{ fontSize: 12.5, fontWeight: '800', color: trendPeriod === '1m' ? '#0B0D12' : C.textMuted }}>1 Ay Önce</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setTrendPeriod('first')}
+                        style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 16, backgroundColor: trendPeriod === 'first' ? C.orange : 'transparent' }}>
+                        <Text style={{ fontSize: 12.5, fontWeight: '800', color: trendPeriod === 'first' ? '#0B0D12' : C.textMuted }}>İlk Kayıt</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 20, padding: 3 }}>
+                      <TouchableOpacity onPress={() => setTrendView('front')}
+                        style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: trendView === 'front' ? C.orange : 'transparent' }}>
+                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: trendView === 'front' ? '#0B0D12' : C.textMuted }}>Ön</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setTrendView('back')}
+                        style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: trendView === 'back' ? C.orange : 'transparent' }}>
+                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: trendView === 'back' ? '#0B0D12' : C.textMuted }}>Arka</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: 14 }}>
+                    <View style={{ alignItems: 'center' }}>
+                      <MuscleBodyMap width={120} view={trendView} ranks={thenMap} rankColors={rankColorsProp} defaultColor={C.surface2} baseColor={C.surface2} outlineColor={C.border} strokeColor="rgba(0,0,0,0.35)" detailColor="rgba(0,0,0,0.25)" showLabels={false} />
+                      <Text style={{ color: C.textMuted, fontSize: 10.5, fontWeight: '700', marginTop: 6 }}>{periodLabel.toUpperCase()}</Text>
+                    </View>
+                    <Ionicons name="arrow-forward" size={18} color={C.textMuted} style={{ marginBottom: 30 }} />
+                    <View style={{ alignItems: 'center' }}>
+                      <MuscleBodyMap width={120} view={trendView} ranks={nowMap} rankColors={rankColorsProp} defaultColor={C.surface2} baseColor={C.surface2} outlineColor={C.border} strokeColor="rgba(0,0,0,0.35)" detailColor="rgba(0,0,0,0.25)" showLabels={false} />
+                      <Text style={{ color: C.lime, fontSize: 10.5, fontWeight: '800', marginTop: 6 }}>ŞİMDİ</Text>
+                    </View>
+                  </View>
+
+                  <View style={{ marginTop: 18, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 14 }}>
+                    {changes.length > 0 ? changes.map(({ mk, thenIdx, nowIdx }) => (
+                      <View key={mk} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
+                        <Text style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{MUSCLE_NAMES[mk]}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={{ color: C.textMuted, fontSize: 12 }}>{thenIdx >= 0 ? RANKS[thenIdx].label : 'Yok'}</Text>
+                          <Ionicons name="arrow-forward" size={12} color={C.textMuted} />
+                          <Text style={{ color: RANKS[nowIdx].color, fontSize: 12, fontWeight: '800' }}>{RANKS[nowIdx].label}</Text>
+                        </View>
+                      </View>
+                    )) : (
+                      <Text style={{ color: C.textMuted, fontSize: 12.5, textAlign: 'center' }}>Bu dönemde rank değişikliği yok, devam et 💪</Text>
+                    )}
+                  </View>
+                </>
+              );
+            })()}
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* PR KUTLAMA */}

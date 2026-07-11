@@ -29,6 +29,83 @@ const axios = require('axios');
 const AD_DAILY_CAP = 3;
 const AD_REWARD = 5;
 
+// Güç sıralaması — geçerli hareket anahtarları (mobile/app/(tabs)/index.tsx içindeki LIFTS ile birebir eşleşmeli)
+const ALLOWED_LIFTS = [
+  'bench', 'squat', 'deadlift', 'ohp', 'latpull', 'curl', 'lateral',
+  'inclinebench', 'cablecrossover', 'dumbbellcurl', 'hammercurl', 'reversecurl',
+  'cablecrunch', 'situp', 'legext', 'tricepext', 'triceppushdown',
+  'seatedrow', 'barbellrow', 'shrug', 'hipthrust', 'glutebridge',
+  'rdl', 'legcurl', 'calfraise',
+];
+
+// ======================= KAS ORTALAMASI (mobile/app/(tabs)/index.tsx STD/RANKS/MUSCLE_LIFT_MAP ile senkron) =======================
+// NOT: bu tablolardan biri değişirse üçü de (mobile, backend/views/coach.html, burası) güncellenmeli.
+const MUSCLE_RANKS = [
+  { key: 'bronz',  label: 'Bronz' }, { key: 'gumus',  label: 'Gümüş' }, { key: 'altin',  label: 'Altın' },
+  { key: 'platin', label: 'Platin' }, { key: 'elmas',  label: 'Elmas' }, { key: 'efsane', label: 'Efsane' },
+];
+const MUSCLE_STD = {
+  bench: { erkek: [0.50, 0.75, 1.00, 1.25, 1.50, 1.80], kadin: [0.30, 0.45, 0.60, 0.80, 1.00, 1.20] },
+  squat: { erkek: [0.75, 1.00, 1.50, 1.75, 2.25, 2.60], kadin: [0.50, 0.75, 1.00, 1.25, 1.60, 1.90] },
+  deadlift: { erkek: [1.00, 1.25, 1.75, 2.25, 2.75, 3.10], kadin: [0.60, 0.90, 1.25, 1.60, 2.00, 2.30] },
+  ohp: { erkek: [0.35, 0.50, 0.65, 0.80, 1.00, 1.15], kadin: [0.20, 0.30, 0.45, 0.55, 0.70, 0.85] },
+  latpull: { erkek: [0.50, 0.65, 0.80, 1.00, 1.20, 1.40], kadin: [0.30, 0.45, 0.60, 0.75, 0.90, 1.05] },
+  curl: { erkek: [0.25, 0.35, 0.45, 0.60, 0.75, 0.90], kadin: [0.15, 0.22, 0.30, 0.40, 0.50, 0.60] },
+  lateral: { erkek: [0.06, 0.09, 0.12, 0.16, 0.20, 0.25], kadin: [0.04, 0.06, 0.09, 0.12, 0.15, 0.18] },
+  inclinebench: { erkek: [0.40, 0.60, 0.85, 1.05, 1.25, 1.50], kadin: [0.25, 0.38, 0.55, 0.70, 0.85, 1.00] },
+  cablecrossover: { erkek: [0.15, 0.25, 0.35, 0.45, 0.55, 0.65], kadin: [0.10, 0.16, 0.22, 0.29, 0.36, 0.43] },
+  dumbbellcurl: { erkek: [0.12, 0.18, 0.24, 0.32, 0.40, 0.48], kadin: [0.08, 0.11, 0.16, 0.20, 0.25, 0.30] },
+  hammercurl: { erkek: [0.13, 0.19, 0.26, 0.34, 0.42, 0.50], kadin: [0.08, 0.12, 0.17, 0.21, 0.26, 0.31] },
+  reversecurl: { erkek: [0.15, 0.22, 0.30, 0.40, 0.50, 0.60], kadin: [0.10, 0.14, 0.19, 0.25, 0.31, 0.37] },
+  cablecrunch: { erkek: [0.30, 0.45, 0.60, 0.80, 1.00, 1.20], kadin: [0.20, 0.30, 0.40, 0.52, 0.65, 0.78] },
+  situp: { erkek: [15, 25, 40, 60, 80, 100], kadin: [12, 20, 32, 48, 65, 85] },
+  legext: { erkek: [0.40, 0.60, 0.85, 1.10, 1.40, 1.70], kadin: [0.28, 0.42, 0.60, 0.78, 1.00, 1.20] },
+  tricepext: { erkek: [0.10, 0.15, 0.20, 0.27, 0.34, 0.41], kadin: [0.06, 0.09, 0.13, 0.17, 0.21, 0.26] },
+  triceppushdown: { erkek: [0.25, 0.38, 0.52, 0.68, 0.85, 1.02], kadin: [0.16, 0.24, 0.33, 0.43, 0.54, 0.65] },
+  seatedrow: { erkek: [0.50, 0.70, 0.90, 1.15, 1.40, 1.65], kadin: [0.32, 0.45, 0.60, 0.77, 0.94, 1.11] },
+  barbellrow: { erkek: [0.45, 0.65, 0.90, 1.15, 1.40, 1.65], kadin: [0.28, 0.41, 0.57, 0.73, 0.89, 1.05] },
+  shrug: { erkek: [0.75, 1.00, 1.50, 2.00, 2.50, 3.00], kadin: [0.50, 0.65, 1.00, 1.35, 1.70, 2.00] },
+  hipthrust: { erkek: [0.75, 1.10, 1.60, 2.10, 2.60, 3.10], kadin: [0.60, 0.90, 1.35, 1.80, 2.30, 2.80] },
+  glutebridge: { erkek: [0.65, 0.95, 1.40, 1.85, 2.30, 2.75], kadin: [0.50, 0.75, 1.15, 1.55, 1.95, 2.40] },
+  rdl: { erkek: [0.75, 1.00, 1.40, 1.80, 2.20, 2.60], kadin: [0.45, 0.68, 0.95, 1.25, 1.55, 1.85] },
+  legcurl: { erkek: [0.30, 0.45, 0.60, 0.80, 1.00, 1.20], kadin: [0.20, 0.30, 0.42, 0.55, 0.68, 0.82] },
+  calfraise: { erkek: [0.25, 0.40, 0.60, 0.85, 1.10, 1.35], kadin: [0.16, 0.26, 0.40, 0.56, 0.72, 0.88] },
+};
+const MUSCLE_REP_BASED = new Set(['situp']);
+const MUSCLE_LIFT_MAP = {
+  trapez: ['shrug'], omuz: ['ohp', 'lateral'], gogus: ['bench', 'inclinebench', 'cablecrossover'],
+  biceps: ['curl', 'dumbbellcurl', 'hammercurl'], onkol: ['reversecurl'], karin: ['cablecrunch', 'situp'],
+  kuad: ['squat', 'legext'], triceps: ['tricepext', 'triceppushdown'], sirt: ['latpull', 'seatedrow', 'barbellrow'],
+  bel: ['deadlift'], kalca: ['hipthrust', 'glutebridge'], arkabacak: ['rdl', 'legcurl'], kalf: ['calfraise'],
+};
+const MUSCLE_NAMES_TR = { trapez: 'Trapez', omuz: 'Omuz', gogus: 'Göğüs', biceps: 'Biceps', onkol: 'Ön Kol', karin: 'Karın', kuad: 'Quadriceps', triceps: 'Triceps', sirt: 'Sırt', bel: 'Bel', kalca: 'Kalça', arkabacak: 'Arka Bacak', kalf: 'Kalf' };
+
+function liftRankIndex(liftKey, best, bodyweight, gender) {
+  const std = MUSCLE_STD[liftKey];
+  if (!std || !(best > 0)) return -1;
+  const isFemale = String(gender || '').toLowerCase().indexOf('kad') === 0;
+  const th = std[isFemale ? 'kadin' : 'erkek'];
+  const bw = MUSCLE_REP_BASED.has(liftKey) ? 1 : (bodyweight > 0 ? bodyweight : 70);
+  const ratio = best / bw;
+  let idx = -1;
+  for (let i = 0; i < th.length; i++) if (ratio >= th[i]) idx = i;
+  return idx;
+}
+function muscleRankIndex(muscleKey, lifts, bodyweight, gender) {
+  const keys = MUSCLE_LIFT_MAP[muscleKey] || [];
+  const idxs = [];
+  for (const k of keys) {
+    const l = (lifts || {})[k];
+    if (!l || !(l.best > 0)) continue;
+    const reps = l.reps || 1;
+    const est = (MUSCLE_REP_BASED.has(k) || reps <= 1) ? l.best : Math.round(l.best * (1 + reps / 55));
+    const idx = liftRankIndex(k, est, bodyweight, gender);
+    if (idx >= 0) idxs.push(idx);
+  }
+  if (!idxs.length) return -1;
+  return Math.round(idxs.reduce((s, i) => s + i, 0) / idxs.length);
+}
+
 const mongoose = require('mongoose');
 
 mongoose.connect(process.env.MONGO_URI)
@@ -815,10 +892,9 @@ app.get('/me', authMiddleware, async (req, res) => {
 app.post('/update-lift', authMiddleware, async (req, res) => {
   try {
     const { lift, weight, reps, forceUpdate } = req.body;
-    const allowed = ['bench', 'squat', 'deadlift', 'ohp', 'latpull', 'curl', 'lateral'];
     const w = parseFloat(weight);
     const r = Math.max(1, Math.min(50, parseInt(reps, 10) || 1));
-    if (!allowed.includes(lift) || !(w > 0) || w > 1000) {
+    if (!ALLOWED_LIFTS.includes(lift) || !(w > 0) || w > 1000) {
       return res.status(400).json({ error: "Geçersiz hareket veya ağırlık." });
     }
     const user = await User.findById(req.userId);
@@ -827,12 +903,20 @@ app.post('/update-lift', authMiddleware, async (req, res) => {
     // Gerçekçilik tavanı: vücut ağırlığına oranlı abartı kontrolü.
     // Katsayılar elit (elmas) eşiğinin ~1.7 katı — gerçek outlier'lara izin verir,
     // 100 kg birinin 100 kg lateral girmesi gibi absürt değerleri reddeder.
+    // NOT: situp tekrar-bazlı (kg değil) — kendi tavanı ayrı, ratio yerine direkt tekrar sayısı.
     // İLERİDE: aynı siklet + en üst rank kullanıcıların ortalamasına göre dinamikleştirilebilir.
-    const MAX_RATIO = { bench: 2.5, squat: 3.6, deadlift: 4.5, ohp: 1.7, latpull: 2.3, curl: 1.4, lateral: 0.35 };
+    const MAX_RATIO = {
+      bench: 2.5, squat: 3.6, deadlift: 4.5, ohp: 1.7, latpull: 2.3, curl: 1.4, lateral: 0.35,
+      inclinebench: 2.1, cablecrossover: 0.9, dumbbellcurl: 0.7, hammercurl: 0.75, reversecurl: 0.85,
+      cablecrunch: 1.7, situp: 200, legext: 2.4, tricepext: 0.6, triceppushdown: 1.4,
+      seatedrow: 2.3, barbellrow: 2.3, shrug: 4.2, hipthrust: 4.3, glutebridge: 3.8,
+      rdl: 3.6, legcurl: 1.7, calfraise: 1.9,
+    };
     const bw = (user.weight && user.weight > 0) ? user.weight : 70;
-    const cap = Math.round(bw * MAX_RATIO[lift]);
+    const cap = lift === 'situp' ? MAX_RATIO.situp : Math.round(bw * MAX_RATIO[lift]);
     if (w > cap) {
-      return res.status(400).json({ error: `Bu ${w} kg, kilona göre gerçekçi sınırın (~${cap} kg) üstünde görünüyor. Doğru girdiysen yeni dünya rekorun olabilir 💪 — emin misen tekrar dene.` });
+      const unit = lift === 'situp' ? 'tekrar' : 'kg';
+      return res.status(400).json({ error: `Bu ${w} ${unit}, gerçekçi sınırın (~${cap} ${unit}) üstünde görünüyor. Doğru girdiysen yeni dünya rekorun olabilir 💪 — emin misen tekrar dene.` });
     }
 
     const lifts = user.lifts || {};
@@ -855,8 +939,7 @@ app.post('/update-lift', authMiddleware, async (req, res) => {
 app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
   try {
     const { lift } = req.query;
-    const allowed = ['bench', 'squat', 'deadlift', 'ohp', 'latpull', 'curl', 'lateral'];
-    if (!allowed.includes(lift)) return res.status(400).json({ error: "Geçersiz hareket." });
+    if (!ALLOWED_LIFTS.includes(lift)) return res.status(400).json({ error: "Geçersiz hareket." });
 
     const me = await User.findById(req.userId);
     if (!me) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
@@ -937,6 +1020,89 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Sıralama getirilemedi." });
   }
 });
+// Kas grubu bazlı liderlik tablosu — o kasa bağlı hareketlerin rank ortalamasına göre sıralar (5 kg siklet, VIP'e özel)
+app.get('/muscle-leaderboard', authMiddleware, async (req, res) => {
+  try {
+    const { muscle } = req.query;
+    if (!MUSCLE_LIFT_MAP[muscle]) return res.status(400).json({ error: "Geçersiz kas grubu." });
+
+    const me = await User.findById(req.userId);
+    if (!me) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+    const now = new Date();
+    const meVip = me.isVip && (!me.vipExpiresAt || me.vipExpiresAt > now);
+    if (!meVip) return res.status(403).json({ error: "Bu özellik VIP'e özel kanka." });
+    if (!me.weight) return res.status(400).json({ error: "Önce profilden kilonu gir." });
+
+    const normGender = (g) => {
+      const s = String(g || '').toLowerCase();
+      return (s === 'female' || s === 'kadın' || s === 'kadin') ? 'female' : 'male';
+    };
+    const myGender = normGender(me.gender);
+
+    const bracketMin = Math.floor(me.weight / 5) * 5;
+    const bracketMax = bracketMin + 5;
+
+    const users = await User.find({
+      weight: { $gte: bracketMin, $lt: bracketMax }
+    }).select('name lifts weight isVip vipExpiresAt gender profilePhoto googlePhoto');
+
+    const ranked = users
+      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && normGender(u.gender) === myGender)
+      .map(u => ({ id: String(u._id), name: u.name || 'Anonim', rankIdx: muscleRankIndex(muscle, u.lifts, u.weight, u.gender), photo: u.profilePhoto || u.googlePhoto || null }))
+      .filter(u => u.rankIdx >= 0)
+      .sort((a, b) => b.rankIdx - a.rankIdx);
+
+    const mask = (n) => {
+      const parts = String(n).trim().split(/\s+/);
+      return parts.length > 1 ? `${parts[0]} ${parts[1][0].toUpperCase()}.` : parts[0];
+    };
+
+    const myId = String(me._id);
+    const myRank = ranked.findIndex(u => u.id === myId) + 1;
+    const top = ranked.slice(0, 20);
+
+    const topIds = top.map(u => u.id).filter(id => id !== myId);
+    const friendships = await Friendship.find({
+      $or: [
+        { requesterId: myId, recipientId: { $in: topIds } },
+        { recipientId: myId, requesterId: { $in: topIds } },
+      ],
+    }).catch(() => []);
+    const friendStatusFor = (otherId) => {
+      const fs = friendships.find(f => f.requesterId.equals(otherId) || f.recipientId.equals(otherId));
+      if (!fs) return 'none';
+      return fs.requesterId.equals(myId) ? `sent_${fs.status}` : `received_${fs.status}`;
+    };
+
+    const top10 = top.map((u, i) => ({
+      rank: i + 1,
+      id: u.id,
+      name: mask(u.name),
+      rankLabel: MUSCLE_RANKS[u.rankIdx].label,
+      rankKey: MUSCLE_RANKS[u.rankIdx].key,
+      photo: u.photo,
+      isMe: u.id === myId,
+      friendStatus: u.id === myId ? 'self' : friendStatusFor(u.id),
+    }));
+
+    const myRankIdx = muscleRankIndex(muscle, me.lifts, me.weight, me.gender);
+    res.json({
+      muscle,
+      muscleLabel: MUSCLE_NAMES_TR[muscle] || muscle,
+      bracket: `${bracketMin}-${bracketMax} kg`,
+      gender: myGender,
+      genderLabel: myGender === 'female' ? 'Kadın' : 'Erkek',
+      total: ranked.length,
+      myRank,
+      myRankLabel: myRankIdx >= 0 ? MUSCLE_RANKS[myRankIdx].label : null,
+      top10
+    });
+  } catch (err) {
+    console.error("🔥 /muscle-leaderboard Hatası:", err);
+    res.status(500).json({ error: "Sıralama getirilemedi." });
+  }
+});
 // Güç sıralaması — kullanıcının TÜM hareketlerdeki siklet sırası (tek çağrı, inline gösterim için)
 app.get('/my-lift-ranks', authMiddleware, async (req, res) => {
   try {
@@ -960,7 +1126,7 @@ app.get('/my-lift-ranks', authMiddleware, async (req, res) => {
       .select('lifts isVip vipExpiresAt gender'))
       .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && normGender(u.gender) === myGender);
 
-    const lifts = ['bench', 'squat', 'deadlift', 'ohp', 'latpull', 'curl', 'lateral'];
+    const lifts = ALLOWED_LIFTS;
     const myId = String(me._id);
     const ranks = {};
     for (const lift of lifts) {

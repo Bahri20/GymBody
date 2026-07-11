@@ -301,6 +301,7 @@
             <button class="btn btn-ghost btn-sm" onclick="closeStudent()">← Geri</button>
           </div>
           <div class="glass" id="sProgress" style="padding:18px;margin-bottom:14px"></div>
+          <div class="glass" id="sMuscleMap" style="padding:18px;margin-bottom:14px"></div>
 
           <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px">
             <div class="segwrap">
@@ -421,6 +422,168 @@
   const esc = s => (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const initials = n => (n||'?').trim().split(/\s+/).slice(0,2).map(w=>(w[0]||'')).join('').toUpperCase();
 
+  // ======================= KAS HARİTASI (mobile app'teki mantığın vanilla JS portu) =======================
+  // NOT: mobile/app/(tabs)/index.tsx içindeki RANKS/STD/LIFTS ile senkron tutulmalı — biri değişirse öbürü de güncellensin.
+  const MM_RANKS = [
+    { key:'bronz',  label:'Bronz',  color:'#CD7F32' },
+    { key:'gumus',  label:'Gümüş',  color:'#C0C0C0' },
+    { key:'altin',  label:'Altın',  color:'#FFD700' },
+    { key:'platin', label:'Platin', color:'#5BC8E0' },
+    { key:'elmas',  label:'Elmas',  color:'#9B6BFF' },
+    { key:'efsane', label:'Efsane', color:'#EF4444' },
+  ];
+  const MM_STD = {
+    bench:{erkek:[0.50,0.75,1.00,1.25,1.50,1.80],kadin:[0.30,0.45,0.60,0.80,1.00,1.20]},
+    squat:{erkek:[0.75,1.00,1.50,1.75,2.25,2.60],kadin:[0.50,0.75,1.00,1.25,1.60,1.90]},
+    deadlift:{erkek:[1.00,1.25,1.75,2.25,2.75,3.10],kadin:[0.60,0.90,1.25,1.60,2.00,2.30]},
+    ohp:{erkek:[0.35,0.50,0.65,0.80,1.00,1.15],kadin:[0.20,0.30,0.45,0.55,0.70,0.85]},
+    latpull:{erkek:[0.50,0.65,0.80,1.00,1.20,1.40],kadin:[0.30,0.45,0.60,0.75,0.90,1.05]},
+    curl:{erkek:[0.25,0.35,0.45,0.60,0.75,0.90],kadin:[0.15,0.22,0.30,0.40,0.50,0.60]},
+    lateral:{erkek:[0.06,0.09,0.12,0.16,0.20,0.25],kadin:[0.04,0.06,0.09,0.12,0.15,0.18]},
+    inclinebench:{erkek:[0.40,0.60,0.85,1.05,1.25,1.50],kadin:[0.25,0.38,0.55,0.70,0.85,1.00]},
+    cablecrossover:{erkek:[0.15,0.25,0.35,0.45,0.55,0.65],kadin:[0.10,0.16,0.22,0.29,0.36,0.43]},
+    dumbbellcurl:{erkek:[0.12,0.18,0.24,0.32,0.40,0.48],kadin:[0.08,0.11,0.16,0.20,0.25,0.30]},
+    hammercurl:{erkek:[0.13,0.19,0.26,0.34,0.42,0.50],kadin:[0.08,0.12,0.17,0.21,0.26,0.31]},
+    reversecurl:{erkek:[0.15,0.22,0.30,0.40,0.50,0.60],kadin:[0.10,0.14,0.19,0.25,0.31,0.37]},
+    cablecrunch:{erkek:[0.30,0.45,0.60,0.80,1.00,1.20],kadin:[0.20,0.30,0.40,0.52,0.65,0.78]},
+    situp:{erkek:[15,25,40,60,80,100],kadin:[12,20,32,48,65,85]},
+    legext:{erkek:[0.40,0.60,0.85,1.10,1.40,1.70],kadin:[0.28,0.42,0.60,0.78,1.00,1.20]},
+    tricepext:{erkek:[0.10,0.15,0.20,0.27,0.34,0.41],kadin:[0.06,0.09,0.13,0.17,0.21,0.26]},
+    triceppushdown:{erkek:[0.25,0.38,0.52,0.68,0.85,1.02],kadin:[0.16,0.24,0.33,0.43,0.54,0.65]},
+    seatedrow:{erkek:[0.50,0.70,0.90,1.15,1.40,1.65],kadin:[0.32,0.45,0.60,0.77,0.94,1.11]},
+    barbellrow:{erkek:[0.45,0.65,0.90,1.15,1.40,1.65],kadin:[0.28,0.41,0.57,0.73,0.89,1.05]},
+    shrug:{erkek:[0.75,1.00,1.50,2.00,2.50,3.00],kadin:[0.50,0.65,1.00,1.35,1.70,2.00]},
+    hipthrust:{erkek:[0.75,1.10,1.60,2.10,2.60,3.10],kadin:[0.60,0.90,1.35,1.80,2.30,2.80]},
+    glutebridge:{erkek:[0.65,0.95,1.40,1.85,2.30,2.75],kadin:[0.50,0.75,1.15,1.55,1.95,2.40]},
+    rdl:{erkek:[0.75,1.00,1.40,1.80,2.20,2.60],kadin:[0.45,0.68,0.95,1.25,1.55,1.85]},
+    legcurl:{erkek:[0.30,0.45,0.60,0.80,1.00,1.20],kadin:[0.20,0.30,0.42,0.55,0.68,0.82]},
+    calfraise:{erkek:[0.25,0.40,0.60,0.85,1.10,1.35],kadin:[0.16,0.26,0.40,0.56,0.72,0.88]},
+  };
+  const MM_REP_BASED = new Set(['situp']);
+  const MM_MUSCLE_LIFT_MAP = {
+    trapez:['shrug'], omuz:['ohp','lateral'], gogus:['bench','inclinebench','cablecrossover'],
+    biceps:['curl','dumbbellcurl','hammercurl'], onkol:['reversecurl'], karin:['cablecrunch','situp'],
+    kuad:['squat','legext'], triceps:['tricepext','triceppushdown'], sirt:['latpull','seatedrow','barbellrow'],
+    bel:['deadlift'], kalca:['hipthrust','glutebridge'], arkabacak:['rdl','legcurl'], kalf:['calfraise'],
+  };
+  const MM_MUSCLE_NAMES = { trapez:'Trapez', omuz:'Omuz', gogus:'Göğüs', biceps:'Biceps', onkol:'Ön Kol', karin:'Karın', kuad:'Quadriceps', triceps:'Triceps', sirt:'Sırt', bel:'Bel', kalca:'Kalça', arkabacak:'Arka Bacak', kalf:'Kalf' };
+
+  function mmRankIndex(liftKey, best, bodyweight, gender){
+    const std = MM_STD[liftKey]; if(!std || !(best>0)) return -1;
+    const isFemale = String(gender||'').toLowerCase().indexOf('kad')===0;
+    const th = std[isFemale?'kadin':'erkek'];
+    const bw = MM_REP_BASED.has(liftKey) ? 1 : (bodyweight>0?bodyweight:70);
+    const ratio = best/bw;
+    let idx=-1;
+    for(let i=0;i<th.length;i++) if(ratio>=th[i]) idx=i;
+    return idx;
+  }
+  function mmMuscleRank(muscleKey, lifts, bw, gender){
+    const keys = MM_MUSCLE_LIFT_MAP[muscleKey]||[];
+    const idxs=[];
+    keys.forEach(function(k){
+      const l = (lifts||{})[k]; if(!l || !(l.best>0)) return;
+      const reps = l.reps||1;
+      const est = (MM_REP_BASED.has(k) || reps<=1) ? l.best : Math.round(l.best*(1+reps/55));
+      const idx = mmRankIndex(k, est, bw, gender);
+      if(idx>=0) idxs.push(idx);
+    });
+    if(!idxs.length) return -1;
+    return Math.round(idxs.reduce(function(s,i){return s+i;},0)/idxs.length);
+  }
+
+  // Kas bölgesi path'leri — mobile/components/MuscleBodyMap.tsx ile aynı koordinat sistemi (viewBox 0 -20 230 460, sadeleştirilmiş)
+  const MM_MUSCLES = [
+    { key:'trapez', view:'front', mirror:true, d:'M108,54 C98,56 86,59 76,64 C86,68 98,68 107,62 Z' },
+    { key:'omuz', view:'front', mirror:true, d:'M70,63 C60,67 52,76 49,89 C53,98 62,101 70,98 C75,87 75,74 70,63 Z' },
+    { key:'gogus', view:'front', mirror:true, d:'M113,66 C98,66 86,70 80,79 C78,90 83,100 93,105 C104,109 112,107 113,100 L113,66 Z' },
+    { key:'biceps', view:'front', mirror:true, d:'M50,94 C44,103 41,115 40,129 C39,139 40,147 43,153 C50,151 55,144 57,133 C59,118 56,103 50,94 Z' },
+    { key:'onkol', view:'front', mirror:true, d:'M42,158 C38,170 35,184 33,198 C32,208 31,216 31,224 C35,226 39,224 41,219 C44,207 46,193 48,179 C49,169 47,161 42,158 Z' },
+    { key:'karin', view:'front', mirror:false, d:'M97,110 C92,123 90,138 92,153 C94,167 100,180 107,189 C112,193 118,193 123,189 C130,180 136,167 138,153 C140,138 138,123 133,110 C121,105 109,105 97,110 Z' },
+    { key:'kuad', view:'front', mirror:true, d:'M90,216 C85,236 84,258 87,278 C89,294 94,306 100,312 C106,306 110,294 111,278 C112,258 111,236 108,218 C102,212 95,212 90,216 Z' },
+    { key:'trapez', view:'back', mirror:true, d:'M108,54 C98,56 86,59 76,64 C86,68 98,68 107,62 Z' },
+    { key:'omuz', view:'back', mirror:true, d:'M70,63 C60,67 52,76 49,89 C53,98 62,101 70,98 C75,87 75,74 70,63 Z' },
+    { key:'triceps', view:'back', mirror:true, d:'M50,94 C44,103 41,115 40,129 C39,139 40,147 43,153 C50,151 55,144 57,133 C59,118 56,103 50,94 Z' },
+    { key:'sirt', view:'back', mirror:false, d:'M115,64 C104,64 90,68 82,76 C79,90 80,108 82,122 C85,140 92,154 101,162 C106,166 111,167 115,167 C119,167 124,166 129,162 C138,154 145,140 148,122 C150,108 151,90 148,76 C140,68 126,64 115,64 Z' },
+    { key:'bel', view:'back', mirror:false, d:'M105,164 C103,175 103,187 105,198 L125,198 C127,187 127,175 125,164 C119,170 111,170 105,164 Z' },
+    { key:'kalca', view:'back', mirror:true, d:'M89,200 C84,210 83,222 86,234 C90,245 99,249 107,247 C113,243 115,233 114,223 C113,211 109,203 103,199 C98,196 92,196 89,200 Z' },
+    { key:'arkabacak', view:'back', mirror:true, d:'M88,252 C84,272 84,292 87,310 C89,322 94,332 99,338 C104,332 108,322 109,310 C111,292 110,272 108,254 C101,248 93,248 88,252 Z' },
+    { key:'kalf', view:'back', mirror:true, d:'M91,344 C86,358 85,374 88,390 C90,400 94,408 98,412 C102,408 105,400 106,390 C107,374 106,358 103,346 C99,340 94,340 91,344 Z' },
+  ];
+  const MM_BASE = {
+    neck:'M107,40 L107,56 L123,56 L123,40 C120,45 110,45 107,40 Z',
+    torso:'M70,62 C68,84 72,106 80,126 C86,140 92,150 93,158 C94,174 90,190 88,202 L88,210 L142,210 L142,202 C140,190 136,174 137,158 C138,150 144,140 150,126 C158,106 162,84 160,62 C146,55 130,52 115,52 C100,52 84,55 70,62 Z',
+    arm:'M69,63 C58,68 50,78 46,92 C42,108 40,124 38,140 C36,158 34,174 31,190 C29,202 28,212 27,220 L45,226 C48,214 50,202 52,190 C55,172 58,154 60,138 C62,122 64,106 66,92 C67,80 68,70 69,63 Z',
+    leg:'M88,210 C84,234 83,258 85,280 C87,302 90,322 92,342 C94,362 95,382 96,400 L96,420 L110,420 L111,400 C112,380 112,360 112,340 C112,318 112,296 113,274 C114,254 114,232 115,214 L115,210 Z',
+  };
+  const MM_MIRROR = 'translate(230,0) scale(-1,1)';
+  function mmMirrored(d, fill){
+    return '<path d="'+d+'" fill="'+fill+'"/><path d="'+d+'" fill="'+fill+'" transform="'+MM_MIRROR+'"/>';
+  }
+  function mmFillFor(ranksMap, key, defaultColor){
+    const r = ranksMap[key];
+    if(!r) return defaultColor;
+    const found = MM_RANKS.find(function(x){return x.key===r;});
+    return found ? found.color : defaultColor;
+  }
+  // Tek görünüm (front/back) SVG'si — sadeleştirilmiş silüet (saç/yüz detayı yok, mobile app'teki tam figürün küçük versiyonu)
+  function mmRenderFigure(view, ranksMap){
+    const defaultColor='#2A2E40', skin='#3A3F55';
+    let s = '<svg viewBox="0 -10 230 440" width="120" height="'+Math.round(120*450/230)+'">';
+    s += '<g fill="'+skin+'" stroke="#4A4F65" stroke-width="1">';
+    s += '<ellipse cx="115" cy="18" rx="19" ry="20"/>';
+    s += '<path d="'+MM_BASE.neck+'"/>';
+    s += '<path d="'+MM_BASE.torso+'"/>';
+    s += mmMirrored(MM_BASE.arm, skin);
+    s += '<ellipse cx="36" cy="236" rx="9" ry="11"/><ellipse cx="194" cy="236" rx="9" ry="11"/>';
+    s += mmMirrored(MM_BASE.leg, skin);
+    s += '</g>';
+    s += '<g stroke="rgba(0,0,0,0.35)" stroke-width="1">';
+    MM_MUSCLES.filter(function(m){return m.view===view;}).forEach(function(m){
+      const fill = mmFillFor(ranksMap, m.key, defaultColor);
+      s += m.mirror ? mmMirrored(m.d, fill) : ('<path d="'+m.d+'" fill="'+fill+'"/>');
+    });
+    s += '</g></svg>';
+    return s;
+  }
+  function mmBuildRanksMap(lifts, bw, gender){
+    const out={};
+    Object.keys(MM_MUSCLE_LIFT_MAP).forEach(function(mk){
+      const idx = mmMuscleRank(mk, lifts, bw, gender);
+      if(idx>=0) out[mk]=MM_RANKS[idx].key;
+    });
+    return out;
+  }
+  function renderMuscleMap(lifts, weight, gender){
+    const bw = weight>0?weight:70;
+    const ranksMap = mmBuildRanksMap(lifts||{}, bw, gender);
+    const idxs = Object.keys(MM_MUSCLE_LIFT_MAP).map(function(mk){return mmMuscleRank(mk, lifts||{}, bw, gender);}).filter(function(i){return i>=0;});
+    const avgIdx = idxs.length ? Math.round(idxs.reduce(function(s,i){return s+i;},0)/idxs.length) : -1;
+    const avgRank = avgIdx>=0 ? MM_RANKS[avgIdx] : null;
+    let html = '<p class="muted" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">💪 Kas Haritası</p>';
+    html += '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">';
+    html += '<div style="display:flex;gap:10px">';
+    html += '<div style="text-align:center">'+mmRenderFigure('front', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Ön</div></div>';
+    html += '<div style="text-align:center">'+mmRenderFigure('back', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Arka</div></div>';
+    html += '</div>';
+    html += '<div style="flex:1;min-width:160px">';
+    if(avgRank){
+      html += '<div style="display:inline-flex;align-items:center;gap:6px;background:'+avgRank.color+'22;border:1px solid '+avgRank.color+';border-radius:20px;padding:5px 12px;margin-bottom:10px"><span style="width:7px;height:7px;border-radius:4px;background:'+avgRank.color+'"></span><b style="color:'+avgRank.color+';font-size:12px">ORTALAMA: '+avgRank.label.toUpperCase()+'</b></div>';
+    } else {
+      html += '<p class="muted" style="margin-bottom:10px">Henüz yeterli veri yok.</p>';
+    }
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px 14px">';
+    Object.keys(MM_MUSCLE_NAMES).forEach(function(mk){
+      const r = ranksMap[mk];
+      const found = r ? MM_RANKS.find(function(x){return x.key===r;}) : null;
+      const color = found ? found.color : 'var(--muted)';
+      const label = found ? found.label : '—';
+      html += '<span style="font-size:11.5px;color:var(--muted)">'+MM_MUSCLE_NAMES[mk]+': <b style="color:'+color+'">'+label+'</b></span>';
+    });
+    html += '</div></div></div>';
+    return html;
+  }
+
   async function login(){
     const email=document.getElementById('email').value.trim(), password=document.getElementById('pass').value;
     const e=document.getElementById('loginErr'); e.textContent='';
@@ -507,6 +670,7 @@
       (bs.waist?'<div style="display:flex;justify-content:space-between;padding:3px 0"><span class="muted">Bel</span><b style="color:var(--primary)">'+bs.waist+' cm</b></div>':'')+
       (bs.shoulder?'<div style="display:flex;justify-content:space-between;padding:3px 0"><span class="muted">Omuz</span><b style="color:var(--primary)">'+bs.shoulder+' cm</b></div>':''))
       :'<p class="muted">Henüz ölçü kaydı yok.</p>');
+    document.getElementById('sMuscleMap').innerHTML=renderMuscleMap(d.lifts, d.weight, d.gender);
     _plan=(d.workoutPlan&&d.workoutPlan.length)?JSON.parse(JSON.stringify(d.workoutPlan)):[];
     _activeDay=0;_openGroups={};
     renderPlan();
