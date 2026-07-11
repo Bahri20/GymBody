@@ -6,7 +6,18 @@
 // muscleKey: MuscleBodyMap bileşenindeki kas bölgesi anahtarı (bkz. mobile/components/MuscleBodyMap.tsx)
 // unit: 'tekrar' ise ağırlık değil tekrar sayısı kaydedilir (rank hesabı vücut ağırlığına bölünmez)
 // libraryName: backend ExerciseGif koleksiyonundaki tam isim (gif eşleşmesi için)
-export const LIFTS = [
+export type Lift = {
+  key: string;
+  label: string;
+  icon: string;
+  muscle: string;
+  muscleKey: string;
+  libraryName: string;
+  unit?: 'tekrar';
+  hint?: string;
+};
+
+export const LIFTS: readonly Lift[] = [
   { key: 'bench',    label: 'Bench Press',  icon: '🏋️', muscle: 'Göğüs', muscleKey: 'gogus', libraryName: 'Bench Press' },
   { key: 'squat',    label: 'Barbell Squat', icon: '🦵', muscle: 'Bacak', muscleKey: 'kuad', libraryName: 'Barbell Squat' },
   { key: 'deadlift', label: 'Deadlift',     icon: '🔩', muscle: 'Bel', muscleKey: 'bel', libraryName: 'Deadlift' },
@@ -33,7 +44,7 @@ export const LIFTS = [
   { key: 'rdl', label: 'Romanian Deadlift', icon: '🦵', muscle: 'Arka Bacak', muscleKey: 'arkabacak', libraryName: 'Romanian Deadlift' },
   { key: 'legcurl', label: 'Leg Curl', icon: '🦿', muscle: 'Arka Bacak', muscleKey: 'arkabacak', libraryName: 'Leg Curl' },
   { key: 'calfraise', label: 'Calf Raise', icon: '🦶', muscle: 'Kalf', muscleKey: 'kalf', hint: 'Tek dumbbell ağırlığı', libraryName: 'Calf Raises' },
-] as const;
+];
 
 // tekrar-bazlı (kg değil) hareketler — computeRank'ta vücut ağırlığına bölünmez
 export const REP_BASED_LIFTS = new Set(['situp']);

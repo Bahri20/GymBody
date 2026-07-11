@@ -601,7 +601,7 @@ export default function App() {
     const w = parseFloat(liftInput.replace(',', '.'));
     const r = Math.max(1, Math.min(50, parseInt(liftRepsInput, 10) || 1));
     const liftMeta = LIFTS.find(l => l.key === liftModal);
-    if (!liftModal || !(w > 0)) { showToast((liftMeta as any)?.unit === 'tekrar' ? 'Geçerli bir tekrar sayısı gir.' : 'Geçerli bir ağırlık gir.', 'error'); return; }
+    if (!liftModal || !(w > 0)) { showToast(liftMeta?.unit === 'tekrar' ? 'Geçerli bir tekrar sayısı gir.' : 'Geçerli bir ağırlık gir.', 'error'); return; }
     setLiftSaving(true);
     try {
       const res = await axios.post(`${API_URL}/update-lift`, { lift: liftModal, weight: w, reps: r, forceUpdate: true }, {
@@ -3485,7 +3485,7 @@ const pickAndUploadProfilePhoto = async () => {
             const liftData = user?.lifts?.[lift.key];
             const best = liftData?.best || 0;
             const reps = liftData?.reps || 1;
-            const isRepBased = (lift as any).unit === 'tekrar';
+            const isRepBased = lift.unit === 'tekrar';
             const unitLabel = isRepBased ? 'tekrar' : 'kg';
             const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
             const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
@@ -3498,7 +3498,7 @@ const pickAndUploadProfilePhoto = async () => {
             // Epley (÷30) yüksek tekrarlarda çok iyimser tahmin veriyor — daha muhafazakar ÷55 kullanıyoruz
             const estimated1RM = best > 0 ? (reps > 1 && !isRepBased ? Math.round(best * (1 + reps / 55)) : best) : 0;
             const accentColor = rank ? rank.color : C.lime;
-            const gifUrl = (lift as any).libraryName ? gifByLiftName[(lift as any).libraryName.toLowerCase().trim()] : null;
+            const gifUrl = lift.libraryName ? gifByLiftName[lift.libraryName.toLowerCase().trim()] : null;
 
             return (
               <TouchableOpacity key={lift.key} activeOpacity={0.75}
@@ -3616,12 +3616,12 @@ const pickAndUploadProfilePhoto = async () => {
             }).map((lift) => {
               const liftData = user?.lifts?.[lift.key];
               const best = liftData?.best || 0;
-              const isRepBased = (lift as any).unit === 'tekrar';
+              const isRepBased = lift.unit === 'tekrar';
               const unitLabel = isRepBased ? 'tekrar' : 'kg';
               const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
               const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
               const accentColor = rank ? rank.color : C.lime;
-              const gifUrl = (lift as any).libraryName ? gifByLiftName[(lift as any).libraryName.toLowerCase().trim()] : null;
+              const gifUrl = lift.libraryName ? gifByLiftName[lift.libraryName.toLowerCase().trim()] : null;
               return (
                 <TouchableOpacity key={lift.key} activeOpacity={0.75} onPress={() => openLiftEntry(lift.key, best)}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 14, marginBottom: 7, backgroundColor: C.surface, borderWidth: 1, borderColor: best > 0 ? accentColor + '30' : C.border }}>
@@ -5084,20 +5084,20 @@ const pickAndUploadProfilePhoto = async () => {
             {(() => {
               const lift = LIFTS.find(l => l.key === liftModal);
               if (!lift) return null;
-              const isRepBased = (lift as any).unit === 'tekrar';
+              const isRepBased = lift.unit === 'tekrar';
               const unitLabel = isRepBased ? 'tekrar' : 'kg';
               const best = user?.lifts?.[liftModal!]?.best || 0;
               return (
                 <>
                   <Text style={{ fontSize: 34, textAlign: 'center', marginBottom: 6 }}>{lift.icon}</Text>
                   <Text style={{ color: C.text, fontWeight: '800', fontSize: 19, textAlign: 'center' }}>{lift.label}</Text>
-                  <Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: (lift as any).hint ? 8 : 18 }}>
+                  <Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: lift.hint ? 8 : 18 }}>
                     {lift.muscle} • Şu anki rekor: {best ? `${best} ${unitLabel}` : '—'}
                   </Text>
-                  {(lift as any).hint && (
+                  {lift.hint && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 16 }}>
                       <Ionicons name="information-circle-outline" size={14} color={C.orange} />
-                      <Text style={{ color: C.orange, fontSize: 12 }}>{(lift as any).hint}</Text>
+                      <Text style={{ color: C.orange, fontSize: 12 }}>{lift.hint}</Text>
                     </View>
                   )}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -5204,7 +5204,7 @@ const pickAndUploadProfilePhoto = async () => {
                                 </TouchableOpacity>
                               );
                             })()}
-                            <Text style={{ color: row.isMe ? C.orange : C.textSec, fontWeight: '800', fontSize: 15, minWidth: 52, textAlign: 'right' }}>{row.best} {(lift as any)?.unit === 'tekrar' ? 'tekrar' : 'kg'}</Text>
+                            <Text style={{ color: row.isMe ? C.orange : C.textSec, fontWeight: '800', fontSize: 15, minWidth: 52, textAlign: 'right' }}>{row.best} {lift?.unit === 'tekrar' ? 'tekrar' : 'kg'}</Text>
                           </View>
                         )) : (
                           <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginVertical: 30 }}>
@@ -5216,7 +5216,7 @@ const pickAndUploadProfilePhoto = async () => {
                             borderRadius: 12, marginTop: 6, backgroundColor: 'rgba(255,159,28,0.14)', borderWidth: 1, borderColor: C.orange }}>
                             <Text style={{ width: 30, textAlign: 'center', fontSize: 14, fontWeight: '800', color: C.orange }}>#{leaderboardData.myRank}</Text>
                             <Text style={{ flex: 1, color: C.orange, fontWeight: '800', fontSize: 14 }}>Sen</Text>
-                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{leaderboardData.myBest} {(lift as any)?.unit === 'tekrar' ? 'tekrar' : 'kg'}</Text>
+                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{leaderboardData.myBest} {lift?.unit === 'tekrar' ? 'tekrar' : 'kg'}</Text>
                           </View>
                         )}
                       </ScrollView>
