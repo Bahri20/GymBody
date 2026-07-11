@@ -92,8 +92,7 @@ function liftRankIndex(liftKey, best, bodyweight, gender) {
   return idx;
 }
 // NOT: ham l.best kullanılır (Epley 1RM DEĞİL) — mobile app'teki hareket kartında gösterilen
-// rank ile birebir aynı olsun diye. Kas rank'ı EN DÜŞÜK hareketin rank'ıdır (zayıf halka) —
-// biri elmas diğeri platin ise kas platin sayılır, ortalama alınıp yukarı yuvarlanmaz.
+// rank ile birebir aynı olsun diye. Kas rank'ı bağlı hareketlerin ortalamasıdır (en yakın rank'a yuvarlanır).
 function muscleRankIndex(muscleKey, lifts, bodyweight, gender) {
   const keys = MUSCLE_LIFT_MAP[muscleKey] || [];
   const idxs = [];
@@ -104,7 +103,7 @@ function muscleRankIndex(muscleKey, lifts, bodyweight, gender) {
     if (idx >= 0) idxs.push(idx);
   }
   if (!idxs.length) return -1;
-  return Math.min(...idxs);
+  return Math.round(idxs.reduce((s, i) => s + i, 0) / idxs.length);
 }
 
 const mongoose = require('mongoose');

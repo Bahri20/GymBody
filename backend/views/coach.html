@@ -479,8 +479,7 @@
     return idx;
   }
   // NOT: ham l.best kullanılır (Epley 1RM DEĞİL) — mobile app'teki hareket kartında gösterilen
-  // rank ile birebir aynı olsun diye. Kas rank'ı EN DÜŞÜK hareketin rank'ıdır (zayıf halka) —
-  // biri elmas diğeri platin ise kas platin sayılır, ortalama alınıp yukarı yuvarlanmaz.
+  // rank ile birebir aynı olsun diye. Kas rank'ı bağlı hareketlerin ortalamasıdır (en yakın rank'a yuvarlanır).
   function mmMuscleRank(muscleKey, lifts, bw, gender){
     const keys = MM_MUSCLE_LIFT_MAP[muscleKey]||[];
     const idxs=[];
@@ -490,7 +489,7 @@
       if(idx>=0) idxs.push(idx);
     });
     if(!idxs.length) return -1;
-    return Math.min.apply(null, idxs);
+    return Math.round(idxs.reduce(function(s,i){return s+i;},0)/idxs.length);
   }
 
   // Kas bölgesi path'leri — mobile/components/MuscleBodyMap.tsx ile aynı koordinat sistemi (viewBox 0 -20 230 460, sadeleştirilmiş)
