@@ -458,13 +458,14 @@ function estRankIndex(liftKey: string, liftData: any, bodyweight: number, gender
   return computeRank(liftKey, best, bodyweight, gender).rankIndex;
 }
 
-// Kas bazlı ortalama: o kasa bağlı hareketlerin rank ortalaması (kayıtlı olanlar üzerinden)
+// Kas bazlı rank: o kasa bağlı hareketlerin EN DÜŞÜĞÜ (zayıf halka) — biri elmas diğeri
+// platin ise kas platin sayılır, ikisi de o rank'a ulaşmadan renk atlamaz.
 function computeMuscleRank(muscleKey: string, liftsData: Record<string, any>, bodyweight: number, gender?: string): number {
   const idxs = (MUSCLE_LIFT_MAP[muscleKey] || [])
     .map((k) => estRankIndex(k, liftsData?.[k], bodyweight, gender))
     .filter((i) => i >= 0);
   if (!idxs.length) return -1;
-  return Math.round(idxs.reduce((s, i) => s + i, 0) / idxs.length);
+  return Math.min(...idxs);
 }
 
 // Genel vücut ortalaması: kas bölgesi ortalamalarının ortalaması (hareketi çok olan kas haksız ağırlık kazanmaz)
@@ -526,7 +527,7 @@ function computeMuscleRankForPeriod(muscleKey: string, liftsData: Record<string,
     })
     .filter((i) => i >= 0);
   if (!idxs.length) return -1;
-  return Math.round(idxs.reduce((s, i) => s + i, 0) / idxs.length);
+  return Math.min(...idxs); // zayıf halka — computeMuscleRank ile aynı mantık
 }
 
 function buildMuscleRanksMapForPeriod(liftsData: Record<string, any>, bodyweight: number, gender: string | undefined, period: TrendPeriod): Record<string, string> {
@@ -628,6 +629,7 @@ export default function App() {
   const nestedCarouselActive = useRef(false);
   const [gymTab, setGymTab] = useState<'program' | 'max'>('program');
   const [bodyMapView, setBodyMapView] = useState<'front' | 'back'>('front');
+  const [liftViewMode, setLiftViewMode] = useState<'cards' | 'list'>('cards');
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
   const [muscleTrendVisible, setMuscleTrendVisible] = useState(false);
   const [trendPeriod, setTrendPeriod] = useState<'1m' | 'first'>('1m');
@@ -3629,14 +3631,27 @@ const pickAndUploadProfilePhoto = async () => {
             );
           })()}
 
-          {selectedMuscle && (
-            <TouchableOpacity onPress={() => setSelectedMuscle(null)} activeOpacity={0.8}
-              style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface2, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12, marginBottom: 10 }}>
-              <Ionicons name="close-circle" size={15} color={C.textMuted} />
-              <Text style={{ color: C.textSec, fontSize: 12, fontWeight: '700' }}>{MUSCLE_NAMES[selectedMuscle]} · Tümünü göster</Text>
-            </TouchableOpacity>
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            {selectedMuscle ? (
+              <TouchableOpacity onPress={() => setSelectedMuscle(null)} activeOpacity={0.8}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface2, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12 }}>
+                <Ionicons name="close-circle" size={15} color={C.textMuted} />
+                <Text style={{ color: C.textSec, fontSize: 12, fontWeight: '700' }}>{MUSCLE_NAMES[selectedMuscle]} · Tümünü göster</Text>
+              </TouchableOpacity>
+            ) : <View />}
+            <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 14, padding: 3 }}>
+              <TouchableOpacity onPress={() => setLiftViewMode('cards')}
+                style={{ paddingVertical: 5, paddingHorizontal: 8, borderRadius: 11, backgroundColor: liftViewMode === 'cards' ? C.orange : 'transparent' }}>
+                <Ionicons name="albums-outline" size={14} color={liftViewMode === 'cards' ? '#0B0D12' : C.textMuted} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setLiftViewMode('list')}
+                style={{ paddingVertical: 5, paddingHorizontal: 8, borderRadius: 11, backgroundColor: liftViewMode === 'list' ? C.orange : 'transparent' }}>
+                <Ionicons name="list-outline" size={14} color={liftViewMode === 'list' ? '#0B0D12' : C.textMuted} />
+              </TouchableOpacity>
+            </View>
+          </View>
 
+          {liftViewMode === 'cards' && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -3776,6 +3791,57 @@ const pickAndUploadProfilePhoto = async () => {
             );
           })}
           </ScrollView>
+          )}
+
+          {liftViewMode === 'list' && (
+          <View style={{ marginBottom: 12 }}>
+            {LIFTS.filter((l) => !selectedMuscle || l.muscleKey === selectedMuscle).sort((a, b) => {
+              const bwSort = user?.weight || 70;
+              const bestA = user?.lifts?.[a.key]?.best || 0;
+              const bestB = user?.lifts?.[b.key]?.best || 0;
+              const rA = computeRank(a.key, bestA, bwSort, user?.gender).rankIndex;
+              const rB = computeRank(b.key, bestB, bwSort, user?.gender).rankIndex;
+              if (rB !== rA) return rB - rA;
+              return (bestB / bwSort) - (bestA / bwSort);
+            }).map((lift) => {
+              const liftData = user?.lifts?.[lift.key];
+              const best = liftData?.best || 0;
+              const isRepBased = (lift as any).unit === 'tekrar';
+              const unitLabel = isRepBased ? 'tekrar' : 'kg';
+              const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
+              const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
+              const accentColor = rank ? rank.color : C.lime;
+              const gifUrl = (lift as any).libraryName ? gifByLiftName[(lift as any).libraryName.toLowerCase().trim()] : null;
+              return (
+                <TouchableOpacity key={lift.key} activeOpacity={0.75} onPress={() => openLiftEntry(lift.key, best)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 14, marginBottom: 7, backgroundColor: C.surface, borderWidth: 1, borderColor: best > 0 ? accentColor + '30' : C.border }}>
+                  <TouchableOpacity disabled={!gifUrl} onPress={(e) => { e.stopPropagation(); if (gifUrl) setGifModalUrl(gifUrl); }}
+                    style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: accentColor + '1F', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {gifUrl ? (
+                      <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                    ) : (
+                      <Ionicons name="barbell" size={17} color={accentColor} />
+                    )}
+                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: C.text, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{lift.label}</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 10.5, marginTop: 1 }}>{lift.muscle}</Text>
+                  </View>
+                  {best > 0 ? (
+                    <Text style={{ color: C.textSec, fontWeight: '800', fontSize: 13 }}>{best} <Text style={{ fontSize: 10, color: C.textMuted }}>{unitLabel}</Text></Text>
+                  ) : (
+                    <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>+ Gir</Text>
+                  )}
+                  {rank ? (
+                    <RankBadgeSvg rankKey={rank.key} color={rank.color} size={26} />
+                  ) : (
+                    <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border }} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          )}
 
           {/* ARKADAŞ MEYDAN OKUMASI */}
           <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20, marginTop: 4 }}>
