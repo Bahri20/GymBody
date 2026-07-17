@@ -285,6 +285,17 @@ function getGeminiModel({ model = 'gemini-2.5-flash', generationConfig } = {}) {
   };
 }
 
+// İstek dili — mobil uygulama her isteğe X-Lang başlığı ekler ('tr' | 'en').
+// AI çıktıları (program, analiz, sohbet) kullanıcının uygulama dilinde üretilir.
+function reqLang(req) {
+  return String(req.headers['x-lang'] || '').toLowerCase() === 'en' ? 'en' : 'tr';
+}
+function langDirective(req) {
+  return reqLang(req) === 'en'
+    ? 'IMPORTANT: Write ALL user-facing text in your response (names, descriptions, analysis, focus titles, meal names/items) in ENGLISH.'
+    : 'ÖNEMLİ: Cevaptaki kullanıcıya görünecek tüm metinleri (isimler, açıklamalar, analizler, gün başlıkları, öğün adları) TÜRKÇE yaz.';
+}
+
 async function generateWithRetry(model, prompt, imagePart, retries = 2) {
   const content = imagePart ? [prompt, imagePart] : [prompt];
   for (let i = 0; i <= retries; i++) {
@@ -719,6 +730,7 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
     
     Eğer fotoğrafta vücut net görünmüyorsa (kıyafet, açı, ışık sorunu vb.) bunu açıklamada belirt 
     ve bodyFatPercentage alanını null yap.
+    ${langDirective(req)}
     Yalnızca aşağıdaki saf JSON formatında cevap ver, kod bloğu veya açıklama ekleme:
     {"bodyFatPercentage": 18.5, "analysis": "Kısa değerlendirme ve öneri mesajı"}
 `;
@@ -1299,6 +1311,7 @@ if (isVipActive && todayCount >= 5) {
     const prompt = `
       Bu yemek fotoğrafını analiz et. Kalori, protein, karbonhidrat ve yağ değerlerini tahmin et.
       ${note ? `Kullanıcının verdiği ek bilgi: "${note}". Bu bilgiyi analizde mutlaka dikkate al.` : ''}
+      ${langDirective(req)}
       Yalnızca ve yalnızca aşağıdaki saf JSON formatında cevap ver, kod blokları (\`\`\`) veya açıklama ekleme:
       {"mealName": "Yemeğin Adı", "calories": 500, "protein": 30, "carbs": 50, "fat": 15, "description": "Tavsiye mesajı"}
     `;
@@ -1597,6 +1610,8 @@ KURALLAR:
 - Set/tekrar: bileşik harekette 4x6-8, izole harekette 3x10-12
 
 Beslenme planı için: ${programDays} günün her birine günlük örnek öğün listesi ver, kalori hedefine yakın olsun.
+
+${langDirective(req)} (Egzersiz adları listedeki haliyle kalsın.)
 
 Yalnızca aşağıdaki saf JSON formatında cevap ver, kod bloğu veya açıklama ekleme:
 {
@@ -1996,7 +2011,8 @@ app.post('/ai-chat', authMiddleware, async (req, res) => {
 
     const model = getGeminiModel({ model: 'gemini-2.5-flash' });
 
-    const systemPrompt = `Sen GymBodyAI'ın kişisel fitness koçusun. Kullanıcı: ${user?.name || 'Sporcu'}, ${user?.weight || '?'}kg, ${user?.height || '?'}cm. Kısa, samimi, motive edici cevaplar ver. Türkçe konuş. Fitness, beslenme, antrenman dışındaki konularda kibar şekilde konuyu yönlendir.`;
+    const chatLangText = reqLang(req) === 'en' ? 'Respond in English.' : 'Türkçe konuş.';
+    const systemPrompt = `Sen GymBodyAI'ın kişisel fitness koçusun. Kullanıcı: ${user?.name || 'Sporcu'}, ${user?.weight || '?'}kg, ${user?.height || '?'}cm. Kısa, samimi, motive edici cevaplar ver. ${chatLangText} Fitness, beslenme, antrenman dışındaki konularda kibar şekilde konuyu yönlendir.`;
 
     const chat = model.startChat({
       history: [
@@ -2316,8 +2332,10 @@ app.get('/exercises', authMiddleware, async (req, res) => {
         primaryMuscles: e.primaryMuscles || [],
         secondaryMuscles: e.secondaryMuscles || [],
         level: e.level || '',
-        // Türkçe talimat varsa onu ver, yoksa İngilizce
-        instructions: (e.instructionsTr && e.instructionsTr.length) ? e.instructionsTr : (e.instructions || []),
+        // Uygulama dili İngilizce ise İngilizce talimatı, Türkçe ise (varsa) Türkçesini ver
+        instructions: reqLang(req) === 'en'
+          ? ((e.instructions && e.instructions.length) ? e.instructions : (e.instructionsTr || []))
+          : ((e.instructionsTr && e.instructionsTr.length) ? e.instructionsTr : (e.instructions || [])),
       });
     }
     res.json(grouped);
