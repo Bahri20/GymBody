@@ -2,6 +2,7 @@ import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import '@/lib/i18n'; // dil algılama + çeviriler uygulama açılırken yüklensin
 
 export const unstable_settings = {
   anchor: '(tabs)',

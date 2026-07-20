@@ -30,6 +30,9 @@ import {
   bestForPeriod, computeMuscleRankForPeriod, buildMuscleRanksMapForPeriod,
 } from '../../lib/rankLogic';
 import type { TrendPeriod } from '../../lib/rankLogic';
+import { useTranslation } from 'react-i18next';
+import i18n, { currentLang, getLanguagePref, setLanguagePref } from '../../lib/i18n';
+import type { LanguagePref } from '../../lib/i18n';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -149,6 +152,12 @@ const MONTH_TIERS: Record<string,{label:string;emoji:string;color:string}> = {
 };
 const MONTH_FULL_TR  = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
 const MONTH_SHORT_TR = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+const MONTH_FULL_EN  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_SHORT_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// Aktif dile göre ay adı / tarih locale'i
+const monthFull  = (i: number) => (currentLang() === 'tr' ? MONTH_FULL_TR : MONTH_FULL_EN)[i] || '';
+const monthShort = (i: number) => (currentLang() === 'tr' ? MONTH_SHORT_TR : MONTH_SHORT_EN)[i] || '';
+const dateLocale = () => (currentLang() === 'tr' ? 'tr-TR' : 'en-US');
 // Geçici önizleme: gerçek veri yokken seviyelendirme görselini görmek için
 const DEV_MONTHLY_PREVIEW = false;
 function resolveMonthlyBadges(user: any): {period:string;tier:string;score?:number}[] {
@@ -193,14 +202,20 @@ if (RC_KEY) {
 // uyanırken askıda kalmasın). App Review 2.1 "login indefinitely loading" düzeltmesi.
 axios.defaults.timeout = 45000;
 
+// Her isteğe aktif uygulama dilini ekle — backend AI cevaplarını bu dilde üretir
+axios.interceptors.request.use((config) => {
+  config.headers['X-Lang'] = currentLang();
+  return config;
+});
+
 // Ağ hatalarını yakala — sunucuya ulaşılamazsa net mesaj
 axios.interceptors.response.use(
   res => res,
   err => {
     if (err.code === 'ECONNABORTED') {
-      err.userMessage = 'Sunucu yanıt vermedi, tekrar dene. (Sunucu uyanıyor olabilir, birkaç saniye sonra tekrar dene.)';
+      err.userMessage = i18n.t('Sunucu yanıt vermedi, tekrar dene. (Sunucu uyanıyor olabilir, birkaç saniye sonra tekrar dene.)');
     } else if (!err.response) {
-      err.userMessage = 'İnternet bağlantını kontrol et ve tekrar dene.';
+      err.userMessage = i18n.t('İnternet bağlantını kontrol et ve tekrar dene.');
     }
     return Promise.reject(err);
   }
@@ -358,6 +373,13 @@ const GOOGLE_CLIENT_IDS = {
 
 export default function App() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  // Dil tercihi: 'auto' = cihaz dili, 'tr' | 'en' = elle seçim (SecureStore'da saklanır)
+  const [langPref, setLangPref] = useState<LanguagePref>(getLanguagePref());
+  const changeLangPref = async (pref: LanguagePref) => {
+    setLangPref(pref);
+    await setLanguagePref(pref); // i18n.changeLanguage tetikler → tüm ekran yeniden çevrilir
+  };
 
   // ===== TEMA =====
   // GEÇİCİ: Stitch redesign süreci bitene kadar sadece dark mode aktif — aydınlık tema
@@ -468,7 +490,7 @@ export default function App() {
     try {
       const res = await axios.get(`${API_URL}/exercises`, { headers: { Authorization: `Bearer ${token}` } });
       setLibData(res.data || {});
-    } catch { showToast('Kütüphane yüklenemedi.', 'error'); }
+    } catch { showToast(t('Kütüphane yüklenemedi.'), 'error'); }
     finally { setLibLoading(false); }
   };
   const gifByLiftName = useMemo(() => {
@@ -487,7 +509,7 @@ export default function App() {
       await axios.post(`${API_URL}/favorites`, { name }, { headers: { Authorization: `Bearer ${token}` } });
     } catch {
       setUser((u: any) => ({ ...u, favoriteExercises: prevFavs }));
-      showToast('Favori güncellenemedi.', 'error');
+      showToast(t('Favori güncellenemedi.'), 'error');
     }
   };
   const addFoodChip = () => {
@@ -502,9 +524,9 @@ export default function App() {
     try {
       const res = await axios.post(`${API_URL}/favorite-foods`, { foods: foodChips }, { headers: { Authorization: `Bearer ${token}` } });
       setUser((u: any) => ({ ...u, favoriteFoods: res.data.favoriteFoods || foodChips }));
-      showToast('Yemek tercihlerin kaydedildi.', 'success');
+      showToast(t('Yemek tercihlerin kaydedildi.'), 'success');
     } catch {
-      showToast('Kaydedilemedi, tekrar dene.', 'error');
+      showToast(t('Kaydedilemedi, tekrar dene.'), 'error');
     } finally { setSavingFoods(false); }
   };
   const [dayFeedbackVisible, setDayFeedbackVisible] = useState(false);
@@ -582,11 +604,11 @@ export default function App() {
   const openLiftEntry = (liftKey: string, currentBest: number) => {
     if (!userStats.isVip) {
       Alert.alert(
-        'VIP Özelliği 💪',
-        'Max ağırlık girişi ve güç sıralaması VIP üyelere özeldir. Profilden VIP olup gücünü kaydetmeye başla!',
+        t('VIP Özelliği 💪'),
+        t('Max ağırlık girişi ve güç sıralaması VIP üyelere özeldir. Profilden VIP olup gücünü kaydetmeye başla!'),
         [
-          { text: 'Vazgeç', style: 'cancel' },
-          { text: 'VIP\'e Geç', onPress: () => setCurrentTab('profile') },
+          { text: t('Vazgeç'), style: 'cancel' },
+          { text: t("VIP'e Geç"), onPress: () => setCurrentTab('profile') },
         ]
       );
       return;
@@ -601,7 +623,7 @@ export default function App() {
     const w = parseFloat(liftInput.replace(',', '.'));
     const r = Math.max(1, Math.min(50, parseInt(liftRepsInput, 10) || 1));
     const liftMeta = LIFTS.find(l => l.key === liftModal);
-    if (!liftModal || !(w > 0)) { showToast(liftMeta?.unit === 'tekrar' ? 'Geçerli bir tekrar sayısı gir.' : 'Geçerli bir ağırlık gir.', 'error'); return; }
+    if (!liftModal || !(w > 0)) { showToast(liftMeta?.unit === 'tekrar' ? t('Geçerli bir tekrar sayısı gir.') : t('Geçerli bir ağırlık gir.'), 'error'); return; }
     setLiftSaving(true);
     try {
       const res = await axios.post(`${API_URL}/update-lift`, { lift: liftModal, weight: w, reps: r, forceUpdate: true }, {
@@ -615,12 +637,12 @@ export default function App() {
         setLiftInput('');
         setPrCelebration({ lift: liftModal!, weight: w, prevBest });
       } else {
-        showToast('Kayıt eklendi ✓');
+        showToast(t('Kayıt eklendi ✓'));
         setLiftModal(null);
         setLiftInput('');
       }
     } catch (err: any) {
-      showToast(err.response?.data?.error || 'Kaydedilemedi.', 'error');
+      showToast(err.response?.data?.error || t('Kaydedilemedi.'), 'error');
     } finally {
       setLiftSaving(false);
     }
@@ -638,7 +660,7 @@ export default function App() {
       });
       setLeaderboardData(res.data);
     } catch (err: any) {
-      showToast(err.response?.data?.error || 'Sıralama getirilemedi.', 'error');
+      showToast(err.response?.data?.error || t('Sıralama getirilemedi.'), 'error');
       setLeaderboardLift(null);
     } finally {
       setLeaderboardLoading(false);
@@ -660,7 +682,7 @@ export default function App() {
       });
       setMuscleLeaderboardData(res.data);
     } catch (err: any) {
-      showToast(err.response?.data?.error || 'Sıralama getirilemedi.', 'error');
+      showToast(err.response?.data?.error || t('Sıralama getirilemedi.'), 'error');
       setMuscleLeaderboardKey(null);
     } finally {
       setMuscleLeaderboardLoading(false);
@@ -753,6 +775,37 @@ export default function App() {
   const currentTabRef = useRef(currentTab);
   currentTabRef.current = currentTab;
 
+  // NOT: bu iki hook, aşağıdaki `if (restoring)` / `if (!user)` early-return'lerinden ÖNCE,
+  // component'in en üst seviyesinde kalmalı — hook'lar koşullu return'den sonraya taşınırsa
+  // "Rendered more hooks than during the previous render" hatası verir (Rules of Hooks).
+  const swipePanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => !nestedCarouselActive.current && Math.abs(g.dx) > 20 && Math.abs(g.dy) < 60,
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) < 40) return;
+        const tabKeys = APP_TABS.map(t => t.key);
+        const idx = tabKeys.indexOf(currentTabRef.current);
+        if (g.dx < 0 && idx < APP_TABS.length - 1) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx + 1]); }
+        if (g.dx > 0 && idx > 0) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx - 1]); }
+      },
+    })
+  ).current;
+
+  // Kas haritası figürü üstünde sağa kaydır → ön, sola kaydır → arka (dış sekme-değiştirme swipe'ı ile çakışmasın diye nestedCarouselActive kullanılır)
+  const muscleMapPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 18 && Math.abs(g.dy) < 50,
+      onPanResponderGrant: () => { nestedCarouselActive.current = true; },
+      onPanResponderRelease: (_, g) => {
+        nestedCarouselActive.current = false;
+        if (Math.abs(g.dx) < 28) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setBodyMapView(g.dx > 0 ? 'front' : 'back');
+      },
+      onPanResponderTerminate: () => { nestedCarouselActive.current = false; },
+    })
+  ).current;
+
   // Max Güç kartlarındaki gif thumbnail'leri için — kütüphaneyi sessizce (modal açmadan) bir kez çek
   useEffect(() => {
     if (currentTab === 'stats' && token && Object.keys(libData).length === 0) {
@@ -816,7 +869,7 @@ export default function App() {
      loginWithGoogle(idToken, accessToken);
    } else if (gResponse?.type === 'error') {
      setGoogleLoading(false);
-     Alert.alert('Google Hatası', 'Google ile giriş tamamlanamadı.');
+     Alert.alert(t('Google Hatası'), t('Google ile giriş tamamlanamadı.'));
    } else if (gResponse?.type === 'dismiss' || gResponse?.type === 'cancel') {
      setGoogleLoading(false);
    }
@@ -825,7 +878,7 @@ export default function App() {
  const loginWithGoogle = async (idToken?: string, accessToken?: string) => {
    if (!idToken && !accessToken) {
      setGoogleLoading(false);
-     Alert.alert('Google Hatası', 'Google kimlik bilgisi alınamadı.');
+     Alert.alert(t('Google Hatası'), t('Google kimlik bilgisi alınamadı.'));
      return;
    }
    try {
@@ -837,8 +890,8 @@ export default function App() {
      registerPushToken(res.data.token);
      // Not: referans kodu, karşılama modalı kapandıktan sonra sorulur (her yeni kullanıcı için)
    } catch (err: any) {
-     const msg = err.response?.data?.error || 'Google girişi başarısız.';
-     Alert.alert('Google Hatası', msg);
+     const msg = err.response?.data?.error || t('Google girişi başarısız.');
+     Alert.alert(t('Google Hatası'), msg);
    } finally {
      setGoogleLoading(false);
    }
@@ -855,7 +908,7 @@ export default function App() {
        ],
      });
      if (!credential.identityToken) {
-       Alert.alert('Apple Hatası', 'Apple kimlik bilgisi alınamadı.');
+       Alert.alert(t('Apple Hatası'), t('Apple kimlik bilgisi alınamadı.'));
        return;
      }
      const res = await axios.post(`${API_URL}/apple-login`, {
@@ -868,8 +921,8 @@ export default function App() {
      registerPushToken(res.data.token);
    } catch (err: any) {
      if (err?.code === 'ERR_REQUEST_CANCELED') return; // kullanıcı vazgeçti
-     const msg = err.response?.data?.error || err.userMessage || 'Apple girişi başarısız.';
-     Alert.alert('Apple Hatası', msg);
+     const msg = err.response?.data?.error || err.userMessage || t('Apple girişi başarısız.');
+     Alert.alert(t('Apple Hatası'), msg);
    } finally {
      setAppleLoading(false);
    }
@@ -983,8 +1036,8 @@ const fetchWeeklyPlan = async (silent = false) => {
     if (res.data.trainingDaysPerWeek) setGymTrainingDays(res.data.trainingDaysPerWeek);
     setGymFeedback('');
   } catch (error: any) {
-    const msg = error.userMessage || error.response?.data?.error || 'Plan oluşturulamadı.';
-    if (!silent) Alert.alert('Hata', msg);
+    const msg = error.userMessage || error.response?.data?.error || t('Plan oluşturulamadı.');
+    if (!silent) Alert.alert(t('Hata'), msg);
   } finally {
     if (!silent) setGymLoading(false);
   }
@@ -998,14 +1051,14 @@ const startProgram = async () => {
     });
     setWeeklyPlan(res.data);
   } catch (error: any) {
-    showToast(error.userMessage || error.response?.data?.error || 'Program başlatılamadı.', 'error');
+    showToast(error.userMessage || error.response?.data?.error || t('Program başlatılamadı.'), 'error');
   } finally {
     setGymLoading(false);
   }
 };
 const saveBodyStat = async () => {
   if (!statWeight && !statWaist && !statShoulder && !statNeck) {
-    return showToast('En az bir değer girmelisin!', 'error');
+    return showToast(t('En az bir değer girmelisin!'), 'error');
   }
 
   setLoading(true);
@@ -1021,12 +1074,12 @@ const saveBodyStat = async () => {
       await axios.put(`${API_URL}/body-stat/${editingStatId}`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      showToast('Ölçü güncellendi ✓');
+      showToast(t('Ölçü güncellendi ✓'));
     } else {
       await axios.post(`${API_URL}/add-body-stat`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      showToast('Ölçülerin kaydedildi ✓');
+      showToast(t('Ölçülerin kaydedildi ✓'));
     }
     setEditingStatId(null);
     setStatWeight(''); setStatWaist(''); setStatShoulder(''); setStatNeck('');
@@ -1037,9 +1090,9 @@ const saveBodyStat = async () => {
       setUser({ ...user, weight: parseFloat(statWeight) });
     }
   } catch (error: any) {
-    const detail = error.response?.data?.error || error.message || 'bilinmeyen';
+    const detail = error.response?.data?.error || error.message || t('bilinmeyen');
     console.log("🔥 BODYSTAT HATASI:", error.response?.status, detail);
-    showToast(`Hata: ${detail}`, 'error');
+    showToast(t('Hata: {{detail}}', { detail }), 'error');
   } finally {
     setLoading(false);
   }
@@ -1047,17 +1100,17 @@ const saveBodyStat = async () => {
 
 // Bir ölçü kaydını sil (onaylı). En son ölçü yanlışsa/fazlaysa kaldırmak için.
 const deleteBodyStat = (statId: string) => {
-  Alert.alert('Ölçüyü Sil', 'Bu ölçü kaydını silmek istediğine emin misin?', [
-    { text: 'Vazgeç', style: 'cancel' },
-    { text: 'Sil', style: 'destructive', onPress: async () => {
+  Alert.alert(t('Ölçüyü Sil'), t('Bu ölçü kaydını silmek istediğine emin misin?'), [
+    { text: t('Vazgeç'), style: 'cancel' },
+    { text: t('Sil'), style: 'destructive', onPress: async () => {
       try {
         await axios.delete(`${API_URL}/body-stat/${statId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        showToast('Ölçü silindi ✓');
+        showToast(t('Ölçü silindi ✓'));
         fetchBodyStats();
       } catch (error: any) {
-        showToast(error.response?.data?.error || 'Silinemedi', 'error');
+        showToast(error.response?.data?.error || t('Silinemedi'), 'error');
       }
     }},
   ]);
@@ -1099,7 +1152,7 @@ const fetchWeeklySummary = async () => {
     });
     setWeeklySummary(res.data);
     setWeeklySummaryVisible(true);
-  } catch { showToast('Özet alınamadı.', 'error'); }
+  } catch { showToast(t('Özet alınamadı.'), 'error'); }
 };
 
 // AI Chat
@@ -1119,7 +1172,7 @@ const sendChatMessage = async () => {
     setChatMessages(prev => [...prev, { role: 'model', text: res.data.reply }]);
     setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 100);
   } catch (err: any) {
-    const msg = err.response?.data?.error || 'AI yanıt veremedi.';
+    const msg = err.response?.data?.error || t('AI yanıt veremedi.');
     setChatMessages(prev => [...prev, { role: 'model', text: `⚠️ ${msg}` }]);
   } finally {
     setChatLoading(false);
@@ -1138,7 +1191,7 @@ const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 const shareProgress = async () => {
   const withFat = gallery.filter(p => p.bodyFatPercentage != null);
   if (withFat.length < 1) {
-    showToast('Paylaşmak için vücut analizi fotoğrafı gerekiyor.', 'error');
+    showToast(t('Paylaşmak için vücut analizi fotoğrafı gerekiyor.'), 'error');
     return;
   }
   if (withFat.length === 1) {
@@ -1155,17 +1208,17 @@ const shareProgress = async () => {
 const captureLiftShare = async () => {
   try {
     const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) { showToast('Paylaşım bu cihazda desteklenmiyor.', 'error'); return; }
+    if (!canShare) { showToast(t('Paylaşım bu cihazda desteklenmiyor.'), 'error'); return; }
     await new Promise(r => setTimeout(r, 300)); // kartın render olmasını bekle
     const uri = await (liftShareRef.current as any)?.capture();
-    if (!uri) { showToast('Görsel oluşturulamadı.', 'error'); return; }
+    if (!uri) { showToast(t('Görsel oluşturulamadı.'), 'error'); return; }
     const dest = FileSystem.documentDirectory + 'gymbodyai_rank.jpg';
     const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
     await FileSystem.deleteAsync(dest, { idempotent: true });
     await FileSystem.copyAsync({ from: srcUri, to: dest });
-    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: 'GymBodyAI Güç Rozetim' });
+    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: t('GymBodyAI Güç Rozetim') });
   } catch (err: any) {
-    showToast(err?.message || 'Paylaşım başarısız.', 'error');
+    showToast(err?.message || t('Paylaşım başarısız.'), 'error');
   } finally {
     setShareLiftKey(null);
   }
@@ -1175,17 +1228,17 @@ const captureLiftShare = async () => {
 const captureBodyShare = async () => {
   try {
     const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) { showToast('Paylaşım bu cihazda desteklenmiyor.', 'error'); return; }
+    if (!canShare) { showToast(t('Paylaşım bu cihazda desteklenmiyor.'), 'error'); return; }
     await new Promise(r => setTimeout(r, 300)); // kartın render olmasını bekle
     const uri = await (bodyShareRef.current as any)?.capture();
-    if (!uri) { showToast('Görsel oluşturulamadı.', 'error'); return; }
+    if (!uri) { showToast(t('Görsel oluşturulamadı.'), 'error'); return; }
     const dest = FileSystem.documentDirectory + 'gymbodyai_vucut_rank.jpg';
     const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
     await FileSystem.deleteAsync(dest, { idempotent: true });
     await FileSystem.copyAsync({ from: srcUri, to: dest });
-    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: 'GymBodyAI Vücut Rozetim' });
+    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: t('GymBodyAI Vücut Rozetim') });
   } catch (err: any) {
-    showToast(err?.message || 'Paylaşım başarısız.', 'error');
+    showToast(err?.message || t('Paylaşım başarısız.'), 'error');
   } finally {
     setShareBodyRank(false);
   }
@@ -1227,17 +1280,17 @@ const searchFriends = async (q: string) => {
 const sendFriendRequest = async (userId: string) => {
   try {
     await axios.post(`${API_URL}/friends/request/${userId}`, {}, { headers: { Authorization: `Bearer ${token}` } });
-    showToast('Arkadaşlık isteği gönderildi!');
+    showToast(t('Arkadaşlık isteği gönderildi!'));
     searchFriends(friendSearch);
-  } catch (e: any) { showToast(e.response?.data?.error || 'Hata', 'error'); }
+  } catch (e: any) { showToast(e.response?.data?.error || t('Hata'), 'error'); }
 };
 
 const acceptFriendRequest = async (userId: string) => {
   try {
     await axios.post(`${API_URL}/friends/accept/${userId}`, {}, { headers: { Authorization: `Bearer ${token}` } });
-    showToast('Arkadaş eklendi!');
+    showToast(t('Arkadaş eklendi!'));
     fetchFriends();
-  } catch (e: any) { showToast(e.response?.data?.error || 'Hata', 'error'); }
+  } catch (e: any) { showToast(e.response?.data?.error || t('Hata'), 'error'); }
 };
 
 const openChat = async (friend: {_id:string;name:string}) => {
@@ -1266,7 +1319,7 @@ const sendMessage = async () => {
   try {
     const { data } = await axios.post(`${API_URL}/messages/${chatFriend._id}`, { text }, { headers: { Authorization: `Bearer ${token}` } });
     setFriendMessages(prev => [...prev, data]);
-  } catch { showToast('Gönderilemedi', 'error'); }
+  } catch { showToast(t('Gönderilemedi'), 'error'); }
 };
 
 const closeChat = () => {
@@ -1287,10 +1340,10 @@ const joinCoach = async () => {
   if (!code) return;
   try {
     const { data } = await axios.post(`${API_URL}/join-coach`, { code }, { headers: { Authorization: `Bearer ${token}` } });
-    showToast(data.message || 'Hocana bağlandın!');
+    showToast(data.message || t('Hocana bağlandın!'));
     setJoinCode('');
     fetchCoach();
-  } catch (e: any) { showToast(e.response?.data?.error || 'Kod bulunamadı', 'error'); }
+  } catch (e: any) { showToast(e.response?.data?.error || t('Kod bulunamadı'), 'error'); }
 };
 const loadCoachMessages = async () => {
   try {
@@ -1318,38 +1371,38 @@ const sendCoachMessage = async () => {
   try {
     const { data } = await axios.post(`${API_URL}/my-coach/messages`, { text }, { headers: { Authorization: `Bearer ${token}` } });
     setCoachMessages(prev => [...prev, data]);
-  } catch { showToast('Gönderilemedi', 'error'); }
+  } catch { showToast(t('Gönderilemedi'), 'error'); }
 };
 
 // ─── ENGELLE / ŞİKAYET ET (UGC moderasyon — App Store/Play Store zorunlu) ───
 const blockUser = async (target: {_id:string;name:string}) => {
   try {
     await axios.post(`${API_URL}/block/${target._id}`, {}, { headers: { Authorization: `Bearer ${token}` } });
-    showToast(`${target.name} engellendi`);
+    showToast(t('{{name}} engellendi', { name: target.name }));
     closeChat();
     fetchFriends();
-  } catch { showToast('Engellenemedi', 'error'); }
+  } catch { showToast(t('Engellenemedi'), 'error'); }
 };
 
 const reportUser = async (target: {_id:string;name:string}) => {
   try {
     await axios.post(`${API_URL}/report/${target._id}`, { context: 'chat' }, { headers: { Authorization: `Bearer ${token}` } });
-    showToast('Şikayetin alındı, 24 saat içinde incelenecek');
-  } catch { showToast('Şikayet gönderilemedi', 'error'); }
+    showToast(t('Şikayetin alındı, 24 saat içinde incelenecek'));
+  } catch { showToast(t('Şikayet gönderilemedi'), 'error'); }
 };
 
 // Engelle/şikayet menüsü (sohbet başlığındaki ⋯ butonu)
 const openModerationMenu = (target: {_id:string;name:string}) => {
-  Alert.alert(target.name, 'Bu kullanıcı için bir işlem seç', [
-    { text: 'Şikayet Et', onPress: () => Alert.alert('Şikayet Et', `${target.name} adlı kullanıcıyı uygunsuz davranıştan şikayet etmek istiyor musun?`, [
-      { text: 'Vazgeç', style: 'cancel' },
-      { text: 'Şikayet Et', style: 'destructive', onPress: () => reportUser(target) },
+  Alert.alert(target.name, t('Bu kullanıcı için bir işlem seç'), [
+    { text: t('Şikayet Et'), onPress: () => Alert.alert(t('Şikayet Et'), t('{{name}} adlı kullanıcıyı uygunsuz davranıştan şikayet etmek istiyor musun?', { name: target.name }), [
+      { text: t('Vazgeç'), style: 'cancel' },
+      { text: t('Şikayet Et'), style: 'destructive', onPress: () => reportUser(target) },
     ]) },
-    { text: 'Engelle', style: 'destructive', onPress: () => Alert.alert('Engelle', `${target.name} engellenecek. Arkadaşlığınız kaldırılır ve birbirinize mesaj gönderemezsiniz.`, [
-      { text: 'Vazgeç', style: 'cancel' },
-      { text: 'Engelle', style: 'destructive', onPress: () => blockUser(target) },
+    { text: t('Engelle'), style: 'destructive', onPress: () => Alert.alert(t('Engelle'), t('{{name}} engellenecek. Arkadaşlığınız kaldırılır ve birbirinize mesaj gönderemezsiniz.', { name: target.name }), [
+      { text: t('Vazgeç'), style: 'cancel' },
+      { text: t('Engelle'), style: 'destructive', onPress: () => blockUser(target) },
     ]) },
-    { text: 'Vazgeç', style: 'cancel' },
+    { text: t('Vazgeç'), style: 'cancel' },
   ]);
 };
 
@@ -1357,27 +1410,27 @@ const openModerationMenu = (target: {_id:string;name:string}) => {
 const deleteAccount = async () => {
   try {
     await axios.delete(`${API_URL}/account`, { headers: { Authorization: `Bearer ${token}` } });
-    showToast('Hesabın ve tüm verilerin silindi.');
+    showToast(t('Hesabın ve tüm verilerin silindi.'));
     await SecureStore.deleteItemAsync('userToken');
     setUser(null);
     setToken(null);
   } catch (e: any) {
-    showToast(e.response?.data?.error || 'Hesap silinemedi', 'error');
+    showToast(e.response?.data?.error || t('Hesap silinemedi'), 'error');
   }
 };
 
 const confirmDeleteAccount = () => {
   Alert.alert(
-    'Hesabı Sil',
-    'Hesabın, antrenman/beslenme verilerin, fotoğrafların, mesajların ve tüm bilgilerin KALICI olarak silinecek. Bu işlem geri alınamaz.\n\nNot: Aktif aboneliğin varsa, hesabı silmek aboneliği iptal ETMEZ. İptal için App Store / Google Play → Abonelikler bölümünü kullan.',
+    t('Hesabı Sil'),
+    t('Hesabın, antrenman/beslenme verilerin, fotoğrafların, mesajların ve tüm bilgilerin KALICI olarak silinecek. Bu işlem geri alınamaz.\n\nNot: Aktif aboneliğin varsa, hesabı silmek aboneliği iptal ETMEZ. İptal için App Store / Google Play → Abonelikler bölümünü kullan.'),
     [
-      { text: 'Vazgeç', style: 'cancel' },
-      { text: 'Devam Et', style: 'destructive', onPress: () => Alert.alert(
-        'Emin misin?',
-        'Bu son adım. Hesabın kalıcı olarak silinecek ve geri getirilemeyecek.',
+      { text: t('Vazgeç'), style: 'cancel' },
+      { text: t('Devam Et'), style: 'destructive', onPress: () => Alert.alert(
+        t('Emin misin?'),
+        t('Bu son adım. Hesabın kalıcı olarak silinecek ve geri getirilemeyecek.'),
         [
-          { text: 'Vazgeç', style: 'cancel' },
-          { text: 'Hesabı Kalıcı Sil', style: 'destructive', onPress: deleteAccount },
+          { text: t('Vazgeç'), style: 'cancel' },
+          { text: t('Hesabı Kalıcı Sil'), style: 'destructive', onPress: deleteAccount },
         ]
       ) },
     ]
@@ -1394,27 +1447,27 @@ const createChallenge = async () => {
     const { data } = await axios.post(`${API_URL}/challenge/create`, { lift: challengeLift }, { headers: { Authorization: `Bearer ${token}` } });
     setChallengeCode(data.code);
     setChallengeScreen('code');
-  } catch (e: any) { showToast(e.response?.data?.error || 'Hata', 'error'); }
+  } catch (e: any) { showToast(e.response?.data?.error || t('Hata'), 'error'); }
   finally { setLoading(false); }
 };
 
 // 2. Rakip kodu girer → katıl
 const joinChallenge = async () => {
   const code = challengeCodeInput.trim().toUpperCase();
-  if (code.length < 4) { showToast('Kodu gir', 'error'); return; }
+  if (code.length < 4) { showToast(t('Kodu gir'), 'error'); return; }
   try {
     setLoading(true);
     const { data } = await axios.post(`${API_URL}/challenge/${code}/join`, {}, { headers: { Authorization: `Bearer ${token}` } });
     setChallengeInfo(data);
     setChallengeScreen('accept-weight');
-  } catch (e: any) { showToast(e.response?.data?.error || 'Kod bulunamadı', 'error'); }
+  } catch (e: any) { showToast(e.response?.data?.error || t('Kod bulunamadı'), 'error'); }
   finally { setLoading(false); }
 };
 
 // 3. Her iki taraf da kendi kilosunu gönderir
 const submitChallengeWeight = async (isChallenger: boolean) => {
   const w = parseFloat(isChallenger ? challengeMyWeight : challengeTheirWeight);
-  if (!(w > 0)) { showToast('Ağırlık gir', 'error'); return; }
+  if (!(w > 0)) { showToast(t('Ağırlık gir'), 'error'); return; }
   const code = (isChallenger ? challengeCode : challengeCodeInput.trim().toUpperCase());
   try {
     setLoading(true);
@@ -1425,7 +1478,7 @@ const submitChallengeWeight = async (isChallenger: boolean) => {
     } else {
       setChallengeScreen('waiting');
     }
-  } catch (e: any) { showToast(e.response?.data?.error || 'Hata', 'error'); }
+  } catch (e: any) { showToast(e.response?.data?.error || t('Hata'), 'error'); }
   finally { setLoading(false); }
 };
 
@@ -1447,9 +1500,9 @@ const checkChallengeResult = async () => {
       });
       setChallengeScreen('result');
     } else {
-      showToast('Henüz bitmedi, bekle!');
+      showToast(t('Henüz bitmedi, bekle!'));
     }
-  } catch { showToast('Hata', 'error'); }
+  } catch { showToast(t('Hata'), 'error'); }
   finally { setLoading(false); }
 };
 
@@ -1461,16 +1514,16 @@ const pickChallengePhoto = async () => {
 const captureChallengeShare = async () => {
   try {
     const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) { showToast('Paylaşım desteklenmiyor.', 'error'); return; }
+    if (!canShare) { showToast(t('Paylaşım desteklenmiyor.'), 'error'); return; }
     await new Promise(r => setTimeout(r, 350));
     const uri = await (challengeShareRef.current as any)?.capture();
-    if (!uri) { showToast('Görsel oluşturulamadı.', 'error'); return; }
+    if (!uri) { showToast(t('Görsel oluşturulamadı.'), 'error'); return; }
     const dest = FileSystem.documentDirectory + 'gymbodyai_challenge.jpg';
     const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
     await FileSystem.deleteAsync(dest, { idempotent: true });
     await FileSystem.copyAsync({ from: srcUri, to: dest });
-    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: 'GymBodyAI Kapışma' });
-  } catch (err: any) { showToast(err?.message || 'Paylaşım başarısız.', 'error'); }
+    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: t('GymBodyAI Kapışma') });
+  } catch (err: any) { showToast(err?.message || t('Paylaşım başarısız.'), 'error'); }
   finally { setChallengeScreen(null); setChallengeSharePhoto(null); setChallengeResult(null); }
 };
 
@@ -1485,17 +1538,17 @@ const pickRankSharePhoto = async () => {
 const captureRankShare = async () => {
   try {
     const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) { showToast('Paylaşım bu cihazda desteklenmiyor.', 'error'); return; }
+    if (!canShare) { showToast(t('Paylaşım bu cihazda desteklenmiyor.'), 'error'); return; }
     await new Promise(r => setTimeout(r, 350));
     const uri = await (rankShareRef.current as any)?.capture();
-    if (!uri) { showToast('Görsel oluşturulamadı.', 'error'); return; }
+    if (!uri) { showToast(t('Görsel oluşturulamadı.'), 'error'); return; }
     const dest = FileSystem.documentDirectory + 'gymbodyai_siklet.jpg';
     const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
     await FileSystem.deleteAsync(dest, { idempotent: true });
     await FileSystem.copyAsync({ from: srcUri, to: dest });
-    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: 'GymBodyAI Siklet Sıram' });
+    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: t('GymBodyAI Siklet Sıram') });
   } catch (err: any) {
-    showToast(err?.message || 'Paylaşım başarısız.', 'error');
+    showToast(err?.message || t('Paylaşım başarısız.'), 'error');
   } finally {
     setRankShareData(null);
     setRankSharePhoto(null);
@@ -1506,9 +1559,9 @@ const captureAndShare = async () => {
   try {
     setShareLoading(true);
     const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) { showToast('Paylaşım bu cihazda desteklenmiyor.', 'error'); return; }
+    if (!canShare) { showToast(t('Paylaşım bu cihazda desteklenmiyor.'), 'error'); return; }
     const uri = await (shareCardRef.current as any)?.capture();
-    if (!uri) { showToast('Görsel oluşturulamadı.', 'error'); return; }
+    if (!uri) { showToast(t('Görsel oluşturulamadı.'), 'error'); return; }
     // tmp'den kalıcı dizine kopyala — WhatsApp/Instagram tmp'yi okuyamıyor
     const dest = FileSystem.documentDirectory + 'gymbodyai_share.jpg';
     const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
@@ -1520,10 +1573,10 @@ const captureAndShare = async () => {
     await Sharing.shareAsync(dest, {
       mimeType: 'image/jpeg',
       UTI: 'public.jpeg',
-      dialogTitle: 'GymBodyAI Gelişimim',
+      dialogTitle: t('GymBodyAI Gelişimim'),
     });
   } catch (err: any) {
-    showToast(err?.message || 'Paylaşım başarısız.', 'error');
+    showToast(err?.message || t('Paylaşım başarısız.'), 'error');
   } finally {
     setShareLoading(false);
     setShareCardReady(false); // paylaşım menüsü kapandıktan sonra modal'ı kapat
@@ -1546,7 +1599,7 @@ const handleCompleteDay = async (feedback?: string) => {
       setNewBadgeVisible(true);
     }
   } catch (error: any) {
-    const msg = error.userMessage || error.response?.data?.error || 'Gün tamamlanamadı.';
+    const msg = error.userMessage || error.response?.data?.error || t('Gün tamamlanamadı.');
     setDayFeedbackVisible(false);
     showToast(msg, 'error');
   }
@@ -1554,7 +1607,7 @@ const handleCompleteDay = async (feedback?: string) => {
   // Auth İşlemleri (Loglu)
   const handleAuth = async () => {
     if (!email || !password) {
-      return showToast('E-posta ve şifre alanlarını doldur', 'error');
+      return showToast(t('E-posta ve şifre alanlarını doldur'), 'error');
     }
 
     setLoading(true);
@@ -1563,7 +1616,7 @@ const handleCompleteDay = async (feedback?: string) => {
         const payload: any = {
           email: email.trim(),
           password: password,
-          name: name.trim() || "İsimsiz Sporcu",
+          name: name.trim() || t('İsimsiz Sporcu'),
           height: parseFloat(height) || 0,
           weight: parseFloat(weight) || 0
         };
@@ -1571,8 +1624,8 @@ const handleCompleteDay = async (feedback?: string) => {
         const res = await axios.post(`${API_URL}/register`, payload);
         const bonus = res.data.referralBonus;
         const msg = bonus
-          ? `Kayıt başarılı! ${bonus.coachName} referansıyla %${bonus.discountRate} VIP indirimi kazandın! 🎉`
-          : "Kayıt başarılı kanka, şimdi giriş yapabilirsin!";
+          ? t('Kayıt başarılı! {{coachName}} referansıyla %{{discountRate}} VIP indirimi kazandın! 🎉', { coachName: bonus.coachName, discountRate: bonus.discountRate })
+          : t('Kayıt başarılı kanka, şimdi giriş yapabilirsin!');
         showToast(msg);
         setIsRegister(false);
         setReferralCode('');
@@ -1590,10 +1643,10 @@ const handleCompleteDay = async (feedback?: string) => {
     } catch (err: any) {
       console.log("🔥 AUTH HATASI:", err);
       const status = err.response?.status;
-      const errorMsg = err.response?.data?.error || err.userMessage || err.message || "Sunucuya bağlanılamadı kanka";
+      const errorMsg = err.response?.data?.error || err.userMessage || err.message || t('Sunucuya bağlanılamadı kanka');
       // Giriş başarısız (hesap yok / silinmiş / şifre hatalı) → net, görünür uyarı
       if (!isRegister && (status === 400 || status === 401)) {
-        Alert.alert('Giriş yapılamadı', 'Böyle bir hesap bulunamadı veya şifre hatalı. Bilgileri kontrol et ya da yeni bir hesap oluştur.');
+        Alert.alert(t('Giriş yapılamadı'), t('Böyle bir hesap bulunamadı veya şifre hatalı. Bilgileri kontrol et ya da yeni bir hesap oluştur.'));
       } else {
         showToast(errorMsg, 'error');
       }
@@ -1620,13 +1673,13 @@ const handleCompleteDay = async (feedback?: string) => {
     Authorization: `Bearer ${token}`
   },
 });
-      showToast('Fotoğraf kaydedildi ✓');
+      showToast(t('Fotoğraf kaydedildi ✓'));
       setImage(null);
       setNote('');
       fetchPhotos(); // Akışı yenilesin kanka
     } catch (error) {
       console.log("🔥 FOTO YÜKLEME HATASI:", error);
-      showToast('Fotoğraf yüklenemedi.', 'error');
+      showToast(t('Fotoğraf yüklenemedi.'), 'error');
     } finally {
       setLoading(false);
     }
@@ -1664,23 +1717,23 @@ const handleCompleteDay = async (feedback?: string) => {
     }
 
     setIsEditingProfile(false);
-    showToast('Profil güncellendi ✓');
+    showToast(t('Profil güncellendi ✓'));
   } catch (error: any) {
-    const detail = error.response?.data?.error || error.message || 'bilinmeyen hata';
+    const detail = error.response?.data?.error || error.message || t('bilinmeyen hata');
     console.log("🔥 PROFİL GÜNCELLEME HATASI:", error.response?.status, detail, error.response?.data);
-    showToast(`Hata: ${detail}`, 'error');
+    showToast(t('Hata: {{detail}}', { detail }), 'error');
   } finally {
     setLoading(false);
   }
 };
   const deletePhoto = async (photoId: string) => {
   Alert.alert(
-    "Fotoğrafı Sil",
-    "Bu fotoğrafı kalıcı olarak silmek istediğine emin misin?",
+    t('Fotoğrafı Sil'),
+    t('Bu fotoğrafı kalıcı olarak silmek istediğine emin misin?'),
     [
-      { text: "İptal", style: "cancel" },
+      { text: t('İptal'), style: "cancel" },
       {
-        text: "Sil",
+        text: t('Sil'),
         style: "destructive",
         onPress: async () => {
           try {
@@ -1690,7 +1743,7 @@ const handleCompleteDay = async (feedback?: string) => {
             fetchPhotos(); // listeyi yenile
           } catch (error) {
             console.log("🔥 SİLME HATASI:", error);
-            showToast('Fotoğraf silinemedi.', 'error');
+            showToast(t('Fotoğraf silinemedi.'), 'error');
           }
         }
       }
@@ -1704,16 +1757,16 @@ const purchaseVip = async (packageId: string) => {
     try {
       offerings = await Purchases.getOfferings();
     } catch {
-      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.');
+      Alert.alert(t('Yakında!'), t('Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.'));
       return;
     }
     const offering = offerings.all['gymvip'] ?? offerings.current;
     if (!offering || offering.availablePackages.length === 0) {
-      Alert.alert('Yakında!', 'Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.');
+      Alert.alert(t('Yakında!'), t('Uygulama mağazaya yüklendikten sonra satın alma aktif olacak.'));
       return;
     }
     const pkg = offering.availablePackages.find(p => p.identifier === packageId);
-    if (!pkg) { showToast('Paket bulunamadı', 'error'); return; }
+    if (!pkg) { showToast(t('Paket bulunamadı'), 'error'); return; }
     const { customerInfo } = await Purchases.purchasePackage(pkg);
     if (customerInfo.entitlements.active['vip']) {
       await axios.post(`${API_URL}/revenuecat-webhook`, {
@@ -1722,10 +1775,10 @@ const purchaseVip = async (packageId: string) => {
         expiresAt: customerInfo.entitlements.active['vip'].expirationDate,
       }, { headers: { Authorization: `Bearer ${token}` } });
       await fetchUserStats();
-      showToast('VIP aktif oldu! 🎉');
+      showToast(t('VIP aktif oldu! 🎉'));
     }
   } catch (e: any) {
-    if (!e.userCancelled) showToast(e.message || 'Satın alma başarısız', 'error');
+    if (!e.userCancelled) showToast(e.message || t('Satın alma başarısız'), 'error');
   } finally {
     setLoading(false);
   }
@@ -1734,15 +1787,15 @@ const purchaseVip = async (packageId: string) => {
   // --- KAMERA VEYA GALERİ SEÇİM ---
 const askAndPickImage = async (type: 'progress' | 'meal') => {
   if (type === 'meal' && dailyMealRights <= 0) {
-    return Alert.alert("Hakkın Bitti kanka!", "Bugünlük yemek tarama hakkın bitti. Geriye dönük sınırsız kayıt ve analiz için yakında VIP üye olabilirsin! 😉");
+    return Alert.alert(t('Hakkın Bitti kanka!'), t('Bugünlük yemek tarama hakkın bitti. Geriye dönük sınırsız kayıt ve analiz için yakında VIP üye olabilirsin! 😉'));
   }
 
   if (type === 'progress') {
     Alert.alert(
-      "📸 Vücut Analizi İpucu",
-      "Daha doğru bir yağ oranı tahmini için: aydınlık bir ortamda, vücudunu net gösteren kıyafetlerle (atlet/şort gibi) ve düz bir açıdan çekim yapmaya çalış.",
+      t('📸 Vücut Analizi İpucu'),
+      t('Daha doğru bir yağ oranı tahmini için: aydınlık bir ortamda, vücudunu net gösteren kıyafetlerle (atlet/şort gibi) ve düz bir açıdan çekim yapmaya çalış.'),
       [
-        { text: "Anladım, Devam Et", onPress: () => showImageSourceOptions(type) }
+        { text: t('Anladım, Devam Et'), onPress: () => showImageSourceOptions(type) }
       ]
     );
   } else {
@@ -1753,14 +1806,14 @@ const askAndPickImage = async (type: 'progress' | 'meal') => {
 const showImageSourceOptions = (type: 'progress' | 'meal') => {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   Alert.alert(
-    "Fotoğraf Kaynağı 📸",
-    "Fotoğrafı nasıl ekleyelim kanka?",
+    t('Fotoğraf Kaynağı 📸'),
+    t('Fotoğrafı nasıl ekleyelim kanka?'),
     [
       {
-        text: "📸 Kamera ile Çek",
+        text: t('📸 Kamera ile Çek'),
         onPress: async () => {
           let permission = await ImagePicker.requestCameraPermissionsAsync();
-          if (!permission.granted) return Alert.alert("Hata", "Kamera izni vermedin kanka!");
+          if (!permission.granted) return Alert.alert(t('Hata'), t('Kamera izni vermedin kanka!'));
 
           let result = await ImagePicker.launchCameraAsync({
             allowsEditing: true,
@@ -1779,7 +1832,7 @@ const showImageSourceOptions = (type: 'progress' | 'meal') => {
         }
       },
       {
-        text: "🖼️ Galeriden Seç",
+        text: t('🖼️ Galeriden Seç'),
         onPress: async () => {
           let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
@@ -1798,7 +1851,7 @@ const showImageSourceOptions = (type: 'progress' | 'meal') => {
           }
         }
       },
-      { text: "İptal", style: "cancel" }
+      { text: t('İptal'), style: "cancel" }
     ]
   );
 };
@@ -1824,7 +1877,7 @@ const sendMealToAI = async (uri: string) => {
     fetchMealLogs(); // Günlüğü ve kalan hakkı tazele
   } catch (error: any) {
     console.log("🔥 AI GÖNDERİM HATASI:", error);
-    const msg = error.response?.data?.error || 'Yemek analiz edilemedi. Sunucu logunu veya API keyini kontrol et kanka.';
+    const msg = error.response?.data?.error || t('Yemek analiz edilemedi. Sunucu logunu veya API keyini kontrol et kanka.');
     showToast(msg, 'error');
   } finally {
     setLoading(false);
@@ -1839,14 +1892,14 @@ const pickAndUploadProfilePhoto = async () => {
     const formData = new FormData();
     const filename = uri.split('/').pop() || 'profile.jpg';
     formData.append('photo', { uri, name: filename, type: 'image/jpeg' } as any);
-    showToast('Fotoğraf yükleniyor…');
+    showToast(t('Fotoğraf yükleniyor…'));
     const res = await axios.post(`${API_URL}/upload-profile-photo`, formData, {
       headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` },
     });
     if (res.data.user) setUser(res.data.user);
-    showToast('Profil fotoğrafı güncellendi ✓');
+    showToast(t('Profil fotoğrafı güncellendi ✓'));
   } catch (e: any) {
-    showToast(e.response?.data?.error || 'Fotoğraf yüklenemedi', 'error');
+    showToast(e.response?.data?.error || t('Fotoğraf yüklenemedi'), 'error');
   }
 };
   // --- AÇILIŞ: otomatik giriş kontrol edilirken splash göster ---
@@ -1884,9 +1937,9 @@ const pickAndUploadProfilePhoto = async () => {
           </AnimatedLinearGradient>
 
           <Text style={styles.authBrand}>GymBody<Text style={{ color: C.lime }}>AI</Text></Text>
-          <Text style={styles.authTitle}>{isRegister ? 'Aramıza Katıl' : 'Tekrar Hoş Geldin'}</Text>
+          <Text style={styles.authTitle}>{isRegister ? t('Aramıza Katıl') : t('Tekrar Hoş Geldin')}</Text>
           <Text style={styles.authSubtitle}>
-            {isRegister ? 'Hedeflerine giden yolculuk burada başlıyor.' : 'Formuna kaldığın yerden devam et.'}
+            {isRegister ? t('Hedeflerine giden yolculuk burada başlıyor.') : t('Formuna kaldığın yerden devam et.')}
           </Text>
 
           <View style={styles.authCard}>
@@ -1895,7 +1948,7 @@ const pickAndUploadProfilePhoto = async () => {
                 <Ionicons name="person-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
                 <TextInput
                   style={styles.inputWithIcon}
-                  placeholder="İsim Soyisim"
+                  placeholder={t('İsim Soyisim')}
                   placeholderTextColor={C.textMuted}
                   value={name}
                   onChangeText={setName}
@@ -1907,7 +1960,7 @@ const pickAndUploadProfilePhoto = async () => {
               <Ionicons name="mail-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.inputWithIcon}
-                placeholder="E-posta"
+                placeholder={t('E-posta')}
                 placeholderTextColor={C.textMuted}
                 value={email}
                 onChangeText={setEmail}
@@ -1920,7 +1973,7 @@ const pickAndUploadProfilePhoto = async () => {
               <Ionicons name="lock-closed-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
               <TextInput
                 style={styles.inputWithIcon}
-                placeholder="Şifre"
+                placeholder={t('Şifre')}
                 placeholderTextColor={C.textMuted}
                 value={password}
                 onChangeText={setPassword}
@@ -1935,7 +1988,7 @@ const pickAndUploadProfilePhoto = async () => {
                     <Ionicons name="resize-outline" size={18} color={C.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={styles.inputWithIcon}
-                      placeholder="Boy (cm)"
+                      placeholder={t('Boy (cm)')}
                       placeholderTextColor={C.textMuted}
                       value={height}
                       onChangeText={setHeight}
@@ -1946,7 +1999,7 @@ const pickAndUploadProfilePhoto = async () => {
                     <Ionicons name="scale-outline" size={18} color={C.textMuted} style={styles.inputIcon} />
                     <TextInput
                       style={styles.inputWithIcon}
-                      placeholder="Kilo (kg)"
+                      placeholder={t('Kilo (kg)')}
                       placeholderTextColor={C.textMuted}
                       value={weight}
                       onChangeText={setWeight}
@@ -1967,7 +2020,7 @@ const pickAndUploadProfilePhoto = async () => {
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryBtn}
                 >
-                  <Text style={styles.primaryBtnText}>{isRegister ? 'KAYDOL' : 'GİRİŞ YAP'}</Text>
+                  <Text style={styles.primaryBtnText}>{isRegister ? t('KAYDOL') : t('GİRİŞ YAP')}</Text>
                   <Ionicons name="arrow-forward" size={18} color="#0B0D12" />
                 </LinearGradient>
               </TouchableOpacity>
@@ -1976,7 +2029,7 @@ const pickAndUploadProfilePhoto = async () => {
             {/* AYIRAÇ */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 18 }}>
               <View style={{ flex: 1, height: 1, backgroundColor: '#262C3A' }} />
-              <Text style={{ color: C.textMuted, marginHorizontal: 12, fontSize: 12 }}>veya</Text>
+              <Text style={{ color: C.textMuted, marginHorizontal: 12, fontSize: 12 }}>{t('veya')}</Text>
               <View style={{ flex: 1, height: 1, backgroundColor: '#262C3A' }} />
             </View>
 
@@ -1996,7 +2049,7 @@ const pickAndUploadProfilePhoto = async () => {
               ) : (
                 <Ionicons name="logo-google" size={20} color="#EA4335" />
               )}
-              <Text style={{ color: '#1D2230', fontWeight: '700', fontSize: 15 }}>Google ile devam et</Text>
+              <Text style={{ color: '#1D2230', fontWeight: '700', fontSize: 15 }}>{t('Google ile devam et')}</Text>
             </TouchableOpacity>
 
             {/* APPLE İLE GİRİŞ (yalnızca iOS — App Store 4.8 zorunlu) */}
@@ -2016,16 +2069,16 @@ const pickAndUploadProfilePhoto = async () => {
                 ) : (
                   <Ionicons name="logo-apple" size={20} color="#FFFFFF" />
                 )}
-                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>Apple ile devam et</Text>
+                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>{t('Apple ile devam et')}</Text>
               </TouchableOpacity>
             )}
           </View>
 
           <TouchableOpacity onPress={() => setIsRegister(!isRegister)} style={{ marginTop: 22 }}>
             <Text style={styles.switchText}>
-              {isRegister ? 'Zaten hesabım var · ' : 'Hesabın yok mu? '}
+              {isRegister ? t('Zaten hesabım var · ') : t('Hesabın yok mu? ')}
               <Text style={{ color: C.lime, fontWeight: '700' }}>
-                {isRegister ? 'Giriş Yap' : 'Yeni Hesap Aç'}
+                {isRegister ? t('Giriş Yap') : t('Yeni Hesap Aç')}
               </Text>
             </Text>
           </TouchableOpacity>
@@ -2099,10 +2152,10 @@ const pickAndUploadProfilePhoto = async () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(res.data.user);
-      showToast('Hedefler kaydedildi ✓');
+      showToast(t('Hedefler kaydedildi ✓'));
     } catch (error) {
       console.log("🔥 HEDEF KAYIT HATASI:", error);
-      showToast('Hedefler kaydedilemedi.', 'error');
+      showToast(t('Hedefler kaydedilemedi.'), 'error');
     } finally {
       setLoading(false);
     }
@@ -2135,34 +2188,6 @@ const pickAndUploadProfilePhoto = async () => {
     </Modal>
   );
 
-  const swipePanResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => !nestedCarouselActive.current && Math.abs(g.dx) > 20 && Math.abs(g.dy) < 60,
-      onPanResponderRelease: (_, g) => {
-        if (Math.abs(g.dx) < 40) return;
-        const tabKeys = APP_TABS.map(t => t.key);
-        const idx = tabKeys.indexOf(currentTabRef.current);
-        if (g.dx < 0 && idx < APP_TABS.length - 1) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx + 1]); }
-        if (g.dx > 0 && idx > 0) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tabKeys[idx - 1]); }
-      },
-    })
-  ).current;
-
-  // Kas haritası figürü üstünde sağa kaydır → ön, sola kaydır → arka (dış sekme-değiştirme swipe'ı ile çakışmasın diye nestedCarouselActive kullanılır)
-  const muscleMapPanResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 18 && Math.abs(g.dy) < 50,
-      onPanResponderGrant: () => { nestedCarouselActive.current = true; },
-      onPanResponderRelease: (_, g) => {
-        nestedCarouselActive.current = false;
-        if (Math.abs(g.dx) < 28) return;
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setBodyMapView(g.dx > 0 ? 'front' : 'back');
-      },
-      onPanResponderTerminate: () => { nestedCarouselActive.current = false; },
-    })
-  ).current;
-
   return (
   <View style={[styles.container, { paddingTop: insets.top + 10 }]} {...swipePanResponder.panHandlers}>
       <StatusBar style="light" />
@@ -2182,7 +2207,7 @@ const pickAndUploadProfilePhoto = async () => {
       {/* ÜST BAŞLIK */}
       <View style={styles.topBar}>
         <View>
-          <Text style={styles.topGreeting}>Hoş geldin 👋</Text>
+          <Text style={styles.topGreeting}>{t('Hoş geldin 👋')}</Text>
           <Text style={styles.topName}>{user.name}</Text>
         </View>
         <TouchableOpacity activeOpacity={0.85} onPress={pickAndUploadProfilePhoto} style={styles.avatar}>
@@ -2210,19 +2235,19 @@ const pickAndUploadProfilePhoto = async () => {
           <Ionicons name="barbell" size={48} color="#FF9F1C" style={{ marginBottom: 16 }} />
           <Text style={styles.gymLockTitle}>GymBody VIP</Text>
           <Text style={styles.gymLockSubtitle}>
-            Kişisel AI antrenörünle her hafta sana özel antrenman ve beslenme programı, Max Güç kayıt ve güç sıralaması, sınırsız yağ oranı analizi, gelişim fotoğrafı karşılaştırması ve kalori hedefi.
+            {t('Kişisel AI antrenörünle her hafta sana özel antrenman ve beslenme programı, Max Güç kayıt ve güç sıralaması, sınırsız yağ oranı analizi, gelişim fotoğrafı karşılaştırması ve kalori hedefi.')}
           </Text>
 
           <View style={styles.gymLockStats}>
             <View style={styles.gymLockStatItem}>
               <Ionicons name="flame" size={16} color={C.orange} />
-              <Text style={styles.gymLockStatText}>{userStats.streak} Günlük Seri</Text>
+              <Text style={styles.gymLockStatText}>{t('{{count}} Günlük Seri', { count: userStats.streak })}</Text>
             </View>
           </View>
 
           <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={{ borderRadius: 14, paddingVertical: 13, paddingHorizontal: 32, marginTop: 16, alignItems: 'center' }}>
-            <Text style={{ color: '#1A1530', fontWeight: '900', fontSize: 15 }}>VIP'e Geç</Text>
+            <Text style={{ color: '#1A1530', fontWeight: '900', fontSize: 15 }}>{t("VIP'e Geç")}</Text>
           </LinearGradient>
         </LinearGradient>
       </TouchableOpacity>
@@ -2238,8 +2263,8 @@ const pickAndUploadProfilePhoto = async () => {
           const nextDay = weeklyPlan.workoutPlan?.find((d: any) => d.dayNumber === weeklyPlan.currentDay);
           return (
             <View style={styles.restPromptCard}>
-              <Text style={styles.restPromptTitle}>Tebrikler, günü bitirdin! 💪</Text>
-              <Text style={styles.restPromptSub}>Bugün mola vermek ister misin?</Text>
+              <Text style={styles.restPromptTitle}>{t('Tebrikler, günü bitirdin! 💪')}</Text>
+              <Text style={styles.restPromptSub}>{t('Bugün mola vermek ister misin?')}</Text>
               <View style={styles.restPromptBtns}>
                 <TouchableOpacity
                   style={styles.restPromptYes}
@@ -2247,7 +2272,7 @@ const pickAndUploadProfilePhoto = async () => {
                   onPress={() => { setIsRestDay(true); setShowRestPrompt(false); }}
                 >
                   <Ionicons name="bed-outline" size={18} color={C.textSec} />
-                  <Text style={styles.restPromptYesText}>Evet, mola ver</Text>
+                  <Text style={styles.restPromptYesText}>{t('Evet, mola ver')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.restPromptNo}
@@ -2255,7 +2280,7 @@ const pickAndUploadProfilePhoto = async () => {
                   onPress={() => { setIsRestDay(false); setShowRestPrompt(false); }}
                 >
                   <Ionicons name="barbell-outline" size={18} color="#1A1235" />
-                  <Text style={styles.restPromptNoText}>Hayır{nextDay ? ` · ${nextDay.focus}` : ''}</Text>
+                  <Text style={styles.restPromptNoText}>{t('Hayır')}{nextDay ? ` · ${nextDay.focus}` : ''}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -2266,11 +2291,11 @@ const pickAndUploadProfilePhoto = async () => {
         {isRestDay && !showRestPrompt && weeklyPlan && (() => {
           const nextDay = weeklyPlan.workoutPlan?.find((d: any) => d.dayNumber === weeklyPlan.currentDay);
           const REST_QUOTES = [
-            "Kaslar antrenman sırasında yıkılır, dinlenme sırasında inşa edilir.",
-            "Bugün duruyorsun, yarın daha güçlü başlıyorsun.",
-            "Dinlenme de programın parçası. Atlama.",
-            "Büyüme, salondan çıktıktan sonra olur.",
-            "Bugünkü mola, yarınki performansın temeli.",
+            t('Kaslar antrenman sırasında yıkılır, dinlenme sırasında inşa edilir.'),
+            t('Bugün duruyorsun, yarın daha güçlü başlıyorsun.'),
+            t('Dinlenme de programın parçası. Atlama.'),
+            t('Büyüme, salondan çıktıktan sonra olur.'),
+            t('Bugünkü mola, yarınki performansın temeli.'),
           ];
           const quote = REST_QUOTES[Math.floor(Math.random() * REST_QUOTES.length)];
           return (
@@ -2280,18 +2305,18 @@ const pickAndUploadProfilePhoto = async () => {
                 <Ionicons name="moon" size={36} color="#FF9F1C" />
               </View>
 
-              <Text style={styles.restDayTitle}>Mola Günü 🌙</Text>
+              <Text style={styles.restDayTitle}>{t('Mola Günü 🌙')}</Text>
               <Text style={styles.restDayQuote}>"{quote}"</Text>
 
               {/* Yarınki antrenman önizleme */}
               {nextDay && (
                 <View style={styles.restNextCard}>
-                  <Text style={styles.restNextLabel}>YARIN</Text>
+                  <Text style={styles.restNextLabel}>{t('YARIN')}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
                     <Ionicons name="barbell-outline" size={18} color="#FF9F1C" />
                     <Text style={styles.restNextFocus}>{nextDay.focus}</Text>
                   </View>
-                  <Text style={styles.restNextCount}>{nextDay.exercises?.length || 0} egzersiz seni bekliyor</Text>
+                  <Text style={styles.restNextCount}>{t('{{count}} egzersiz seni bekliyor', { count: nextDay.exercises?.length || 0 })}</Text>
                 </View>
               )}
 
@@ -2301,7 +2326,7 @@ const pickAndUploadProfilePhoto = async () => {
                 style={styles.restBackBtn}
               >
                 <Ionicons name="barbell-outline" size={16} color="#FF9F1C" />
-                <Text style={styles.restBackBtnText}>Antrenmana dön</Text>
+                <Text style={styles.restBackBtnText}>{t('Antrenmana dön')}</Text>
               </TouchableOpacity>
             </LinearGradient>
           );
@@ -2310,15 +2335,15 @@ const pickAndUploadProfilePhoto = async () => {
         {/* FORM */}
         {!weeklyPlan && (
           <View style={styles.statsCard}>
-            <Text style={styles.statsTitle}>Programını Oluştur</Text>
+            <Text style={styles.statsTitle}>{t('Programını Oluştur')}</Text>
 
             {/* BESLENME HEDEFİ */}
-            <Text style={[styles.statsSubtitle, { marginBottom: 10 }]}>Beslenme hedefin nedir?</Text>
+            <Text style={[styles.statsSubtitle, { marginBottom: 10 }]}>{t('Beslenme hedefin nedir?')}</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 18 }}>
               {([
-                { key: 'definition', label: '🔥 Definasyon', desc: 'Yağ yak' },
-                { key: 'bulk',       label: '💪 Bulk',       desc: 'Kas kazan' },
-                { key: 'maintain',   label: '⚖️ Koruma',     desc: 'Formu koru' },
+                { key: 'definition', label: t('🔥 Definasyon'), desc: t('Yağ yak') },
+                { key: 'bulk',       label: t('💪 Bulk'),       desc: t('Kas kazan') },
+                { key: 'maintain',   label: t('⚖️ Koruma'),     desc: t('Formu koru') },
               ] as const).map(opt => (
                 <TouchableOpacity
                   key={opt.key}
@@ -2337,10 +2362,10 @@ const pickAndUploadProfilePhoto = async () => {
             </View>
 
             {/* ALERJİ */}
-            <Text style={[styles.statsSubtitle, { marginBottom: 8 }]}>Alerji veya tüketmediğin yiyecekler var mı? (opsiyonel)</Text>
+            <Text style={[styles.statsSubtitle, { marginBottom: 8 }]}>{t('Alerji veya tüketmediğin yiyecekler var mı? (opsiyonel)')}</Text>
             <TextInput
               style={styles.noteInput}
-              placeholder="örn. laktoz, fıstık, gluten, kırmızı et..."
+              placeholder={t('örn. laktoz, fıstık, gluten, kırmızı et...')}
               placeholderTextColor={C.textMuted}
               value={gymAllergy}
               onChangeText={setGymAllergy}
@@ -2350,13 +2375,13 @@ const pickAndUploadProfilePhoto = async () => {
             {gymLoading ? (
               <View style={{ alignItems: 'center', marginTop: 20 }}>
                 <ActivityIndicator size="large" color="#FF9F1C" />
-                <Text style={[styles.loaderText, { marginTop: 12 }]}>AI programını hazırlıyor, bu biraz sürebilir...</Text>
+                <Text style={[styles.loaderText, { marginTop: 12 }]}>{t('AI programını hazırlıyor, bu biraz sürebilir...')}</Text>
               </View>
             ) : (
               <TouchableOpacity activeOpacity={0.85} onPress={() => fetchWeeklyPlan()} style={{ marginTop: 8 }}>
                 <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
                   <Ionicons name="sparkles" size={18} color="#1A1235" />
-                  <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>PROGRAMIMI OLUŞTUR</Text>
+                  <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{t('PROGRAMIMI OLUŞTUR')}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             )}
@@ -2367,9 +2392,9 @@ const pickAndUploadProfilePhoto = async () => {
         {weeklyPlan && !weeklyPlan.completedFully && !weeklyPlan.started && weeklyPlan.currentDay === 1 && !weeklyPlan.lastDayCompletedAt && (
           <View style={[styles.statsCard, { alignItems: 'center', borderColor: '#FF9F1C', borderWidth: 1 }]}>
             <Text style={{ fontSize: 40, marginBottom: 4 }}>🎯</Text>
-            <Text style={[styles.statsTitle, { textAlign: 'center' }]}>Programın Hazır!</Text>
+            <Text style={[styles.statsTitle, { textAlign: 'center' }]}>{t('Programın Hazır!')}</Text>
             <Text style={[styles.statsSubtitle, { textAlign: 'center', marginTop: 6, marginBottom: 18 }]}>
-              Sana özel olarak hazırlandı. İçinde antrenman ve beslenme planın gün gün seni bekliyor 💪
+              {t('Sana özel olarak hazırlandı. İçinde antrenman ve beslenme planın gün gün seni bekliyor 💪')}
             </Text>
 
             {gymLoading ? (
@@ -2378,7 +2403,7 @@ const pickAndUploadProfilePhoto = async () => {
               <TouchableOpacity activeOpacity={0.85} onPress={startProgram} style={{ width: '100%' }}>
                 <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
                   <Ionicons name="play" size={18} color="#1A1235" />
-                  <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>PROGRAMA BAŞLA</Text>
+                  <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{t('PROGRAMA BAŞLA')}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             )}
@@ -2391,8 +2416,8 @@ const pickAndUploadProfilePhoto = async () => {
             <Ionicons name="albums-outline" size={20} color={C.lime} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>Hareket Kütüphanesi</Text>
-            <Text style={{ color: C.textMuted, fontSize: 12 }}>Hareketlerin yapılışına bak</Text>
+            <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>{t('Hareket Kütüphanesi')}</Text>
+            <Text style={{ color: C.textMuted, fontSize: 12 }}>{t('Hareketlerin yapılışına bak')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
         </TouchableOpacity>
@@ -2414,16 +2439,16 @@ const pickAndUploadProfilePhoto = async () => {
           <View style={styles.gymDayCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: C.lime, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>BUGÜN</Text>
+                <Text style={{ color: C.lime, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>{t('BUGÜN')}</Text>
                 <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginTop: 3 }}>{currentWorkoutDay.focus}</Text>
                 <View style={{ flexDirection: 'row', gap: 14, marginTop: 8 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <Ionicons name="barbell-outline" size={15} color={C.textMuted} />
-                    <Text style={{ color: C.textSec, fontSize: 12 }}>{exs.length} hareket</Text>
+                    <Text style={{ color: C.textSec, fontSize: 12 }}>{t('{{count}} hareket', { count: exs.length })}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <Ionicons name="time-outline" size={15} color={C.textMuted} />
-                    <Text style={{ color: C.textSec, fontSize: 12 }}>~{estMin} dk</Text>
+                    <Text style={{ color: C.textSec, fontSize: 12 }}>~{estMin} {t('dk')}</Text>
                   </View>
                 </View>
               </View>
@@ -2434,17 +2459,17 @@ const pickAndUploadProfilePhoto = async () => {
             <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutSource('gymbody'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }}
               style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <Ionicons name="play" size={18} color="#0B1207" />
-              <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>Antrenmana başla</Text>
+              <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>{t('Antrenmana başla')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* HAREKETLER */}
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginLeft: 2 }}>
-            <Text style={{ color: C.text, fontSize: 15, fontWeight: '800' }}>Hareketler · {currentWorkoutDay.dayNumber}. gün</Text>
+            <Text style={{ color: C.text, fontSize: 15, fontWeight: '800' }}>{t('Hareketler · {{day}}. gün', { day: currentWorkoutDay.dayNumber })}</Text>
             <TouchableOpacity activeOpacity={0.8} onPress={() => setDayFeedbackVisible(true)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.lime + '1A', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: C.lime + '55' }}>
               <Ionicons name="checkmark-done" size={13} color={C.lime} />
-              <Text style={{ color: C.lime, fontWeight: '800', fontSize: 12 }}>Tamamla</Text>
+              <Text style={{ color: C.lime, fontWeight: '800', fontSize: 12 }}>{t('Tamamla')}</Text>
             </TouchableOpacity>
           </View>
           {exs.map((ex: any, j: number) => (
@@ -2474,7 +2499,7 @@ const pickAndUploadProfilePhoto = async () => {
       {SHOW_GYM_NUTRITION && currentNutritionDay && (
         <View style={[styles.gymDayCard, { marginTop: 12 }]}>
           <View style={styles.gymDayHeader}>
-            <Text style={styles.gymDayTitle}>🍽️ Beslenme</Text>
+            <Text style={styles.gymDayTitle}>{t('🍽️ Beslenme')}</Text>
             <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{currentNutritionDay.totalCalories} kcal</Text></View>
           </View>
           {currentNutritionDay.meals?.map((meal: any, j: number) => (
@@ -2494,11 +2519,11 @@ const pickAndUploadProfilePhoto = async () => {
 {/* PROGRAM TAMAMLANDI */}
 {weeklyPlan?.completedFully && (
   <View style={styles.statsCard}>
-    <Text style={styles.statsTitle}>Programını Tamamladın!</Text>
-    <Text style={styles.statsSubtitle}>Yeni programın buna göre ayarlansın diye yorum bırakabilirsin.</Text>
+    <Text style={styles.statsTitle}>{t('Programını Tamamladın!')}</Text>
+    <Text style={styles.statsSubtitle}>{t('Yeni programın buna göre ayarlansın diye yorum bırakabilirsin.')}</Text>
     <TextInput
       style={styles.noteInput}
-      placeholder="örn. bacak günü az geldi, omuza ağırlık ver..."
+      placeholder={t('örn. bacak günü az geldi, omuza ağırlık ver...')}
       placeholderTextColor={C.textMuted}
       value={gymFeedback}
       onChangeText={setGymFeedback}
@@ -2507,7 +2532,7 @@ const pickAndUploadProfilePhoto = async () => {
     <TouchableOpacity activeOpacity={0.85} onPress={() => setWeeklyPlan(null)} style={{ marginTop: 8 }}>
       <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
         <Ionicons name="refresh-outline" size={18} color="#1A1235" />
-        <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>YENİ PROGRAM AYARLA</Text>
+        <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{t('YENİ PROGRAM AYARLA')}</Text>
       </LinearGradient>
     </TouchableOpacity>
   </View>
@@ -2528,13 +2553,13 @@ const pickAndUploadProfilePhoto = async () => {
               <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(37,99,235,0.14)', alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="person-circle-outline" size={40} color="#5B8DEF" />
               </View>
-              <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>PT — Kişisel Hoca</Text>
+              <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>{t('PT — Kişisel Hoca')}</Text>
               <Text style={{ color: C.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
-                Hocanın sana özel yazdığı antrenman & beslenme programı ve birebir sohbet <Text style={{ color: C.orange, fontWeight: '800' }}>VIP</Text> üyelere özeldir.
+                {t('Hocanın sana özel yazdığı antrenman & beslenme programı ve birebir sohbet')} <Text style={{ color: C.orange, fontWeight: '800' }}>VIP</Text> {t('üyelere özeldir.')}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
                 <Ionicons name="lock-closed" size={16} color={C.orange} />
-                <Text style={{ color: C.orange, fontWeight: '800', fontSize: 14 }}>VIP'e Geç →</Text>
+                <Text style={{ color: C.orange, fontWeight: '800', fontSize: 14 }}>{t("VIP'e Geç →")}</Text>
               </View>
             </TouchableOpacity>
           ) : !coachData.hasCoach ? (
@@ -2542,14 +2567,14 @@ const pickAndUploadProfilePhoto = async () => {
               <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(37,99,235,0.14)', alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="person-circle-outline" size={40} color="#5B8DEF" />
               </View>
-              <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>Hocana Bağlan</Text>
+              <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>{t('Hocana Bağlan')}</Text>
               <Text style={{ color: C.textMuted, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
-                Hocanın sana verdiği kodu gir; sana özel yazdığı antrenman & beslenme programı ve sohbet burada açılsın.
+                {t('Hocanın sana verdiği kodu gir; sana özel yazdığı antrenman & beslenme programı ve sohbet burada açılsın.')}
               </Text>
               <View style={{ width: '100%', marginTop: 8 }}>
                 <TextInput
                   style={styles.noteInput}
-                  placeholder="Hoca kodu (örn. ali47)"
+                  placeholder={t('Hoca kodu (örn. ali47)')}
                   placeholderTextColor={C.textMuted}
                   value={joinCode}
                   autoCapitalize="none"
@@ -2558,7 +2583,7 @@ const pickAndUploadProfilePhoto = async () => {
                 <TouchableOpacity activeOpacity={0.85} onPress={joinCoach} style={{ marginTop: 12 }}>
                   <LinearGradient colors={['#2563EB', '#1E40AF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
                     <Ionicons name="link" size={18} color="#fff" />
-                    <Text style={[styles.primaryBtnText, { color: '#fff' }]}>BAĞLAN</Text>
+                    <Text style={[styles.primaryBtnText, { color: '#fff' }]}>{t('BAĞLAN')}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -2571,13 +2596,13 @@ const pickAndUploadProfilePhoto = async () => {
                     <Ionicons name="barbell" size={24} color={C.lime} />
                   </View>
                   <View>
-                    <Text style={{ color: C.textMuted, fontSize: 12 }}>Hocan</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 12 }}>{t('Hocan')}</Text>
                     <Text style={{ color: C.text, fontWeight: '900', fontSize: 18 }}>{coachData.coachName}</Text>
                   </View>
                 </View>
                 <TouchableOpacity activeOpacity={0.85} onPress={openCoachChat} style={{ backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Sohbet</Text>
+                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>{t('Sohbet')}</Text>
                   {coachData.unread > 0 && (
                     <View style={{ backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
                       <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>{coachData.unread}</Text>
@@ -2589,8 +2614,8 @@ const pickAndUploadProfilePhoto = async () => {
               {(coachData.workoutPlan || []).length === 0 && (coachData.nutritionPlan || []).length === 0 && (
                 <View style={[styles.statsCard, { alignItems: 'center', gap: 8 }]}>
                   <Ionicons name="barbell-outline" size={30} color={C.textMuted} />
-                  <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 15 }}>Program Bekleniyor</Text>
-                  <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>Hocan sana özel program yazınca burada görünecek.</Text>
+                  <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 15 }}>{t('Program Bekleniyor')}</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center' }}>{t('Hocan sana özel program yazınca burada görünecek.')}</Text>
                 </View>
               )}
               {(coachData.workoutPlan || []).length > 0 && (() => {
@@ -2609,7 +2634,7 @@ const pickAndUploadProfilePhoto = async () => {
                         return (
                           <TouchableOpacity key={i} activeOpacity={0.85} onPress={() => setPtSelectedDay(d.dayNumber ?? i + 1)}
                             style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: on ? C.lime : C.surface, borderWidth: 1, borderColor: on ? C.lime : C.border }}>
-                            <Text style={{ color: on ? '#0B1207' : C.text, fontWeight: '800', fontSize: 13 }}>{d.dayNumber || i + 1}. Gün</Text>
+                            <Text style={{ color: on ? '#0B1207' : C.text, fontWeight: '800', fontSize: 13 }}>{t('{{day}}. Gün', { day: d.dayNumber || i + 1 })}</Text>
                             {!!d.focus && <Text style={{ color: on ? '#0B1207' : C.textMuted, fontSize: 11, marginTop: 1 }} numberOfLines={1}>{d.focus}</Text>}
                           </TouchableOpacity>
                         );
@@ -2621,16 +2646,16 @@ const pickAndUploadProfilePhoto = async () => {
                       <View style={styles.gymDayCard}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                           <View style={{ flex: 1 }}>
-                            <Text style={{ color: C.lime, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>{day.dayNumber || 1}. GÜN</Text>
-                            <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginTop: 3 }}>{day.focus || 'Antrenman'}</Text>
+                            <Text style={{ color: C.lime, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>{t('{{day}}. GÜN', { day: day.dayNumber || 1 })}</Text>
+                            <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginTop: 3 }}>{day.focus || t('Antrenman')}</Text>
                             <View style={{ flexDirection: 'row', gap: 14, marginTop: 8 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                                 <Ionicons name="barbell-outline" size={15} color={C.textMuted} />
-                                <Text style={{ color: C.textSec, fontSize: 12 }}>{exs.length} hareket</Text>
+                                <Text style={{ color: C.textSec, fontSize: 12 }}>{t('{{count}} hareket', { count: exs.length })}</Text>
                               </View>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                                 <Ionicons name="time-outline" size={15} color={C.textMuted} />
-                                <Text style={{ color: C.textSec, fontSize: 12 }}>~{estMin} dk</Text>
+                                <Text style={{ color: C.textSec, fontSize: 12 }}>~{estMin} {t('dk')}</Text>
                               </View>
                             </View>
                           </View>
@@ -2640,7 +2665,7 @@ const pickAndUploadProfilePhoto = async () => {
                             onPress={() => { setWorkoutSource('pt'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }}
                             style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                             <Ionicons name="play" size={18} color="#0B1207" />
-                            <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>Antrenmana başla</Text>
+                            <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>{t('Antrenmana başla')}</Text>
                           </TouchableOpacity>
                         )}
                       </View>
@@ -2649,7 +2674,7 @@ const pickAndUploadProfilePhoto = async () => {
                     {/* HAREKETLER — thumbnail'li (GymBody ile aynı görsel dil) */}
                     {exs.length > 0 && (
                       <>
-                        <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', marginBottom: 8, marginLeft: 2, marginTop: 12 }}>Hareketler · {day.dayNumber || 1}. gün</Text>
+                        <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', marginBottom: 8, marginLeft: 2, marginTop: 12 }}>{t('Hareketler · {{day}}. gün', { day: day.dayNumber || 1 })}</Text>
                         {exs.map((ex: any, j: number) => (
                           <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 7, borderWidth: 1, borderColor: C.border }}>
                             <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
@@ -2673,7 +2698,7 @@ const pickAndUploadProfilePhoto = async () => {
                     {nutritionDay && (
                       <View style={[styles.gymDayCard, { marginTop: 12 }]}>
                         <View style={styles.gymDayHeader}>
-                          <Text style={styles.gymDayTitle}>🍽️ Beslenme</Text>
+                          <Text style={styles.gymDayTitle}>{t('🍽️ Beslenme')}</Text>
                           {!!nutritionDay.totalCalories && <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{nutritionDay.totalCalories} kcal</Text></View>}
                         </View>
                         {(nutritionDay.meals || []).map((meal: any, j: number) => (
@@ -2692,7 +2717,7 @@ const pickAndUploadProfilePhoto = async () => {
               {(coachData.workoutPlan || []).length === 0 && (coachData.nutritionPlan || []).map((day: any, i: number) => (
                 <View key={'n' + i} style={styles.gymDayCard}>
                   <View style={styles.gymDayHeader}>
-                    <Text style={styles.gymDayTitle}>🍽️ {day.dayNumber || i + 1}. Gün Beslenme</Text>
+                    <Text style={styles.gymDayTitle}>{t('🍽️ {{day}}. Gün Beslenme', { day: day.dayNumber || i + 1 })}</Text>
                     {!!day.totalCalories && <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{day.totalCalories} kcal</Text></View>}
                   </View>
                   {(day.meals || []).map((meal: any, j: number) => (
@@ -2716,14 +2741,14 @@ const pickAndUploadProfilePhoto = async () => {
               analizTab === 'gelisim' && { backgroundColor: AZ_DARK.lime }]}
             onPress={() => setAnalizTab('gelisim')}>
             <Ionicons name="camera-outline" size={16} color={analizTab === 'gelisim' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-            <Text style={{ fontWeight: '700', color: analizTab === 'gelisim' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>Gelişim</Text>
+            <Text style={{ fontWeight: '700', color: analizTab === 'gelisim' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>{t('Gelişim')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[{ flex: 1, gap: 6, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 8, flexDirection: 'row' },
               analizTab === 'beslenme' && { backgroundColor: AZ_DARK.lime }]}
             onPress={() => setAnalizTab('beslenme')}>
             <Ionicons name="restaurant-outline" size={16} color={analizTab === 'beslenme' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-            <Text style={{ fontWeight: '700', color: analizTab === 'beslenme' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>Beslenme</Text>
+            <Text style={{ fontWeight: '700', color: analizTab === 'beslenme' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>{t('Beslenme')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -2751,8 +2776,8 @@ const pickAndUploadProfilePhoto = async () => {
                       shadowColor: AZ_DARK.lime, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6 }}>
                       <Ionicons name="camera" size={26} color={AZ_DARK.lime} />
                     </View>
-                    <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 17, marginBottom: 4 }}>Yeni Gelişim Fotoğrafı</Text>
-                    <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>Çek veya galeriden seç · AI yağ oranını tahmin etsin</Text>
+                    <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 17, marginBottom: 4 }}>{t('Yeni Gelişim Fotoğrafı')}</Text>
+                    <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>{t('Çek veya galeriden seç · AI yağ oranını tahmin etsin')}</Text>
                   </View>
                 </TouchableOpacity>
               ) : (
@@ -2760,7 +2785,7 @@ const pickAndUploadProfilePhoto = async () => {
                   <Image source={{ uri: image }} style={{ width: '100%', height: 220, borderRadius: 16, marginBottom: 12 }} />
                   <TextInput
                     style={{ backgroundColor: AZ_DARK.surfaceContainer, padding: 14, borderRadius: 12, minHeight: 52, borderWidth: 1, borderColor: AZ_DARK.glassBorder, color: AZ_DARK.onSurface, fontSize: 14 }}
-                    placeholder="Antrenman notunu yaz..."
+                    placeholder={t('Antrenman notunu yaz...')}
                     placeholderTextColor={AZ_DARK.onSurfaceVariant}
                     value={note}
                     onChangeText={setNote}
@@ -2770,11 +2795,11 @@ const pickAndUploadProfilePhoto = async () => {
                     <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 12}}>
                       <TouchableOpacity style={{ flex: 0.48, flexDirection: 'row', gap: 6, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: AZ_DARK.lime }} onPress={uploadImage}>
                         <Ionicons name="checkmark" size={18} color={AZ_DARK.onLime} />
-                        <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14 }}>KAYDET</Text>
+                        <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14 }}>{t('KAYDET')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={{ flex: 0.48, flexDirection: 'row', gap: 6, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,180,171,0.12)', borderWidth: 1, borderColor: 'rgba(255,180,171,0.4)' }} onPress={() => setImage(null)}>
                         <Ionicons name="close" size={18} color={AZ_DARK.red} />
-                        <Text style={{ color: AZ_DARK.red, fontWeight: '800', fontSize: 14 }}>İPTAL</Text>
+                        <Text style={{ color: AZ_DARK.red, fontWeight: '800', fontSize: 14 }}>{t('İPTAL')}</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -2787,9 +2812,9 @@ const pickAndUploadProfilePhoto = async () => {
                 <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
                   style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 16, marginBottom: 16, alignItems: 'center', gap: 10 }}>
                   <Ionicons name="lock-closed" size={24} color={AZ_DARK.lime} />
-                  <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, textAlign: 'center' }}>Gelişim Karşılaştırması</Text>
-                  <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>İlk ve son fotoğraflarını kıyasla, yağ oranı farkını gör. VIP üyelere özel.</Text>
-                  <Text style={{ color: AZ_DARK.lime, fontWeight: '700', fontSize: 13 }}>VIP'e Geç →</Text>
+                  <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, textAlign: 'center' }}>{t('Gelişim Karşılaştırması')}</Text>
+                  <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>{t('İlk ve son fotoğraflarını kıyasla, yağ oranı farkını gör. VIP üyelere özel.')}</Text>
+                  <Text style={{ color: AZ_DARK.lime, fontWeight: '700', fontSize: 13 }}>{t("VIP'e Geç →")}</Text>
                 </TouchableOpacity>
               ) : (() => {
                 const withFat = gallery.filter(p => p.bodyFatPercentage != null);
@@ -2797,7 +2822,7 @@ const pickAndUploadProfilePhoto = async () => {
                   return (
                     <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 16, marginBottom: 16, alignItems: 'center', gap: 8 }}>
                       <Ionicons name="images-outline" size={24} color={AZ_DARK.onSurfaceVariant} />
-                      <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>Kıyaslama için yağ oranı bilinen en az 2 fotoğraf gerekiyor.</Text>
+                      <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>{t('Kıyaslama için yağ oranı bilinen en az 2 fotoğraf gerekiyor.')}</Text>
                     </View>
                   );
                 }
@@ -2828,16 +2853,16 @@ const pickAndUploadProfilePhoto = async () => {
                   : null;
 
                 const praise = improved
-                  ? diff >= 5 ? '🏆 İnanılmaz bir dönüşüm!' : diff >= 3 ? '💪 Harika ilerleme!' : diff >= 1 ? '🔥 Doğru yoldasın!' : '✨ Başlangıç iyi, devam et!'
-                  : sameish ? '🎯 Yağ oranın koruyor.' : '📈 Küçük artış var, bırakma!';
+                  ? diff >= 5 ? t('🏆 İnanılmaz bir dönüşüm!') : diff >= 3 ? t('💪 Harika ilerleme!') : diff >= 1 ? t('🔥 Doğru yoldasın!') : t('✨ Başlangıç iyi, devam et!')
+                  : sameish ? t('🎯 Yağ oranın koruyor.') : t('📈 Küçük artış var, bırakma!');
 
                 return (
                   <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 16, marginBottom: 16, gap: 14 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>Gelişim Karşılaştırması</Text>
+                      <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>{t('Gelişim Karşılaştırması')}</Text>
                       <View style={{ backgroundColor: improved ? AZ_DARK.limeSoft20 : 'rgba(255,180,171,0.2)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 }}>
                         <Text style={{ color: improved ? AZ_DARK.lime : AZ_DARK.red, fontWeight: '700', fontSize: 11, letterSpacing: 0.5 }}>
-                          {improved ? `−${diff}% Yağ` : sameish ? 'Değişim yok' : `+${Math.abs(diff)}% Yağ`}
+                          {improved ? t('−{{diff}}% Yağ', { diff }) : sameish ? t('Değişim yok') : t('+{{diff}}% Yağ', { diff: Math.abs(diff) })}
                         </Text>
                       </View>
                     </View>
@@ -2847,14 +2872,14 @@ const pickAndUploadProfilePhoto = async () => {
                       <View style={{ flex: 1, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
                         <Image source={{ uri: first.url }} style={{ width: '100%', height: '100%' }} />
                         <View style={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-                          <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>Başlangıç</Text>
+                          <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>{t('Başlangıç')}</Text>
                         </View>
                       </View>
                       <View style={{ width: 1, backgroundColor: AZ_DARK.glassBorder, marginVertical: 16 }} />
                       <View style={{ flex: 1, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: AZ_DARK.limeSoft30 }}>
                         <Image source={{ uri: last.url }} style={{ width: '100%', height: '100%' }} />
                         <View style={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: AZ_DARK.lime, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-                          <Text style={{ color: AZ_DARK.onLime, fontSize: 11, fontWeight: '700' }}>Güncel</Text>
+                          <Text style={{ color: AZ_DARK.onLime, fontSize: 11, fontWeight: '700' }}>{t('Güncel')}</Text>
                         </View>
                       </View>
                     </View>
@@ -2862,24 +2887,24 @@ const pickAndUploadProfilePhoto = async () => {
                     {/* ÖZET KARTI */}
                     <View style={{ backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: improved ? AZ_DARK.limeSoft20 : 'rgba(255,180,171,0.25)', gap: 10 }}>
                       <Text style={{ color: improved ? AZ_DARK.lime : AZ_DARK.red, fontWeight: '900', fontSize: 20, textAlign: 'center' }}>
-                        {improved ? `−${diff}% yağ oranı` : sameish ? 'Değişim yok' : `+${Math.abs(diff)}% artış`}
+                        {improved ? t('−{{diff}}% yağ oranı', { diff }) : sameish ? t('Değişim yok') : t('+{{diff}}% artış', { diff: Math.abs(diff) })}
                       </Text>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
                         <View style={{ alignItems: 'center' }}>
                           <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 16 }}>{daysPassed}</Text>
-                          <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>gün</Text>
+                          <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>{t('gün')}</Text>
                         </View>
                         {weightDiff != null && (
                           <View style={{ alignItems: 'center' }}>
                             <Text style={{ color: weightDiff > 0 ? AZ_DARK.lime : AZ_DARK.red, fontWeight: '800', fontSize: 16 }}>
                               {weightDiff > 0 ? `−${weightDiff}` : `+${Math.abs(weightDiff)}`} kg
                             </Text>
-                            <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>kilo</Text>
+                            <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>{t('kilo')}</Text>
                           </View>
                         )}
                         <View style={{ alignItems: 'center' }}>
                           <Text style={{ color: AZ_DARK.lime, fontWeight: '800', fontSize: 16 }}>{byDate.length}</Text>
-                          <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>analiz</Text>
+                          <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>{t('analiz')}</Text>
                         </View>
                       </View>
                       <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>{praise}</Text>
@@ -2888,13 +2913,12 @@ const pickAndUploadProfilePhoto = async () => {
                     {/* BU HIZLA GİDERSEN TAHMİNİ */}
                     {weeksToGoal != null && (
                       <View style={{ backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: AZ_DARK.limeSoft20, gap: 6 }}>
-                        <Text style={{ color: AZ_DARK.lime, fontWeight: '800', fontSize: 14 }}>⚡ Bu hızla gidersen…</Text>
+                        <Text style={{ color: AZ_DARK.lime, fontWeight: '800', fontSize: 14 }}>{t('⚡ Bu hızla gidersen…')}</Text>
                         <Text style={{ color: AZ_DARK.onSurface, fontSize: 13, lineHeight: 20 }}>
-                          Haftada <Text style={{ color: AZ_DARK.lime, fontWeight: '700' }}>~{weeklyRate.toFixed(1)}%</Text> yağ yakıyorsun.{'\n'}
-                          Hedef yağ oranına (<Text style={{ color: AZ_DARK.lime, fontWeight: '700' }}>%{targetFat}</Text>) ulaşman yaklaşık{' '}
-                          <Text style={{ color: AZ_DARK.lime, fontWeight: '800' }}>{weeksToGoal} hafta</Text> sürer.
+                          {t('Haftada ~{{rate}}% yağ yakıyorsun.', { rate: weeklyRate.toFixed(1) })}{'\n'}
+                          {t('Hedef yağ oranına (%{{target}}) ulaşman yaklaşık {{weeks}} hafta sürer.', { target: targetFat, weeks: weeksToGoal })}
                         </Text>
-                        <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>* Tutarlı antrenman ve beslenme varsayımıyla</Text>
+                        <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>{t('* Tutarlı antrenman ve beslenme varsayımıyla')}</Text>
                       </View>
                     )}
                   </View>
@@ -2902,21 +2926,21 @@ const pickAndUploadProfilePhoto = async () => {
               })()}
 
               {gallery.length > 0 && (
-                <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, marginBottom: 12 }}>Geçmiş Kayıtlar</Text>
+                <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, marginBottom: 12 }}>{t('Geçmiş Kayıtlar')}</Text>
               )}
             </View>
           }
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 30 }}>
               <Ionicons name="camera-outline" size={48} color={AZ_DARK.lime} />
-              <Text style={{ color: AZ_DARK.onSurface, fontSize: 17, fontWeight: '700', marginTop: 14 }}>Henüz fotoğraf yok</Text>
-              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>İlk gelişim fotoğrafını ekle, AI yağ oranını hesaplasın ve değişimini takip etmeye başla.</Text>
+              <Text style={{ color: AZ_DARK.onSurface, fontSize: 17, fontWeight: '700', marginTop: 14 }}>{t('Henüz fotoğraf yok')}</Text>
+              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>{t('İlk gelişim fotoğrafını ekle, AI yağ oranını hesaplasın ve değişimini takip etmeye başla.')}</Text>
               <TouchableOpacity
                 onPress={() => showImageSourceOptions('progress')}
                 style={{ marginTop: 18, backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 8 }}
               >
                 <Ionicons name="add-circle-outline" size={20} color={AZ_DARK.onLime} />
-                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14 }}>İlk Fotoğrafı Ekle</Text>
+                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14 }}>{t('İlk Fotoğrafı Ekle')}</Text>
               </TouchableOpacity>
             </View>
           }
@@ -2929,7 +2953,7 @@ const pickAndUploadProfilePhoto = async () => {
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 }}>
           <Ionicons name="calendar-outline" size={13} color={AZ_DARK.onSurfaceVariant} />
-          <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, fontWeight: '600' }}>{new Date(item.date).toLocaleDateString('tr-TR')}</Text>
+          <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, fontWeight: '600' }}>{new Date(item.date).toLocaleDateString(dateLocale())}</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 2 }}>
           <TouchableOpacity onPress={() => deletePhoto(item._id)} style={{ padding: 6 }}>
@@ -2957,7 +2981,7 @@ const pickAndUploadProfilePhoto = async () => {
         <View style={{ backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 8, padding: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <Ionicons name="analytics" size={14} color={AZ_DARK.lime} />
-            <Text style={{ fontSize: 12, fontWeight: '700', color: AZ_DARK.onSurface }}>AI Analizi</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: AZ_DARK.onSurface }}>{t('AI Analizi')}</Text>
           </View>
           <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, lineHeight: 17 }}>{item.aiAnalysis}</Text>
         </View>
@@ -2981,11 +3005,11 @@ const pickAndUploadProfilePhoto = async () => {
           <View style={{ flexDirection: 'row', gap: 24, marginBottom: 18, marginTop: 6, borderBottomWidth: 1, borderBottomColor: AZ_DARK.glassBorderFaint }}>
             <TouchableOpacity onPress={() => setMealTab('analiz')} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: mealTab === 'analiz' ? AZ_DARK.lime : 'transparent' }}>
               <Ionicons name="scan-outline" size={15} color={mealTab === 'analiz' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant} />
-              <Text style={{ fontWeight: '800', color: mealTab === 'analiz' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant, fontSize: 14 }}>Analiz</Text>
+              <Text style={{ fontWeight: '800', color: mealTab === 'analiz' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant, fontSize: 14 }}>{t('Analiz')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setMealTab('plan')} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: mealTab === 'plan' ? AZ_DARK.lime : 'transparent' }}>
               <Ionicons name="calendar-outline" size={15} color={mealTab === 'plan' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant} />
-              <Text style={{ fontWeight: '800', color: mealTab === 'plan' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant, fontSize: 14 }}>Plan</Text>
+              <Text style={{ fontWeight: '800', color: mealTab === 'plan' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant, fontSize: 14 }}>{t('Plan')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -2993,12 +3017,12 @@ const pickAndUploadProfilePhoto = async () => {
           <View>
             {/* SEVDİĞİM YEMEKLER */}
             <View style={{ borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, backgroundColor: AZ_DARK.glass }}>
-              <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 15, marginBottom: 4 }}>Sevdiğim Yemekler</Text>
-              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5, marginBottom: 12, lineHeight: 17 }}>Yapay zeka beslenme planını burada yazdığın yemeklere göre kurar — badem yağı gibi tuhaf şeyler değil, senin yediklerin önerilir.</Text>
+              <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 15, marginBottom: 4 }}>{t('Sevdiğim Yemekler')}</Text>
+              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5, marginBottom: 12, lineHeight: 17 }}>{t('Yapay zeka beslenme planını burada yazdığın yemeklere göre kurar — badem yağı gibi tuhaf şeyler değil, senin yediklerin önerilir.')}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
                 <TextInput
                   style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, color: AZ_DARK.onSurface, fontSize: 14 }}
-                  placeholder="örn. yumurta, tavuk, pilav"
+                  placeholder={t('örn. yumurta, tavuk, pilav')}
                   placeholderTextColor={AZ_DARK.onSurfaceVariant}
                   value={foodInput}
                   onChangeText={setFoodInput}
@@ -3022,7 +3046,7 @@ const pickAndUploadProfilePhoto = async () => {
               <TouchableOpacity activeOpacity={0.85} onPress={saveFoodChips} disabled={savingFoods}
                 style={{ backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', opacity: savingFoods ? 0.6 : 1 }}>
                 {savingFoods ? <ActivityIndicator size="small" color={AZ_DARK.onLime} /> : (
-                  <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14, letterSpacing: 0.5 }}>KAYDET</Text>
+                  <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14, letterSpacing: 0.5 }}>{t('KAYDET')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -3032,18 +3056,18 @@ const pickAndUploadProfilePhoto = async () => {
               <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,159,28,0.1)', borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,159,28,0.3)' }}>
                 <Ionicons name="lock-closed" size={18} color={C.orange} />
-                <Text style={{ flex: 1, color: C.text, fontSize: 12.5, fontWeight: '600' }}>Haftalık AI beslenme planı VIP'e özel. Yukarıdan yemeklerini kaydet, VIP olunca sana göre plan üretilsin.</Text>
+                <Text style={{ flex: 1, color: C.text, fontSize: 12.5, fontWeight: '600' }}>{t("Haftalık AI beslenme planı VIP'e özel. Yukarıdan yemeklerini kaydet, VIP olunca sana göre plan üretilsin.")}</Text>
                 <Ionicons name="chevron-forward" size={16} color={C.orange} />
               </TouchableOpacity>
             ) : (() => {
               const nutritionDay = weeklyPlan?.nutritionPlan?.find((d: any) => d.dayNumber === weeklyPlan.currentDay);
               if (!nutritionDay) return (
-                <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>Henüz haftalık programın yok. GymBody programını oluşturduğunda beslenme planın da burada görünür.</Text>
+                <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>{t('Henüz haftalık programın yok. GymBody programını oluşturduğunda beslenme planın da burada görünür.')}</Text>
               );
               return (
                 <View style={styles.gymDayCard}>
                   <View style={styles.gymDayHeader}>
-                    <Text style={styles.gymDayTitle}>🍽️ Bugünün Beslenme Planı</Text>
+                    <Text style={styles.gymDayTitle}>{t('🍽️ Bugünün Beslenme Planı')}</Text>
                     <View style={styles.gymFocusBadge}><Text style={styles.gymFocusText}>{nutritionDay.totalCalories} kcal</Text></View>
                   </View>
                   {nutritionDay.meals?.map((meal: any, j: number) => (
@@ -3066,13 +3090,13 @@ const pickAndUploadProfilePhoto = async () => {
             <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: AZ_DARK.limeSoft10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
               <Ionicons name="restaurant" size={22} color={AZ_DARK.lime} />
             </View>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: AZ_DARK.onSurface, textAlign: 'center' }}>Yapay Zeka Şefin</Text>
-            <Text style={{ fontSize: 13, color: AZ_DARK.onSurfaceVariant, textAlign: 'center', marginTop: 4, lineHeight: 18, paddingHorizontal: 10 }}>Tabağının net bir fotoğrafını yükle, içindeki makroları anında söylesin.</Text>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: AZ_DARK.onSurface, textAlign: 'center' }}>{t('Yapay Zeka Şefin')}</Text>
+            <Text style={{ fontSize: 13, color: AZ_DARK.onSurfaceVariant, textAlign: 'center', marginTop: 4, lineHeight: 18, paddingHorizontal: 10 }}>{t('Tabağının net bir fotoğrafını yükle, içindeki makroları anında söylesin.')}</Text>
 
             {!userStats.isVip && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: AZ_DARK.limeSoft10, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 10 }}>
                 <Ionicons name="ticket-outline" size={14} color={AZ_DARK.lime} />
-                <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5 }}>Bugünkü ücretsiz hakkın: <Text style={{ fontWeight: '800', color: AZ_DARK.lime }}>{dailyMealRights}</Text></Text>
+                <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5 }}>{t('Bugünkü ücretsiz hakkın:')} <Text style={{ fontWeight: '800', color: AZ_DARK.lime }}>{dailyMealRights}</Text></Text>
               </View>
             )}
 
@@ -3081,7 +3105,7 @@ const pickAndUploadProfilePhoto = async () => {
                 shadowColor: AZ_DARK.lime, shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6 }}
               onPress={() => askAndPickImage('meal')} disabled={loading}>
               <Ionicons name="scan" size={20} color={AZ_DARK.onLime} />
-              <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>TABAĞI TARA</Text>
+              <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('TABAĞI TARA')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -3090,7 +3114,7 @@ const pickAndUploadProfilePhoto = async () => {
               <Image source={{ uri: mealImage }} style={{ width: '100%', height: 190, borderRadius: 14, marginBottom: 14 }} />
               <TextInput
                 style={{ backgroundColor: AZ_DARK.surfaceContainer, padding: 14, borderRadius: 12, minHeight: 52, borderWidth: 1, borderColor: AZ_DARK.glassBorder, color: AZ_DARK.onSurface, fontSize: 14 }}
-                placeholder="Ek bilgi (opsiyonel): örn. 'içine protein tozu ekledim'"
+                placeholder={t("Ek bilgi (opsiyonel): örn. 'içine protein tozu ekledim'")}
                 placeholderTextColor={AZ_DARK.onSurfaceVariant}
                 value={mealNote}
                 onChangeText={setMealNote}
@@ -3099,7 +3123,7 @@ const pickAndUploadProfilePhoto = async () => {
               <TouchableOpacity activeOpacity={0.85} onPress={() => sendMealToAI(mealImage)}
                 style={{ marginTop: 12, backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="sparkles" size={18} color={AZ_DARK.onLime} />
-                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>ANALİZ ET</Text>
+                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('ANALİZ ET')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -3107,7 +3131,7 @@ const pickAndUploadProfilePhoto = async () => {
           {loading && mealImage && (
             <View style={{ marginVertical: 36, alignItems: 'center' }}>
               <ActivityIndicator size="large" color={AZ_DARK.lime} />
-              <Text style={{ marginTop: 14, color: AZ_DARK.onSurfaceVariant, fontStyle: 'italic', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 }}>Yapay zeka tabağı inceliyor, kalori hesabı yapılıyor...</Text>
+              <Text style={{ marginTop: 14, color: AZ_DARK.onSurfaceVariant, fontStyle: 'italic', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 }}>{t('Yapay zeka tabağı inceliyor, kalori hesabı yapılıyor...')}</Text>
             </View>
           )}
 
@@ -3125,17 +3149,17 @@ const pickAndUploadProfilePhoto = async () => {
               <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginTop: 8, borderTopWidth: 1, borderTopColor: AZ_DARK.glassBorder, paddingTop: 16 }}>
                 <View style={{ alignItems: 'center', flex: 1 }}>
                   <Text style={{ fontSize: 19, fontWeight: '800', color: AZ_DARK.macroProtein }}>{mealResult.protein}g</Text>
-                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>Protein</Text>
+                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>{t('Protein')}</Text>
                 </View>
                 <View style={{ width: 1, height: 34, backgroundColor: AZ_DARK.glassBorder }} />
                 <View style={{ alignItems: 'center', flex: 1 }}>
                   <Text style={{ fontSize: 19, fontWeight: '800', color: AZ_DARK.macroCarbs }}>{mealResult.carbs}g</Text>
-                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>Karbonh.</Text>
+                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>{t('Karbonh.')}</Text>
                 </View>
                 <View style={{ width: 1, height: 34, backgroundColor: AZ_DARK.glassBorder }} />
                 <View style={{ alignItems: 'center', flex: 1 }}>
                   <Text style={{ fontSize: 19, fontWeight: '800', color: AZ_DARK.macroFat }}>{mealResult.fat}g</Text>
-                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>Yağ</Text>
+                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>{t('Yağ')}</Text>
                 </View>
               </View>
             </View>
@@ -3143,7 +3167,7 @@ const pickAndUploadProfilePhoto = async () => {
 
           {/* GÜNLÜK KALORİ HEDEFİ — halka + makro barları (Stitch tasarımı) */}
           <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, alignItems: 'center' }}>
-            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, alignSelf: 'flex-start', marginBottom: 24 }}>Günlük Kalori Hedefi</Text>
+            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, alignSelf: 'flex-start', marginBottom: 24 }}>{t('Günlük Kalori Hedefi')}</Text>
 
             {(() => {
               const kcalPct = dailyTarget ? Math.min(1, todayCalories / dailyTarget) : 0;
@@ -3165,9 +3189,9 @@ const pickAndUploadProfilePhoto = async () => {
 
             <View style={{ width: '100%', gap: 14 }}>
               {[
-                { label: 'Protein', unit: 'g', color: AZ_DARK.macroProtein, cur: todayProtein, target: proteinTarget },
-                { label: 'Karbonhidrat', unit: 'g', color: AZ_DARK.macroCarbs, cur: todayCarbs, target: carbsTarget },
-                { label: 'Yağ', unit: 'g', color: AZ_DARK.macroFat, cur: todayFat, target: fatTarget },
+                { label: t('Protein'), unit: 'g', color: AZ_DARK.macroProtein, cur: todayProtein, target: proteinTarget },
+                { label: t('Karbonhidrat'), unit: 'g', color: AZ_DARK.macroCarbs, cur: todayCarbs, target: carbsTarget },
+                { label: t('Yağ'), unit: 'g', color: AZ_DARK.macroFat, cur: todayFat, target: fatTarget },
               ].map((mac) => {
                 const pct = mac.target ? Math.min(100, Math.round((mac.cur / mac.target) * 100)) : 0;
                 return (
@@ -3188,25 +3212,25 @@ const pickAndUploadProfilePhoto = async () => {
             </View>
 
             <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12, marginTop: 14, textAlign: 'center' }}>
-              {proteinTarget != null ? `Hedefler kilona göre · Bugün ${todayLogs.length} öğün tarandı` : 'Makro hedefleri için kilonu gir.'}
+              {proteinTarget != null ? t('Hedefler kilona göre · Bugün {{count}} öğün tarandı', { count: todayLogs.length }) : t('Makro hedefleri için kilonu gir.')}
             </Text>
           </View>
 
           {/* BAZAL METABOLİZMA — sadece kalori analizi tabında */}
           <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
-            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, marginBottom: 6 }}>Kalori Hedefi</Text>
+            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, marginBottom: 6 }}>{t('Kalori Hedefi')}</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              <TextInput style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, fontSize: 15, color: AZ_DARK.onSurface }} placeholder="Yaş" placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalAge} onChangeText={setGoalAge} keyboardType="numeric" />
-              <TextInput style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, fontSize: 15, color: AZ_DARK.onSurface }} placeholder="Hedef Kilo (kg)" placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalTarget} onChangeText={setGoalTarget} keyboardType="numeric" />
+              <TextInput style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, fontSize: 15, color: AZ_DARK.onSurface }} placeholder={t('Yaş')} placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalAge} onChangeText={setGoalAge} keyboardType="numeric" />
+              <TextInput style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, fontSize: 15, color: AZ_DARK.onSurface }} placeholder={t('Hedef Kilo (kg)')} placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalTarget} onChangeText={setGoalTarget} keyboardType="numeric" />
             </View>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
               <TouchableOpacity style={{ flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: goalGender === 'male' ? AZ_DARK.lime : AZ_DARK.surfaceContainer, borderWidth: 1, borderColor: goalGender === 'male' ? AZ_DARK.lime : AZ_DARK.glassBorder }} onPress={() => setGoalGender('male')}>
                 <Ionicons name="male" size={14} color={goalGender === 'male' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-                <Text style={{ color: goalGender === 'male' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontWeight: '700', fontSize: 14 }}>Erkek</Text>
+                <Text style={{ color: goalGender === 'male' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontWeight: '700', fontSize: 14 }}>{t('Erkek')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={{ flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: goalGender === 'female' ? AZ_DARK.lime : AZ_DARK.surfaceContainer, borderWidth: 1, borderColor: goalGender === 'female' ? AZ_DARK.lime : AZ_DARK.glassBorder }} onPress={() => setGoalGender('female')}>
                 <Ionicons name="female" size={14} color={goalGender === 'female' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-                <Text style={{ color: goalGender === 'female' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontWeight: '700', fontSize: 14 }}>Kadın</Text>
+                <Text style={{ color: goalGender === 'female' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontWeight: '700', fontSize: 14 }}>{t('Kadın')}</Text>
               </TouchableOpacity>
             </View>
             {bmr != null ? (
@@ -3221,34 +3245,34 @@ const pickAndUploadProfilePhoto = async () => {
                 </View>
                 {dailyTarget != null && (
                   <View style={{ flex: 1, backgroundColor: AZ_DARK.limeSoft20, borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: AZ_DARK.limeSoft30 }}>
-                    <Text style={{ color: AZ_DARK.lime, fontSize: 10, fontWeight: '700', marginBottom: 2 }}>{goalMode}</Text>
+                    <Text style={{ color: AZ_DARK.lime, fontSize: 10, fontWeight: '700', marginBottom: 2 }}>{t(goalMode)}</Text>
                     <Text style={{ color: AZ_DARK.lime, fontWeight: '900', fontSize: 15 }}>{dailyTarget} <Text style={{ fontSize: 11 }}>kcal</Text></Text>
                   </View>
                 )}
               </View>
             ) : (
-              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', paddingVertical: 6, lineHeight: 20 }}>Yaş gir → BMR hesaplansın.</Text>
+              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', paddingVertical: 6, lineHeight: 20 }}>{t('Yaş gir → BMR hesaplansın.')}</Text>
             )}
             {loading ? <ActivityIndicator size="small" color={AZ_DARK.lime} style={{ marginTop: 8 }} /> : (
               <TouchableOpacity activeOpacity={0.85} onPress={saveGoals}
                 style={{ marginTop: 10, backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>HEDEFLERİ KAYDET</Text>
+                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('HEDEFLERİ KAYDET')}</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* YENEN ÜRÜNLER & DETAYLAR — bu hafta */}
           <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
-            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>Bu Hafta Yenenler</Text>
-            <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, marginBottom: 10 }}>Liste her hafta başında (Pazartesi) yenilenir.</Text>
+            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>{t('Bu Hafta Yenenler')}</Text>
+            <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, marginBottom: 10 }}>{t('Liste her hafta başında (Pazartesi) yenilenir.')}</Text>
             {thisWeekMealLogs.length === 0 ? (
-              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', paddingVertical: 6, lineHeight: 20 }}>Bu hafta henüz taranmış öğün yok. Tabağını tara!</Text>
+              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', paddingVertical: 6, lineHeight: 20 }}>{t('Bu hafta henüz taranmış öğün yok. Tabağını tara!')}</Text>
             ) : (
               thisWeekMealLogs.map((m, i) => (
                 <View key={m._id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: AZ_DARK.glassBorder }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: AZ_DARK.onSurface }}>{m.mealName || 'Öğün'}</Text>
-                    <Text style={{ fontSize: 11.5, color: AZ_DARK.onSurfaceVariant, marginTop: 2 }}>{new Date(m.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: AZ_DARK.onSurface }}>{m.mealName || t('Öğün')}</Text>
+                    <Text style={{ fontSize: 11.5, color: AZ_DARK.onSurfaceVariant, marginTop: 2 }}>{new Date(m.date).toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</Text>
                     <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
                       <Text style={{ fontSize: 12.5, fontWeight: '700', color: AZ_DARK.macroProtein }}>P {m.protein || 0}g</Text>
                       <Text style={{ fontSize: 12.5, fontWeight: '700', color: AZ_DARK.macroCarbs }}>K {m.carbs || 0}g</Text>
@@ -3276,12 +3300,12 @@ const pickAndUploadProfilePhoto = async () => {
             const maxW = Math.max(...weights) + 2;
             return (
               <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
-                <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>Kilo Takibi</Text>
+                <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>{t('Kilo Takibi')}</Text>
                 <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, marginBottom: 10 }}>
                   {weights[0] > weights[weights.length - 1]
                     ? `+${(weights[weights.length - 1] - weights[0]).toFixed(1)} kg`
                     : `${(weights[weights.length - 1] - weights[0]).toFixed(1)} kg`
-                  } · son {sorted.length} kayıt
+                  } {t('· son {{count}} kayıt', { count: sorted.length })}
                 </Text>
                 <LineChart
                   data={{ labels, datasets: [{ data: weights }] }}
@@ -3313,14 +3337,14 @@ const pickAndUploadProfilePhoto = async () => {
 
       {currentTab === 'stats' && (
         <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-          <Text style={[styles.statsTitle, { marginBottom: 4 }]}>Max Ağırlıklar</Text>
-          <Text style={[styles.statsSubtitle, { marginBottom: 16 }]}>GymBody'ye kaydettiğin en yüksek ağırlıklar ve rankların.</Text>
+          <Text style={[styles.statsTitle, { marginBottom: 4 }]}>{t('Max Ağırlıklar')}</Text>
+          <Text style={[styles.statsSubtitle, { marginBottom: 16 }]}>{t("GymBody'ye kaydettiğin en yüksek ağırlıklar ve rankların.")}</Text>
 
           {!userStats.isVip && (
             <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,159,28,0.1)', borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,159,28,0.3)' }}>
               <Ionicons name="lock-closed" size={18} color={C.orange} />
-              <Text style={{ flex: 1, color: C.text, fontSize: 12.5, fontWeight: '600' }}>Ağırlık girişi ve sıralama VIP'e özel. Görüntülemek serbest — kaydetmek için VIP ol.</Text>
+              <Text style={{ flex: 1, color: C.text, fontSize: 12.5, fontWeight: '600' }}>{t("Ağırlık girişi ve sıralama VIP'e özel. Görüntülemek serbest — kaydetmek için VIP ol.")}</Text>
               <Ionicons name="chevron-forward" size={16} color={C.orange} />
             </TouchableOpacity>
           )}
@@ -3331,14 +3355,14 @@ const pickAndUploadProfilePhoto = async () => {
             const bw = user?.weight || 70;
             const muscleRanksMap = buildMuscleRanksMap(liftsData, bw, user?.gender);
             const bodyAvgIdx = computeBodyAverageRank(liftsData, bw, user?.gender);
-            const selectedMuscleLabel = selectedMuscle ? MUSCLE_NAMES[selectedMuscle] : null;
+            const selectedMuscleLabel = selectedMuscle ? t(MUSCLE_NAMES[selectedMuscle]) : null;
             const displayIdx = selectedMuscle ? computeMuscleRank(selectedMuscle, liftsData, bw, user?.gender) : bodyAvgIdx;
             const displayRank = displayIdx >= 0 ? RANKS[displayIdx] : null;
             return (
               <View style={{ borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: displayRank ? displayRank.color + '55' : C.border }}>
                 <LinearGradient colors={displayRank ? [displayRank.color + '26', C.surface] : [C.surface2, C.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>KAS HARİTASI</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>{t('KAS HARİTASI')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <TouchableOpacity onPress={() => setMuscleTrendVisible(true)}
                       style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
@@ -3347,11 +3371,11 @@ const pickAndUploadProfilePhoto = async () => {
                     <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 20, padding: 3 }}>
                       <TouchableOpacity onPress={() => setBodyMapView('front')}
                         style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: bodyMapView === 'front' ? C.orange : 'transparent' }}>
-                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: bodyMapView === 'front' ? '#0B0D12' : C.textMuted }}>Ön</Text>
+                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: bodyMapView === 'front' ? '#0B0D12' : C.textMuted }}>{t('Ön')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => setBodyMapView('back')}
                         style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: bodyMapView === 'back' ? C.orange : 'transparent' }}>
-                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: bodyMapView === 'back' ? '#0B0D12' : C.textMuted }}>Arka</Text>
+                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: bodyMapView === 'back' ? '#0B0D12' : C.textMuted }}>{t('Arka')}</Text>
                       </TouchableOpacity>
                     </View>
                     </View>
@@ -3412,7 +3436,7 @@ const pickAndUploadProfilePhoto = async () => {
 
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
                     <Text style={{ flex: 1, color: C.textMuted, fontSize: 11, marginRight: 8 }}>
-                      {selectedMuscleLabel ? `${selectedMuscleLabel} hareketleri gösteriliyor — tekrar dokun, kapat` : 'Bir kasa dokun, o kasın hareketlerini gör'}
+                      {selectedMuscleLabel ? t('{{muscle}} hareketleri gösteriliyor — tekrar dokun, kapat', { muscle: selectedMuscleLabel }) : t('Bir kasa dokun, o kasın hareketlerini gör')}
                     </Text>
                     {/* Ortalama rozeti — sağda; kas seçiliyse o kasın rankını gösterir, dokununca paylaşım kartı açılır */}
                     <TouchableOpacity
@@ -3424,7 +3448,7 @@ const pickAndUploadProfilePhoto = async () => {
                         <Text style={{ fontSize: 9, fontWeight: '800', color: displayRank ? displayRank.color : C.textMuted }}>{selectedMuscleLabel.toUpperCase()}</Text>
                       )}
                       <RankBadgeSvg rankKey={displayRank?.key || 'bronz'} color={displayRank ? displayRank.color : C.textMuted} size={22} />
-                      {displayRank && <Text style={{ fontSize: 10, fontWeight: '900', color: displayRank.color }}>{displayRank.label.toUpperCase()}</Text>}
+                      {displayRank && <Text style={{ fontSize: 10, fontWeight: '900', color: displayRank.color }}>{t(displayRank.label).toUpperCase()}</Text>}
                       {displayRank && <Ionicons name="share-social" size={11} color={displayRank.color} />}
                     </TouchableOpacity>
                   </View>
@@ -3432,10 +3456,10 @@ const pickAndUploadProfilePhoto = async () => {
                     <TouchableOpacity onPress={() => openMuscleLeaderboard(selectedMuscle)} activeOpacity={0.8}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginTop: 10 }}>
                       <Ionicons name="trophy-outline" size={13} color={displayRank ? displayRank.color : C.textMuted} />
-                      <Text style={{ color: displayRank ? displayRank.color : C.textMuted, fontSize: 11.5, fontWeight: '700' }}>{selectedMuscleLabel} sıralamasını gör →</Text>
+                      <Text style={{ color: displayRank ? displayRank.color : C.textMuted, fontSize: 11.5, fontWeight: '700' }}>{t('{{muscle}} sıralamasını gör →', { muscle: selectedMuscleLabel })}</Text>
                     </TouchableOpacity>
                   )}
-                  {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 8 }}>Daha doğru rank için profilde kilonu gir</Text>}
+                  {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 8 }}>{t('Daha doğru rank için profilde kilonu gir')}</Text>}
                 </LinearGradient>
               </View>
             );
@@ -3446,7 +3470,7 @@ const pickAndUploadProfilePhoto = async () => {
               <TouchableOpacity onPress={() => setSelectedMuscle(null)} activeOpacity={0.8}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface2, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12 }}>
                 <Ionicons name="close-circle" size={15} color={C.textMuted} />
-                <Text style={{ color: C.textSec, fontSize: 12, fontWeight: '700' }}>{MUSCLE_NAMES[selectedMuscle]} · Tümünü göster</Text>
+                <Text style={{ color: C.textSec, fontSize: 12, fontWeight: '700' }}>{t(MUSCLE_NAMES[selectedMuscle])} {t('· Tümünü göster')}</Text>
               </TouchableOpacity>
             ) : <View />}
             <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 14, padding: 3 }}>
@@ -3486,7 +3510,7 @@ const pickAndUploadProfilePhoto = async () => {
             const best = liftData?.best || 0;
             const reps = liftData?.reps || 1;
             const isRepBased = lift.unit === 'tekrar';
-            const unitLabel = isRepBased ? 'tekrar' : 'kg';
+            const unitLabel = isRepBased ? t('tekrar') : 'kg';
             const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
             const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
             const nextRank = rankIndex < RANKS.length - 1 ? RANKS[rankIndex + 1] : null;
@@ -3518,40 +3542,40 @@ const pickAndUploadProfilePhoto = async () => {
                   </TouchableOpacity>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{lift.label}</Text>
-                    <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 1 }}>{lift.muscle}</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 1 }}>{t(lift.muscle)}</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
                     {best > 0 ? (
                       <>
                         <Text style={{ color: C.text, fontWeight: '900', fontSize: 26 }}>{best} <Text style={{ fontSize: 13, color: C.textMuted }}>{unitLabel}</Text></Text>
-                        {!isRepBased && <Text style={{ color: C.textMuted, fontSize: 11 }}>{reps} tekrar</Text>}
+                        {!isRepBased && <Text style={{ color: C.textMuted, fontSize: 11 }}>{t('{{count}} tekrar', { count: reps })}</Text>}
                       </>
                     ) : (
-                      <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>+ Gir</Text>
+                      <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>{t('+ Gir')}</Text>
                     )}
                   </View>
                   {rank ? (
                     <View style={{ alignItems: 'center', minWidth: 56 }}>
                       <RankBadgeSvg rankKey={rank.key} color={rank.color} size={40} />
-                      <Text style={{ color: rank.color, fontWeight: '800', fontSize: 10, marginTop: 3 }}>{rank.label.toUpperCase()}</Text>
+                      <Text style={{ color: rank.color, fontWeight: '800', fontSize: 10, marginTop: 3 }}>{t(rank.label).toUpperCase()}</Text>
                     </View>
                   ) : (
                     <View style={{ alignItems: 'center', minWidth: 56 }}>
                       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="add" size={22} color={C.lime} />
                       </View>
-                      <Text style={{ color: C.textMuted, fontWeight: '700', fontSize: 10, marginTop: 3 }}>BAŞLA</Text>
+                      <Text style={{ color: C.textMuted, fontWeight: '700', fontSize: 10, marginTop: 3 }}>{t('BAŞLA')}</Text>
                     </View>
                   )}
                 </View>
 
                 {best > 0 && !isRepBased && (
                   <View style={{ marginTop: 12, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
-                    <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>TAHMİNİ 1RM</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>{t('TAHMİNİ 1RM')}</Text>
                     <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{estimated1RM} kg</Text>
                     {reps > 1 && (
                       <Text style={{ color: C.textMuted, fontSize: 9, marginTop: 3, textAlign: 'center', paddingHorizontal: 10 }}>
-                        Bunu direkt denemeye kalkma, kademeli çık ⚠️
+                        {t('Bunu direkt denemeye kalkma, kademeli çık ⚠️')}
                       </Text>
                     )}
                   </View>
@@ -3560,7 +3584,7 @@ const pickAndUploadProfilePhoto = async () => {
                 {best > 0 && nextRank && nextThreshold && (
                   <View style={{ marginTop: 12 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Text style={{ color: C.textMuted, fontSize: 10 }}>Sonraki: {nextRank.label}</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 10 }}>{t('Sonraki: {{rank}}', { rank: t(nextRank.label) })}</Text>
                       <Text style={{ color: C.textMuted, fontSize: 10 }}>{best} / {Math.round(nextThreshold)} {unitLabel}</Text>
                     </View>
                     <View style={{ height: 5, backgroundColor: C.surface2, borderRadius: 3, overflow: 'hidden' }}>
@@ -3569,7 +3593,7 @@ const pickAndUploadProfilePhoto = async () => {
                   </View>
                 )}
                 {best > 0 && !nextRank && (
-                  <Text style={{ color: '#FFD700', fontWeight: '700', fontSize: 12, marginTop: 8, textAlign: 'center' }}>Maksimum rank — efsanesin!</Text>
+                  <Text style={{ color: '#FFD700', fontWeight: '700', fontSize: 12, marginTop: 8, textAlign: 'center' }}>{t('Maksimum rank — efsanesin!')}</Text>
                 )}
                 {/* SİKLET SIRALAMASI + PAYLAŞIM — sadece platin+ */}
                 {best > 0 && rank && rankIndex >= 3 && (
@@ -3578,13 +3602,13 @@ const pickAndUploadProfilePhoto = async () => {
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Ionicons name="trophy" size={15} color={rank.color} />
                       <Text style={{ color: rank.color, fontSize: 12, fontWeight: '700' }}>
-                        {myLiftRanks[lift.key] ? `Sikletinde #${myLiftRanks[lift.key].rank}` : 'Sıralamayı gör'} →
+                        {myLiftRanks[lift.key] ? t('Sikletinde #{{rank}}', { rank: myLiftRanks[lift.key].rank }) : t('Sıralamayı gör')} →
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => setShareLiftKey(lift.key)} hitSlop={{top:8,bottom:8,left:8,right:8}}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                       <Ionicons name="share-social-outline" size={15} color={C.textMuted} />
-                      <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '600' }}>Paylaş</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '600' }}>{t('Paylaş')}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -3593,7 +3617,7 @@ const pickAndUploadProfilePhoto = async () => {
                   <TouchableOpacity onPress={() => setShareLiftKey(lift.key)} hitSlop={{top:8,bottom:8,left:8,right:8}}
                     style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 5, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border }}>
                     <Ionicons name="share-social-outline" size={15} color={C.textMuted} />
-                    <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '600' }}>Paylaş</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '600' }}>{t('Paylaş')}</Text>
                   </TouchableOpacity>
                 )}
                 </LinearGradient>
@@ -3617,7 +3641,7 @@ const pickAndUploadProfilePhoto = async () => {
               const liftData = user?.lifts?.[lift.key];
               const best = liftData?.best || 0;
               const isRepBased = lift.unit === 'tekrar';
-              const unitLabel = isRepBased ? 'tekrar' : 'kg';
+              const unitLabel = isRepBased ? t('tekrar') : 'kg';
               const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
               const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
               const accentColor = rank ? rank.color : C.lime;
@@ -3635,12 +3659,12 @@ const pickAndUploadProfilePhoto = async () => {
                   </TouchableOpacity>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: C.text, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{lift.label}</Text>
-                    <Text style={{ color: C.textMuted, fontSize: 10.5, marginTop: 1 }}>{lift.muscle}</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 10.5, marginTop: 1 }}>{t(lift.muscle)}</Text>
                   </View>
                   {best > 0 ? (
                     <Text style={{ color: C.textSec, fontWeight: '800', fontSize: 13 }}>{best} <Text style={{ fontSize: 10, color: C.textMuted }}>{unitLabel}</Text></Text>
                   ) : (
-                    <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>+ Gir</Text>
+                    <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>{t('+ Gir')}</Text>
                   )}
                   {rank ? (
                     <RankBadgeSvg rankKey={rank.key} color={rank.color} size={26} />
@@ -3658,12 +3682,12 @@ const pickAndUploadProfilePhoto = async () => {
             <TouchableOpacity onPress={() => { setChallengeLift('bench'); setChallengeMyWeight(''); setChallengeScreen('create'); }}
               activeOpacity={0.82} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 13, borderWidth: 1, borderColor: C.orange + '55' }}>
               <Text style={{ fontSize: 16 }}>⚔️</Text>
-              <Text style={{ color: C.orange, fontWeight: '800', fontSize: 13 }}>Meydan Oku</Text>
+              <Text style={{ color: C.orange, fontWeight: '800', fontSize: 13 }}>{t('Meydan Oku')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { setChallengeCodeInput(''); setChallengeTheirWeight(''); setChallengeInfo(null); setChallengeScreen('accept'); }}
               activeOpacity={0.82} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 13, borderWidth: 1, borderColor: C.border }}>
               <Ionicons name="key-outline" size={16} color={C.textSec} />
-              <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 13 }}>Kodu Gir</Text>
+              <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 13 }}>{t('Kodu Gir')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -3677,7 +3701,7 @@ const pickAndUploadProfilePhoto = async () => {
             const screenW = Dimensions.get('window').width;
             return (
               <View style={{ marginTop: 8, marginBottom: 4 }}>
-                <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, marginBottom: 12 }}>Güç Geçmişi</Text>
+                <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, marginBottom: 12 }}>{t('Güç Geçmişi')}</Text>
                 <ScrollView
                   horizontal
                   pagingEnabled
@@ -3693,7 +3717,7 @@ const pickAndUploadProfilePhoto = async () => {
                     const sparse = history.length > 8
                       ? history.filter((_, i) => i % Math.ceil(history.length / 8) === 0 || i === history.length - 1)
                       : history;
-                    const labels = sparse.map(h => new Date(h.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' }));
+                    const labels = sparse.map(h => new Date(h.date).toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' }));
                     const data = sparse.map(h => h.weight);
                     const rankColor = (() => {
                       const { rankIndex } = computeRank(lift.key, user.lifts[lift.key].best, user?.weight, user?.gender);
@@ -3723,7 +3747,7 @@ const pickAndUploadProfilePhoto = async () => {
                             style={{ borderRadius: 12, marginLeft: -8 }}
                           />
                           <Text style={{ color: C.textMuted, fontSize: 10, textAlign: 'center', marginTop: 4 }}>
-                            {rawHistory.length} kayıt · son {rawHistory.length > 8 ? '8' : rawHistory.length} gösteriliyor
+                            {t('{{total}} kayıt · son {{shown}} gösteriliyor', { total: rawHistory.length, shown: rawHistory.length > 8 ? 8 : rawHistory.length })}
                           </Text>
                         </View>
                       </View>
@@ -3748,14 +3772,14 @@ const pickAndUploadProfilePhoto = async () => {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24, marginTop: 16 }}>
         <View style={{ alignItems: 'center' }}>
           <Text style={{ color: C.orange, fontWeight: '900', fontSize: 24 }}>{userStats.streak}</Text>
-          <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>🔥 Seri</Text>
+          <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('🔥 Seri')}</Text>
         </View>
         {userStats.isVip && (
           <>
             <View style={{ width: 1, height: 32, backgroundColor: C.border }} />
             <View style={{ alignItems: 'center' }}>
               <Text style={{ color: '#FFD700', fontWeight: '900', fontSize: 24 }}>VIP</Text>
-              <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>👑 Üye</Text>
+              <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('👑 Üye')}</Text>
             </View>
           </>
         )}
@@ -3779,7 +3803,7 @@ const pickAndUploadProfilePhoto = async () => {
               <View key={lift.key} style={{ flex: 1, alignItems: 'center', backgroundColor: C.surface2,
                 borderRadius: 14, paddingVertical: 10, borderWidth: 1, borderColor: C.border }}>
                 <RankBadgeSvg rankKey={rank!.key} color={rank!.color} size={44} />
-                <Text style={{ color: rank!.color, fontWeight: '800', fontSize: 11, marginTop: 4 }}>{rank!.label}</Text>
+                <Text style={{ color: rank!.color, fontWeight: '800', fontSize: 11, marginTop: 4 }}>{t(rank!.label)}</Text>
                 <Text style={{ color: C.textMuted, fontSize: 10, marginTop: 2 }}>{lift.label}</Text>
               </View>
             ))}
@@ -3793,10 +3817,10 @@ const pickAndUploadProfilePhoto = async () => {
   <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66', flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 }]}>
     <Ionicons name="star" size={22} color="#FF9F1C" />
     <View style={{ flex: 1 }}>
-      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>VIP Üyesin! 👑</Text>
+      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{t('VIP Üyesin! 👑')}</Text>
       {userStats.vipExpiresAt && (
         <Text style={{ color: C.textSec, fontSize: 12, marginTop: 2 }}>
-          Bitiş: {new Date(userStats.vipExpiresAt).toLocaleDateString('tr-TR')}
+          {t('Bitiş:')} {new Date(userStats.vipExpiresAt).toLocaleDateString(dateLocale())}
         </Text>
       )}
     </View>
@@ -3808,12 +3832,12 @@ const pickAndUploadProfilePhoto = async () => {
       <View style={{ backgroundColor: '#FF9F1C22', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 4, marginBottom: 8 }}>
         <Text style={{ color: '#FF9F1C', fontWeight: '800', fontSize: 11, letterSpacing: 1.5 }}>GymBody VIP</Text>
       </View>
-      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 20 }}>Tüm özelliklerin kilidi</Text>
-      <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' }}>açılsın</Text>
+      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 20 }}>{t('Tüm özelliklerin kilidi')}</Text>
+      <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' }}>{t('açılsın')}</Text>
     </View>
 
     {/* Özellik listesi */}
-    {['Kişisel haftalık antrenman programı', 'Kişisel beslenme planı', 'Max Güç kayıt ve sıralama', 'Sınırsız yağ oranı analizi', 'Gelişim fotoğraf karşılaştırması'].map(f => (
+    {[t('Kişisel haftalık antrenman programı'), t('Kişisel beslenme planı'), t('Max Güç kayıt ve sıralama'), t('Sınırsız yağ oranı analizi'), t('Gelişim fotoğraf karşılaştırması')].map(f => (
       <View key={f} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 }}>
         <Ionicons name="checkmark-circle" size={16} color="#FF9F1C" />
         <Text style={{ color: C.textSec, fontSize: 13 }}>{f}</Text>
@@ -3823,9 +3847,9 @@ const pickAndUploadProfilePhoto = async () => {
     {/* Plan seçici kartlar */}
     <View style={{ flexDirection: 'row', gap: 8, marginTop: 18, marginBottom: 14 }}>
       {[
-        { id: '$rc_monthly', label: 'Aylık', price: '₺149', period: '/ay', badge: null },
-        { id: '$rc_six_month', label: '6 Aylık', price: '₺599', period: '/6ay', badge: '%33' },
-        { id: '$rc_annual', label: 'Yıllık', price: '₺899', period: '/yıl', badge: '%50' },
+        { id: '$rc_monthly', label: t('Aylık'), price: '₺149', period: t('/ay'), badge: null },
+        { id: '$rc_six_month', label: t('6 Aylık'), price: '₺599', period: t('/6ay'), badge: '%33' },
+        { id: '$rc_annual', label: t('Yıllık'), price: '₺899', period: t('/yıl'), badge: '%50' },
       ].map(plan => {
         const selected = selectedVipPlan === plan.id;
         return (
@@ -3856,7 +3880,7 @@ const pickAndUploadProfilePhoto = async () => {
         <TouchableOpacity activeOpacity={0.88} onPress={() => purchaseVip(selectedVipPlan)}>
           <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={{ borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
-            <Text style={{ color: '#1A1530', fontWeight: '900', fontSize: 15 }}>VIP'e Geç</Text>
+            <Text style={{ color: '#1A1530', fontWeight: '900', fontSize: 15 }}>{t("VIP'e Geç")}</Text>
           </LinearGradient>
         </TouchableOpacity>
 
@@ -3869,22 +3893,22 @@ const pickAndUploadProfilePhoto = async () => {
     {(() => {
       const ALL_BADGES = [
         // common — gri
-        { id: 'first_workout',    label: 'İlk Adım',        emoji: '🏃', rarity: 'common',    color: '#6B7384', desc: 'İlk antrenman gününü tamamla' },
-        { id: 'first_pr',         label: 'İlk PR',          emoji: '💪', rarity: 'common',    color: '#6B7384', desc: 'İlk ağırlık kaydını gir' },
-        { id: 'streak_3',         label: '3 Günlük Seri',   emoji: '🔥', rarity: 'common',    color: '#6B7384', desc: '3 gün üst üste giriş yap' },
+        { id: 'first_workout',    label: t('İlk Adım'),        emoji: '🏃', rarity: 'common',    color: '#6B7384', desc: t('İlk antrenman gününü tamamla') },
+        { id: 'first_pr',         label: t('İlk PR'),          emoji: '💪', rarity: 'common',    color: '#6B7384', desc: t('İlk ağırlık kaydını gir') },
+        { id: 'streak_3',         label: t('3 Günlük Seri'),   emoji: '🔥', rarity: 'common',    color: '#6B7384', desc: t('3 gün üst üste giriş yap') },
         // rare — cyan
-        { id: 'streak_7',         label: '7 Günlük Seri',   emoji: '⚡', rarity: 'rare',      color: '#5BC8E0', desc: '7 gün üst üste' },
-        { id: 'plan_complete',    label: 'Programcı',       emoji: '📋', rarity: 'rare',      color: '#5BC8E0', desc: 'Bir programı tamamla' },
-        { id: 'bench_50',         label: 'Başlangıç Gücü',  emoji: '🏋️', rarity: 'rare',      color: '#5BC8E0', desc: 'Bench 50 kg kaldır' },
-        { id: 'first_friend',     label: 'Sosyal Kelebek',  emoji: '👥', rarity: 'rare',      color: '#5BC8E0', desc: 'İlk arkadaşını ekle' },
+        { id: 'streak_7',         label: t('7 Günlük Seri'),   emoji: '⚡', rarity: 'rare',      color: '#5BC8E0', desc: t('7 gün üst üste') },
+        { id: 'plan_complete',    label: t('Programcı'),       emoji: '📋', rarity: 'rare',      color: '#5BC8E0', desc: t('Bir programı tamamla') },
+        { id: 'bench_50',         label: t('Başlangıç Gücü'),  emoji: '🏋️', rarity: 'rare',      color: '#5BC8E0', desc: t('Bench 50 kg kaldır') },
+        { id: 'first_friend',     label: t('Sosyal Kelebek'),  emoji: '👥', rarity: 'rare',      color: '#5BC8E0', desc: t('İlk arkadaşını ekle') },
         // epic — mor
-        { id: 'streak_30',        label: 'Demir Disiplin',  emoji: '👑', rarity: 'epic',      color: '#9B6BFF', desc: '30 gün üst üste' },
-        { id: 'bench_100',        label: 'Yüz Kulübü',      emoji: '🔱', rarity: 'epic',      color: '#9B6BFF', desc: 'Bench 100 kg kaldır' },
-        { id: 'challenge_won',    label: 'Kapışma Ustası',  emoji: '⚔️', rarity: 'epic',      color: '#9B6BFF', desc: 'Bir arkadaş kapışması kazan' },
+        { id: 'streak_30',        label: t('Demir Disiplin'),  emoji: '👑', rarity: 'epic',      color: '#9B6BFF', desc: t('30 gün üst üste') },
+        { id: 'bench_100',        label: t('Yüz Kulübü'),      emoji: '🔱', rarity: 'epic',      color: '#9B6BFF', desc: t('Bench 100 kg kaldır') },
+        { id: 'challenge_won',    label: t('Kapışma Ustası'),  emoji: '⚔️', rarity: 'epic',      color: '#9B6BFF', desc: t('Bir arkadaş kapışması kazan') },
         // legendary — altın
-        { id: 'streak_100',       label: 'Efsane Seri',     emoji: '💎', rarity: 'legendary', color: '#FFD700', desc: '100 gün üst üste' },
-        { id: 'bench_bodyweight', label: 'Vücut Gücü',      emoji: '🏆', rarity: 'legendary', color: '#FFD700', desc: 'Bench ≥ vücut ağırlığın' },
-        { id: 'total_lifter',     label: 'Güç Canavarı',    emoji: '🦁', rarity: 'legendary', color: '#FFD700', desc: 'Bench+Squat+Deadlift ≥ 300 kg' },
+        { id: 'streak_100',       label: t('Efsane Seri'),     emoji: '💎', rarity: 'legendary', color: '#FFD700', desc: t('100 gün üst üste') },
+        { id: 'bench_bodyweight', label: t('Vücut Gücü'),      emoji: '🏆', rarity: 'legendary', color: '#FFD700', desc: t('Bench ≥ vücut ağırlığın') },
+        { id: 'total_lifter',     label: t('Güç Canavarı'),    emoji: '🦁', rarity: 'legendary', color: '#FFD700', desc: t('Bench+Squat+Deadlift ≥ 300 kg') },
       ];
       const earned = new Set(user.badges || []);
       const earnedCount = ALL_BADGES.filter(b => earned.has(b.id)).length;
@@ -3895,7 +3919,7 @@ const pickAndUploadProfilePhoto = async () => {
       const tierOrder = ['legend','elite','rising'];
       const grouped = tierOrder
         .map(t => ({ tier: t, count: monthly.filter(m => m.tier === t).length,
-                     months: monthly.filter(m => m.tier === t).map(m => { const mm = parseInt(m.period.split('-')[1]) - 1; return MONTH_SHORT_TR[mm] || ''; }) }))
+                     months: monthly.filter(m => m.tier === t).map(m => { const mm = parseInt(m.period.split('-')[1]) - 1; return monthShort(mm); }) }))
         .filter(g => g.count > 0);
 
       return (
@@ -3904,8 +3928,8 @@ const pickAndUploadProfilePhoto = async () => {
           {grouped.length > 0 && (
             <View style={{ marginBottom: 18 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                <Text style={[styles.statsTitle, { flex: 1, marginBottom: 0 }]}>Aylık Rozetler</Text>
-                <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>her ay performans</Text>
+                <Text style={[styles.statsTitle, { flex: 1, marginBottom: 0 }]}>{t('Aylık Rozetler')}</Text>
+                <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>{t('her ay performans')}</Text>
               </View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
                 {grouped.map(g => {
@@ -3931,7 +3955,7 @@ const pickAndUploadProfilePhoto = async () => {
                           </View>
                         )}
                       </View>
-                      <Text style={{ color: meta.color, fontSize: 12, fontWeight: '900', marginTop: 7 }}>{meta.label}{prestige ? ' ✦' : ''}</Text>
+                      <Text style={{ color: meta.color, fontSize: 12, fontWeight: '900', marginTop: 7 }}>{t(meta.label)}{prestige ? ' ✦' : ''}</Text>
                       <Text style={{ color: C.textMuted, fontSize: 9, marginTop: 1, textAlign: 'center' }} numberOfLines={1}>{g.months.join(' · ')}</Text>
                     </TouchableOpacity>
                   );
@@ -3942,7 +3966,7 @@ const pickAndUploadProfilePhoto = async () => {
           )}
 
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
-            <Text style={[styles.statsTitle, { flex: 1, marginBottom: 0 }]}>Rozetler</Text>
+            <Text style={[styles.statsTitle, { flex: 1, marginBottom: 0 }]}>{t('Rozetler')}</Text>
             <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700' }}>{earnedCount} / {ALL_BADGES.length}</Text>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
@@ -3975,7 +3999,7 @@ const pickAndUploadProfilePhoto = async () => {
     <TouchableOpacity onPress={() => { fetchFriends(); setFriendsVisible(true); }} activeOpacity={0.85}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border }}>
       <Ionicons name="people" size={20} color={C.orange} />
-      <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, flex: 1 }}>Arkadaşlar</Text>
+      <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, flex: 1 }}>{t('Arkadaşlar')}</Text>
       {friends.reduce((acc, f) => acc + f.unread, 0) > 0 && (
         <View style={{ backgroundColor: C.orange, borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
           <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 11 }}>{friends.reduce((acc, f) => acc + f.unread, 0)}</Text>
@@ -3990,19 +4014,19 @@ const pickAndUploadProfilePhoto = async () => {
         <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 14, borderTopWidth: 1, borderColor: C.border }}>
           <View style={{ alignItems: 'center' }}>
             <Text style={{ color: C.text, fontWeight: '900', fontSize: 20 }}>{user.height || '--'}</Text>
-            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>Boy (cm)</Text>
+            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('Boy (cm)')}</Text>
           </View>
           <View style={{ width: 1, backgroundColor: C.border }} />
           <View style={{ alignItems: 'center' }}>
             <Text style={{ color: C.text, fontWeight: '900', fontSize: 20 }}>{user.weight || '--'}</Text>
-            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>Kilo (kg)</Text>
+            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('Kilo (kg)')}</Text>
           </View>
           <View style={{ width: 1, backgroundColor: C.border }} />
           <View style={{ alignItems: 'center' }}>
             <Text style={{ color: C.text, fontWeight: '900', fontSize: 20 }}>
               {user.height && user.weight ? (user.weight / ((user.height/100) * (user.height/100))).toFixed(1) : '--'}
             </Text>
-            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>VKİ</Text>
+            <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('VKİ')}</Text>
           </View>
         </View>
         {/* Vücut ölçüleri — bel / omuz / boyun. En YENİ ölçü kaydını göster
@@ -4018,7 +4042,7 @@ const pickAndUploadProfilePhoto = async () => {
             {m.waist ? (
               <View style={{ alignItems: 'center' }}>
                 <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{m.waist}</Text>
-                <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>Bel (cm)</Text>
+                <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('Bel (cm)')}</Text>
               </View>
             ) : null}
             {m.shoulder ? (
@@ -4026,7 +4050,7 @@ const pickAndUploadProfilePhoto = async () => {
                 <View style={{ width: 1, backgroundColor: C.border }} />
                 <View style={{ alignItems: 'center' }}>
                   <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{m.shoulder}</Text>
-                  <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>Omuz (cm)</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('Omuz (cm)')}</Text>
                 </View>
               </>
             ) : null}
@@ -4035,7 +4059,7 @@ const pickAndUploadProfilePhoto = async () => {
                 <View style={{ width: 1, backgroundColor: C.border }} />
                 <View style={{ alignItems: 'center' }}>
                   <Text style={{ color: C.text, fontWeight: '800', fontSize: 18 }}>{m.neck}</Text>
-                  <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>Boyun (cm)</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('Boyun (cm)')}</Text>
                 </View>
               </>
             ) : null}
@@ -4044,11 +4068,11 @@ const pickAndUploadProfilePhoto = async () => {
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 28, paddingBottom: 11 }}>
             <TouchableOpacity onPress={() => startEditBodyStat(m)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Ionicons name="create-outline" size={15} color={C.lime} />
-              <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>Düzenle</Text>
+              <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>{t('Düzenle')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => deleteBodyStat(m._id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
               <Ionicons name="trash-outline" size={15} color={C.red} />
-              <Text style={{ color: C.red, fontSize: 12, fontWeight: '700' }}>Sil</Text>
+              <Text style={{ color: C.red, fontSize: 12, fontWeight: '700' }}>{t('Sil')}</Text>
             </TouchableOpacity>
           </View>
           </View>
@@ -4066,21 +4090,21 @@ const pickAndUploadProfilePhoto = async () => {
           }}
         >
           <Ionicons name="body-outline" size={17} color={C.lime} />
-          <Text style={styles.editBtnText}>Ölçü Düzenle</Text>
+          <Text style={styles.editBtnText}>{t('Ölçü Düzenle')}</Text>
         </TouchableOpacity>
       </>
     ) : (
       <View style={styles.profileCard}>
         <TextInput
           style={styles.input}
-          placeholder="İsim Soyisim"
+          placeholder={t('İsim Soyisim')}
           placeholderTextColor={C.textMuted}
           value={editName}
           onChangeText={setEditName}
         />
         <TextInput
           style={styles.input}
-          placeholder="Boy (cm)"
+          placeholder={t('Boy (cm)')}
           placeholderTextColor={C.textMuted}
           value={editHeight}
           onChangeText={setEditHeight}
@@ -4088,7 +4112,7 @@ const pickAndUploadProfilePhoto = async () => {
         />
         <TextInput
           style={styles.input}
-          placeholder="Kilo (kg)"
+          placeholder={t('Kilo (kg)')}
           placeholderTextColor={C.textMuted}
           value={editWeight}
           onChangeText={setEditWeight}
@@ -4097,20 +4121,20 @@ const pickAndUploadProfilePhoto = async () => {
 
         {/* Vücut ölçüleri */}
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <TextInput style={[styles.input, { flex: 1 }]} placeholder="Bel (cm)" placeholderTextColor={C.textMuted} value={statWaist} onChangeText={setStatWaist} keyboardType="numeric" />
-          <TextInput style={[styles.input, { flex: 1 }]} placeholder="Omuz (cm)" placeholderTextColor={C.textMuted} value={statShoulder} onChangeText={setStatShoulder} keyboardType="numeric" />
+          <TextInput style={[styles.input, { flex: 1 }]} placeholder={t('Bel (cm)')} placeholderTextColor={C.textMuted} value={statWaist} onChangeText={setStatWaist} keyboardType="numeric" />
+          <TextInput style={[styles.input, { flex: 1 }]} placeholder={t('Omuz (cm)')} placeholderTextColor={C.textMuted} value={statShoulder} onChangeText={setStatShoulder} keyboardType="numeric" />
         </View>
-        <TextInput style={styles.input} placeholder="Boyun (cm)" placeholderTextColor={C.textMuted} value={statNeck} onChangeText={setStatNeck} keyboardType="numeric" />
+        <TextInput style={styles.input} placeholder={t('Boyun (cm)')} placeholderTextColor={C.textMuted} value={statNeck} onChangeText={setStatNeck} keyboardType="numeric" />
 
         {loading ? <ActivityIndicator size="large" color={C.lime} style={{ marginTop: 10 }} /> : (
           <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 12}}>
             <TouchableOpacity style={[styles.miniBtn, styles.miniBtnPrimary]} onPress={updateProfile}>
               <Ionicons name="checkmark" size={18} color="#0B0D12" />
-              <Text style={styles.miniBtnPrimaryText}>KAYDET</Text>
+              <Text style={styles.miniBtnPrimaryText}>{t('KAYDET')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.miniBtn, styles.miniBtnGhost]} onPress={() => { setIsEditingProfile(false); setEditingStatId(null); setStatWaist(''); setStatShoulder(''); setStatNeck(''); }}>
               <Ionicons name="close" size={18} color={C.red} />
-              <Text style={styles.miniBtnGhostText}>İPTAL</Text>
+              <Text style={styles.miniBtnGhostText}>{t('İPTAL')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -4120,7 +4144,7 @@ const pickAndUploadProfilePhoto = async () => {
     {/* HEDEF TAKİBİ */}
     {user.targetWeight && user.weight && (
       <View style={[styles.statsCard, { marginHorizontal: 0 }]}>
-        <Text style={styles.statsTitle}>Hedefe İlerleme</Text>
+        <Text style={styles.statsTitle}>{t('Hedefe İlerleme')}</Text>
         {(() => {
           const current = parseFloat(user.weight);
           const target  = parseFloat(user.targetWeight);
@@ -4132,15 +4156,15 @@ const pickAndUploadProfilePhoto = async () => {
           return (
             <>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ color: C.textMuted, fontSize: 13 }}>Başlangıç: <Text style={{ color: C.text, fontWeight: '700' }}>{start} kg</Text></Text>
-                <Text style={{ color: C.textMuted, fontSize: 13 }}>Hedef: <Text style={{ color: C.lime, fontWeight: '700' }}>{target} kg</Text></Text>
+                <Text style={{ color: C.textMuted, fontSize: 13 }}>{t('Başlangıç:')} <Text style={{ color: C.text, fontWeight: '700' }}>{start} kg</Text></Text>
+                <Text style={{ color: C.textMuted, fontSize: 13 }}>{t('Hedef:')} <Text style={{ color: C.lime, fontWeight: '700' }}>{target} kg</Text></Text>
               </View>
               <View style={{ height: 10, backgroundColor: C.border, borderRadius: 5, overflow: 'hidden' }}>
                 <LinearGradient colors={[C.lime, C.limeDark]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                   style={{ width: `${pct}%`, height: '100%', borderRadius: 5 }} />
               </View>
               <Text style={{ color: C.textSec, fontSize: 12, marginTop: 6, textAlign: 'center' }}>
-                %{pct} tamamlandı · {losing ? `${Math.max(0, current - target).toFixed(1)} kg kaldı` : `${Math.max(0, target - current).toFixed(1)} kg kaldı`}
+                {t('%{{pct}} tamamlandı', { pct })} · {t('{{kg}} kg kaldı', { kg: losing ? Math.max(0, current - target).toFixed(1) : Math.max(0, target - current).toFixed(1) })}
               </Text>
             </>
           );
@@ -4148,13 +4172,40 @@ const pickAndUploadProfilePhoto = async () => {
       </View>
     )}
 
+    {/* DİL SEÇİMİ — Otomatik (cihaz) / Türkçe / English */}
+    <View style={[styles.statsCard, { marginHorizontal: 0, paddingVertical: 14 }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <Ionicons name="language" size={18} color={C.lime} />
+        <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{t('Dil')} / Language</Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {([
+          { key: 'auto' as const, label: t('Otomatik') },
+          { key: 'tr' as const, label: 'Türkçe' },
+          { key: 'en' as const, label: 'English' },
+        ]).map(opt => {
+          const on = langPref === opt.key;
+          return (
+            <TouchableOpacity key={opt.key} activeOpacity={0.85} onPress={() => changeLangPref(opt.key)}
+              style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center',
+                backgroundColor: on ? C.lime : C.surface2, borderWidth: 1, borderColor: on ? C.lime : C.border }}>
+              <Text style={{ color: on ? '#0B1207' : C.textSec, fontWeight: '700', fontSize: 13 }}>{opt.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {langPref === 'auto' && (
+        <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 8 }}>{t('Cihaz dili kullanılıyor')}: {currentLang() === 'tr' ? 'Türkçe' : 'English'}</Text>
+      )}
+    </View>
+
     {/* GİZLİLİK LİNKLERİ */}
     <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 12, marginTop: 8 }}>
       <TouchableOpacity onPress={() => setPrivacyModal('privacy')}>
-        <Text style={{ color: C.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>Gizlilik Politikası</Text>
+        <Text style={{ color: C.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>{t('Gizlilik Politikası')}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => setPrivacyModal('terms')}>
-        <Text style={{ color: C.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>Kullanım Koşulları</Text>
+        <Text style={{ color: C.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>{t('Kullanım Koşulları')}</Text>
       </TouchableOpacity>
     </View>
 
@@ -4164,7 +4215,7 @@ const pickAndUploadProfilePhoto = async () => {
       style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.surface, borderRadius: 14, padding: 16, marginTop: 16, borderWidth: 1, borderColor: C.border }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Ionicons name={themeMode === 'dark' ? 'moon' : 'sunny'} size={20} color={C.lime} />
-        <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>{themeMode === 'dark' ? 'Karanlık tema' : 'Aydınlık tema'}</Text>
+        <Text style={{ color: C.text, fontSize: 15, fontWeight: '600' }}>{themeMode === 'dark' ? t('Karanlık tema') : t('Aydınlık tema')}</Text>
       </View>
       <View style={{ width: 52, height: 30, borderRadius: 20, backgroundColor: C.surface2, justifyContent: 'center', paddingHorizontal: 3 }}>
         <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center', alignSelf: themeMode === 'dark' ? 'flex-end' : 'flex-start' }}>
@@ -4176,12 +4227,12 @@ const pickAndUploadProfilePhoto = async () => {
 
     <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await SecureStore.deleteItemAsync('userToken'); setUser(null); setToken(null); }}>
       <Ionicons name="log-out-outline" size={18} color={C.red} />
-      <Text style={styles.logoutText}>ÇIKIŞ YAP</Text>
+      <Text style={styles.logoutText}>{t('ÇIKIŞ YAP')}</Text>
     </TouchableOpacity>
 
     {/* HESABI SİL — App Store/Play zorunlu, kalıcı silme */}
     <TouchableOpacity onPress={confirmDeleteAccount} style={{ alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
-      <Text style={{ color: C.textMuted, fontSize: 13, textDecorationLine: 'underline' }}>Hesabı Sil</Text>
+      <Text style={{ color: C.textMuted, fontSize: 13, textDecorationLine: 'underline' }}>{t('Hesabı Sil')}</Text>
     </TouchableOpacity>
   </ScrollView>
       )}
@@ -4207,24 +4258,24 @@ const pickAndUploadProfilePhoto = async () => {
                     }}>
                       <Text style={{ fontSize: 36 }}>{meta.emoji}</Text>
                     </View>
-                    <Text style={{ color: meta.color, fontSize: 19, fontWeight: '900', marginTop: 12 }}>{meta.label} ×{items.length}</Text>
-                    <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 2 }}>{items.length} ay bu seviyeye ulaştın</Text>
+                    <Text style={{ color: meta.color, fontSize: 19, fontWeight: '900', marginTop: 12 }}>{t(meta.label)} ×{items.length}</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 2 }}>{t('{{count}} ay bu seviyeye ulaştın', { count: items.length })}</Text>
                   </View>
                   {items.map((m, i) => {
                     const [yy, mm] = m.period.split('-');
                     return (
                       <View key={m.period + i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: C.border }}>
                         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: meta.color, marginRight: 12 }} />
-                        <Text style={{ color: C.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{MONTH_FULL_TR[parseInt(mm) - 1]} {yy}</Text>
-                        <Text style={{ color: meta.color, fontSize: 13, fontWeight: '800' }}>{meta.label} Rozeti</Text>
+                        <Text style={{ color: C.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{monthFull(parseInt(mm) - 1)} {yy}</Text>
+                        <Text style={{ color: meta.color, fontSize: 13, fontWeight: '800' }}>{t('{{tier}} Rozeti', { tier: t(meta.label) })}</Text>
                         {typeof m.score === 'number' && (
-                          <Text style={{ color: C.textMuted, fontSize: 12, marginLeft: 10 }}>{m.score} puan</Text>
+                          <Text style={{ color: C.textMuted, fontSize: 12, marginLeft: 10 }}>{t('{{score}} puan', { score: m.score })}</Text>
                         )}
                       </View>
                     );
                   })}
                   <TouchableOpacity onPress={() => setMonthlyDetailTier(null)} style={{ marginTop: 18, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 13, alignItems: 'center' }}>
-                    <Text style={{ color: C.text, fontWeight: '800', fontSize: 14 }}>Kapat</Text>
+                    <Text style={{ color: C.text, fontWeight: '800', fontSize: 14 }}>{t('Kapat')}</Text>
                   </TouchableOpacity>
                 </>
               );
@@ -4239,7 +4290,7 @@ const pickAndUploadProfilePhoto = async () => {
           <View style={{ backgroundColor: '#13161E', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#262C3A' }}>
               <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>
-                {privacyModal === 'privacy' ? 'Gizlilik Politikası' : 'Kullanım Koşulları'}
+                {privacyModal === 'privacy' ? t('Gizlilik Politikası') : t('Kullanım Koşulları')}
               </Text>
               <TouchableOpacity onPress={() => setPrivacyModal(null)}>
                 <Ionicons name="close" size={24} color="#8A93A8" />
@@ -4248,42 +4299,42 @@ const pickAndUploadProfilePhoto = async () => {
             <ScrollView style={{ padding: 20 }} showsVerticalScrollIndicator={false}>
               {privacyModal === 'privacy' ? (
                 <Text style={{ color: '#C8CDD8', fontSize: 14, lineHeight: 22 }}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>GymBody AI — Gizlilik Politikası{'\n'}</Text>
-                  {'\n'}Son güncelleme: Haziran 2025{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>1. Topladığımız Veriler{'\n'}</Text>
-                  GymBody AI uygulaması; ad, e-posta adresi, boy, kilo, beden yağ oranı ve yüklediğiniz fotoğraflar gibi kişisel verileri toplar. Bu veriler yalnızca uygulama özelliklerini sunmak amacıyla kullanılır.{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>2. Verilerin Kullanımı{'\n'}</Text>
-                  Toplanan veriler; ilerlemenizi takip etmek, yapay zeka destekli öneriler sunmak ve uygulama deneyimini kişiselleştirmek için kullanılır. Verileriniz üçüncü taraflarla satılmaz veya paylaşılmaz.{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>3. Reklam{'\n'}</Text>
-                  VIP üye olmayan kullanıcılara Google AdMob aracılığıyla reklam gösterilir. AdMob, cihaz bilgilerine ve reklam tercihlerinize göre kişiselleştirilmiş reklamlar sunabilir.{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>4. Fotoğraflar{'\n'}</Text>
-                  Yüklediğiniz fotoğraflar Cloudinary altyapısında güvenli şekilde saklanır ve yalnızca sizin hesabınızda görüntülenir.{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>5. Haklarınız{'\n'}</Text>
-                  KVKK kapsamında verilerinize erişme, düzeltme ve silme hakkına sahipsiniz. Talepleriniz için: destek@gymbody.ai{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>6. İletişim{'\n'}</Text>
-                  Sorularınız için: destek@gymbody.ai
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('GymBody AI — Gizlilik Politikası')}{'\n'}</Text>
+                  {'\n'}{t('Son güncelleme: Haziran 2025')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('1. Topladığımız Veriler')}{'\n'}</Text>
+                  {t('GymBody AI uygulaması; ad, e-posta adresi, boy, kilo, beden yağ oranı ve yüklediğiniz fotoğraflar gibi kişisel verileri toplar. Bu veriler yalnızca uygulama özelliklerini sunmak amacıyla kullanılır.')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('2. Verilerin Kullanımı')}{'\n'}</Text>
+                  {t('Toplanan veriler; ilerlemenizi takip etmek, yapay zeka destekli öneriler sunmak ve uygulama deneyimini kişiselleştirmek için kullanılır. Verileriniz üçüncü taraflarla satılmaz veya paylaşılmaz.')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('3. Reklam')}{'\n'}</Text>
+                  {t('VIP üye olmayan kullanıcılara Google AdMob aracılığıyla reklam gösterilir. AdMob, cihaz bilgilerine ve reklam tercihlerinize göre kişiselleştirilmiş reklamlar sunabilir.')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('4. Fotoğraflar')}{'\n'}</Text>
+                  {t('Yüklediğiniz fotoğraflar Cloudinary altyapısında güvenli şekilde saklanır ve yalnızca sizin hesabınızda görüntülenir.')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('5. Haklarınız')}{'\n'}</Text>
+                  {t('KVKK kapsamında verilerinize erişme, düzeltme ve silme hakkına sahipsiniz. Talepleriniz için: destek@gymbody.ai')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('6. İletişim')}{'\n'}</Text>
+                  {t('Sorularınız için: destek@gymbody.ai')}
                 </Text>
               ) : (
                 <Text style={{ color: '#C8CDD8', fontSize: 14, lineHeight: 22 }}>
-                  <Text style={{ color: '#fff', fontWeight: '700' }}>GymBody AI — Kullanım Koşulları{'\n'}</Text>
-                  {'\n'}Son güncelleme: Haziran 2025{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>1. Kabul{'\n'}</Text>
-                  Uygulamayı kullanarak bu koşulları kabul etmiş sayılırsınız. Kabul etmiyorsanız uygulamayı kullanmayınız.{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>2. Hizmet{'\n'}</Text>
-                  GymBody AI, fitness takibi ve yapay zeka destekli beslenme önerileri sunan bir mobil uygulamadır. Sağlık tavsiyeleri için doktora danışınız.{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>3. Hesap{'\n'}</Text>
-                  Hesap güvenliğinden kullanıcı sorumludur. Şifrenizi kimseyle paylaşmayınız.{'\n\n'}
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>{t('GymBody AI — Kullanım Koşulları')}{'\n'}</Text>
+                  {'\n'}{t('Son güncelleme: Haziran 2025')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('1. Kabul')}{'\n'}</Text>
+                  {t('Uygulamayı kullanarak bu koşulları kabul etmiş sayılırsınız. Kabul etmiyorsanız uygulamayı kullanmayınız.')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('2. Hizmet')}{'\n'}</Text>
+                  {t('GymBody AI, fitness takibi ve yapay zeka destekli beslenme önerileri sunan bir mobil uygulamadır. Sağlık tavsiyeleri için doktora danışınız.')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('3. Hesap')}{'\n'}</Text>
+                  {t('Hesap güvenliğinden kullanıcı sorumludur. Şifrenizi kimseyle paylaşmayınız.')}{'\n\n'}
                   {Platform.OS === 'ios' ? (
-                    <><Text style={{ color: '#C6FF3D', fontWeight: '600' }}>4. VIP{'\n'}</Text>VIP üyelik aktif dönem boyunca geçerlidir; satın alma ve iade işlemleri App Store kurallarına tabidir.{'\n\n'}</>
+                    <><Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('4. VIP')}{'\n'}</Text>{t('VIP üyelik aktif dönem boyunca geçerlidir; satın alma ve iade işlemleri App Store kurallarına tabidir.')}{'\n\n'}</>
                   ) : (
-                    <><Text style={{ color: '#C6FF3D', fontWeight: '600' }}>4. Token ve VIP{'\n'}</Text>Tokenlar uygulama içi sanal birimdir, para değeri taşımaz ve iade edilemez. VIP üyelik aktif dönem boyunca geçerlidir.{'\n\n'}</>
+                    <><Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('4. Token ve VIP')}{'\n'}</Text>{t('Tokenlar uygulama içi sanal birimdir, para değeri taşımaz ve iade edilemez. VIP üyelik aktif dönem boyunca geçerlidir.')}{'\n\n'}</>
                   )}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>5. Yasaklı Kullanım{'\n'}</Text>
-                  Uygulamayı kötüye kullanmak, sistemi manipüle etmek veya başkalarının hesaplarına erişmeye çalışmak yasaktır.{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>6. Değişiklikler{'\n'}</Text>
-                  Koşulları önceden bildirmeksizin değiştirme hakkımız saklıdır.{'\n\n'}
-                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>7. İletişim{'\n'}</Text>
-                  Sorularınız için: destek@gymbody.ai
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('5. Yasaklı Kullanım')}{'\n'}</Text>
+                  {t('Uygulamayı kötüye kullanmak, sistemi manipüle etmek veya başkalarının hesaplarına erişmeye çalışmak yasaktır.')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('6. Değişiklikler')}{'\n'}</Text>
+                  {t('Koşulları önceden bildirmeksizin değiştirme hakkımız saklıdır.')}{'\n\n'}
+                  <Text style={{ color: '#C6FF3D', fontWeight: '600' }}>{t('7. İletişim')}{'\n'}</Text>
+                  {t('Sorularınız için: destek@gymbody.ai')}
                 </Text>
               )}
               <View style={{ height: 40 }} />
@@ -4298,13 +4349,13 @@ const pickAndUploadProfilePhoto = async () => {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} activeOpacity={1} onPress={() => { Keyboard.dismiss(); setDayFeedbackVisible(false); }} />
           <View style={{ backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, borderTopWidth: 1, borderColor: C.border }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 6 }}>💬 Bu Günü Nasıl Buldun?</Text>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginBottom: 6 }}>{t('💬 Bu Günü Nasıl Buldun?')}</Text>
             <Text style={{ fontSize: 13, color: C.textMuted, marginBottom: 16, lineHeight: 19 }}>
-              Eksik gelen, çok gelen veya bir sonraki programa yansıtmamı istediğin bir şey var mı? (opsiyonel)
+              {t('Eksik gelen, çok gelen veya bir sonraki programa yansıtmamı istediğin bir şey var mı? (opsiyonel)')}
             </Text>
             <TextInput
               style={[styles.noteInput, { minHeight: 72, marginBottom: 16 }]}
-              placeholder="örn. omuz hareketi azdı, bench çok ağır geldi..."
+              placeholder={t('örn. omuz hareketi azdı, bench çok ağır geldi...')}
               placeholderTextColor={C.textMuted}
               value={dayFeedbackText}
               onChangeText={setDayFeedbackText}
@@ -4316,11 +4367,11 @@ const pickAndUploadProfilePhoto = async () => {
             <TouchableOpacity activeOpacity={0.85} onPress={() => { Keyboard.dismiss(); handleCompleteDay(dayFeedbackText); }}>
               <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
                 <Ionicons name="checkmark-done-outline" size={18} color="#1A1235" />
-                <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>GÜNÜ TAMAMLA</Text>
+                <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{t('GÜNÜ TAMAMLA')}</Text>
               </LinearGradient>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { Keyboard.dismiss(); handleCompleteDay(); }} style={{ marginTop: 12, alignItems: 'center' }}>
-              <Text style={{ color: C.textMuted, fontSize: 13 }}>Yorum yazmadan geç</Text>
+              <Text style={{ color: C.textMuted, fontSize: 13 }}>{t('Yorum yazmadan geç')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
@@ -4331,7 +4382,7 @@ const pickAndUploadProfilePhoto = async () => {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: '#13161E', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderBottomWidth: 1, borderBottomColor: '#262C3A' }}>
-              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>Hangi fotoğrafı paylaşmak istiyorsun?</Text>
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{t('Hangi fotoğrafı paylaşmak istiyorsun?')}</Text>
               <TouchableOpacity onPress={() => setSharePickerVisible(false)}>
                 <Ionicons name="close" size={24} color="#8A93A8" />
               </TouchableOpacity>
@@ -4382,7 +4433,7 @@ const pickAndUploadProfilePhoto = async () => {
                 {sharePhotoFat != null && (
                   <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
                     <Text style={{ color: '#C6FF3D', fontSize: 38, fontWeight: '900' }}>%{sharePhotoFat}</Text>
-                    <Text style={{ color: '#A3ABBA', fontSize: 16, fontWeight: '600' }}>yağ oranı</Text>
+                    <Text style={{ color: '#A3ABBA', fontSize: 16, fontWeight: '600' }}>{t('yağ oranı')}</Text>
                   </View>
                 )}
                 <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 2 }}>💪 {user?.name || ''} · GymBodyAI</Text>
@@ -4394,7 +4445,7 @@ const pickAndUploadProfilePhoto = async () => {
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
             <TouchableOpacity onPress={() => setShareCardReady(false)}
               style={{ flex: 1, backgroundColor: '#1D2230', borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: C.border }}>
-              <Text style={{ color: '#A3ABBA', fontWeight: '700' }}>İptal</Text>
+              <Text style={{ color: '#A3ABBA', fontWeight: '700' }}>{t('İptal')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={captureAndShare} disabled={!shareImgLoaded || shareLoading}
               style={{ flex: 2, borderRadius: 14, overflow: 'hidden', opacity: (!shareImgLoaded || shareLoading) ? 0.6 : 1 }}>
@@ -4406,7 +4457,7 @@ const pickAndUploadProfilePhoto = async () => {
                   <Ionicons name="share-social" size={18} color="#0B0D12" />
                 )}
                 <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>
-                  {!shareImgLoaded ? 'YÜKLENİYOR' : shareLoading ? 'HAZIRLANIYOR' : 'PAYLAŞ'}
+                  {!shareImgLoaded ? t('YÜKLENİYOR') : shareLoading ? t('HAZIRLANIYOR') : t('PAYLAŞ')}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -4469,7 +4520,7 @@ const pickAndUploadProfilePhoto = async () => {
               // PT programı GymBody'nin "günü tamamladım" akışına (weeklyPlan.currentDay
               // ilerletme + /complete-day) bağlı değil — sadece bir bitirme mesajı gösterilir.
               if (workoutSource === 'pt') {
-                showToast('Antrenmanı bitirdin, tebrikler! 💪', 'success');
+                showToast(t('Antrenmanı bitirdin, tebrikler! 💪'), 'success');
               } else {
                 setDayFeedbackVisible(true);
               }
@@ -4486,7 +4537,7 @@ const pickAndUploadProfilePhoto = async () => {
                   <Ionicons name="close" size={24} color={C.text} />
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>{workoutExIdx + 1}/{exercises.length}. EGZERSİZ</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>{t('{{cur}}/{{total}}. EGZERSİZ', { cur: workoutExIdx + 1, total: exercises.length })}</Text>
                   <Text style={{ color: C.text, fontWeight: '900', fontSize: 17 }} numberOfLines={1}>{ex.name}</Text>
                 </View>
                 {ex.gifUrl && (
@@ -4519,14 +4570,14 @@ const pickAndUploadProfilePhoto = async () => {
                 </View>
 
                 {/* Tekrar */}
-                <Text style={{ color: C.textMuted, fontSize: 14, marginBottom: 6 }}>Hedef tekrar</Text>
+                <Text style={{ color: C.textMuted, fontSize: 14, marginBottom: 6 }}>{t('Hedef tekrar')}</Text>
                 <Text style={{ color: '#FF9F1C', fontWeight: '900', fontSize: 64, lineHeight: 68 }}>{repsLabel}</Text>
-                <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 4 }}>tekrar</Text>
+                <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 4 }}>{t('tekrar')}</Text>
 
                 {/* Kilo girişi */}
                 {exToLiftKey(ex.name || '') && (
                   <View style={{ alignItems: 'center', marginTop: 20, marginBottom: 16 }}>
-                    <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 8 }}>Kullandığın ağırlık (opsiyonel)</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 8 }}>{t('Kullandığın ağırlık (opsiyonel)')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                       <TextInput
                         style={{ backgroundColor: C.surface2, color: C.text, fontWeight: '800', fontSize: 26,
@@ -4546,8 +4597,8 @@ const pickAndUploadProfilePhoto = async () => {
                       const currentBest = liftKey ? (user?.lifts?.[liftKey]?.best || 0) : 0;
                       const entered = parseFloat(workoutWeights[workoutExIdx]);
                       if (!currentBest || !entered) return null;
-                      if (entered > currentBest) return <Text style={{ color: C.lime, fontSize: 11, marginTop: 6, fontWeight: '700' }}>Yeni PR! {entered} kg {'>'} {currentBest} kg</Text>;
-                      return <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 6 }}>Mevcut max: {currentBest} kg</Text>;
+                      if (entered > currentBest) return <Text style={{ color: C.lime, fontSize: 11, marginTop: 6, fontWeight: '700' }}>{t('Yeni PR! {{entered}} kg > {{best}} kg', { entered, best: currentBest })}</Text>;
+                      return <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 6 }}>{t('Mevcut max: {{best}} kg', { best: currentBest })}</Text>;
                     })()}
                   </View>
                 )}
@@ -4556,17 +4607,17 @@ const pickAndUploadProfilePhoto = async () => {
                 {/* Dinlenme sayacı */}
                 {restSeconds !== null ? (
                   <View style={{ alignItems: 'center', marginBottom: 32 }}>
-                    <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 8 }}>Dinlenme süresi</Text>
+                    <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 8 }}>{t('Dinlenme süresi')}</Text>
                     <Text style={{ color: restSeconds <= 10 ? C.orange : C.lime, fontWeight: '900', fontSize: 48 }}>{restSeconds}s</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 16 }}>
                       <Ionicons name="barbell-outline" size={15} color={C.textMuted} />
                       <Text style={{ color: C.text, fontWeight: '700', fontSize: 14, textAlign: 'center' }} numberOfLines={1}>
-                        Sıradaki: {ex.name}{!isLastSet ? ` · Set ${workoutSetIdx + 1}` : ''}
+                        {t('Sıradaki:')} {ex.name}{!isLastSet ? ` · Set ${workoutSetIdx + 1}` : ''}
                       </Text>
                     </View>
                     <TouchableOpacity onPress={() => { clearInterval(restIntervalRef.current); setRestSeconds(null); }}
                       style={{ marginTop: 12, paddingHorizontal: 20, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: C.border }}>
-                      <Text style={{ color: C.textMuted, fontSize: 13 }}>Atla</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 13 }}>{t('Atla')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -4574,7 +4625,7 @@ const pickAndUploadProfilePhoto = async () => {
                     <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                       style={{ borderRadius: 18, paddingVertical: 20, alignItems: 'center' }}>
                       <Text style={{ color: '#1A1235', fontWeight: '900', fontSize: 18 }}>
-                        {isLastSet && isLastEx ? 'Antrenmanı Bitir' : isLastSet ? 'Sonraki Egzersiz →' : `Set ${workoutSetIdx + 1} Tamamlandı`}
+                        {isLastSet && isLastEx ? t('Antrenmanı Bitir') : isLastSet ? t('Sonraki Egzersiz →') : t('Set {{n}} Tamamlandı', { n: workoutSetIdx + 1 })}
                       </Text>
                     </LinearGradient>
                   </TouchableOpacity>
@@ -4611,11 +4662,11 @@ const pickAndUploadProfilePhoto = async () => {
               <TouchableOpacity onPress={closeCoachChat} style={{ marginRight: 12 }}>
                 <Ionicons name="chevron-back" size={26} color={C.text} />
               </TouchableOpacity>
-              <Text style={{ color: C.text, fontWeight: '900', fontSize: 17, flex: 1 }}>🏋️ {coachData.coachName || 'Hocan'}</Text>
+              <Text style={{ color: C.text, fontWeight: '900', fontSize: 17, flex: 1 }}>🏋️ {coachData.coachName || t('Hocan')}</Text>
             </View>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, gap: 8 }}>
               {coachMessages.length === 0 && (
-                <Text style={{ color: C.textMuted, textAlign: 'center', marginTop: 40 }}>Henüz mesaj yok. Hocana yazabilirsin 👋</Text>
+                <Text style={{ color: C.textMuted, textAlign: 'center', marginTop: 40 }}>{t('Henüz mesaj yok. Hocana yazabilirsin 👋')}</Text>
               )}
               {coachMessages.map((msg, i) => {
                 const mine = msg.from === 'student';
@@ -4627,7 +4678,7 @@ const pickAndUploadProfilePhoto = async () => {
               })}
             </ScrollView>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.surface }}>
-              <TextInput value={coachChatInput} onChangeText={setCoachChatInput} placeholder="Mesaj yaz..." placeholderTextColor={C.textMuted}
+              <TextInput value={coachChatInput} onChangeText={setCoachChatInput} placeholder={t('Mesaj yaz...')} placeholderTextColor={C.textMuted}
                 style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: C.text }} />
               <TouchableOpacity onPress={sendCoachMessage} disabled={!coachChatInput.trim()}
                 style={{ backgroundColor: coachChatInput.trim() ? C.orange : C.surface2, borderRadius: 20, padding: 10 }}>
@@ -4650,7 +4701,7 @@ const pickAndUploadProfilePhoto = async () => {
             <TouchableOpacity onPress={() => { if (libDetail) setLibDetail(null); else setLibVisible(false); }}>
               <Ionicons name={libDetail ? 'arrow-back' : 'close'} size={26} color={C.text} />
             </TouchableOpacity>
-            <Text numberOfLines={1} style={{ color: C.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{libDetail ? libDetail.name : 'Hareket Kütüphanesi'}</Text>
+            <Text numberOfLines={1} style={{ color: C.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{libDetail ? libDetail.name : t('Hareket Kütüphanesi')}</Text>
           </View>
 
           {libDetail ? (
@@ -4664,32 +4715,32 @@ const pickAndUploadProfilePhoto = async () => {
                 />
               </View>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-                {!!libDetail._group && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.lime, fontSize: 12, fontWeight: '600' }}>{libDetail._group}</Text></View>}
+                {!!libDetail._group && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.lime, fontSize: 12, fontWeight: '600' }}>{t(libDetail._group)}</Text></View>}
                 {!!libDetail.equipment && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.textSec, fontSize: 12 }}>{libDetail.equipment}</Text></View>}
                 {!!libDetail.level && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.textSec, fontSize: 12 }}>{libDetail.level}</Text></View>}
               </View>
-              <Text style={{ color: C.text, fontWeight: '700', fontSize: 15, marginBottom: 12 }}>Yapılışı</Text>
+              <Text style={{ color: C.text, fontWeight: '700', fontSize: 15, marginBottom: 12 }}>{t('Yapılışı')}</Text>
               {(libDetail.instructions || []).map((s: string, i: number) => (
                 <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: 13 }}>
                   <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: C.bg, fontWeight: '800', fontSize: 12 }}>{i + 1}</Text></View>
                   <Text style={{ color: C.textSec, fontSize: 14, flex: 1, lineHeight: 21 }}>{s}</Text>
                 </View>
               ))}
-              {!(libDetail.instructions || []).length && <Text style={{ color: C.textMuted, fontSize: 13 }}>Bu hareket için talimat bulunmuyor.</Text>}
+              {!(libDetail.instructions || []).length && <Text style={{ color: C.textMuted, fontSize: 13 }}>{t('Bu hareket için talimat bulunmuyor.')}</Text>}
             </ScrollView>
           ) : (
             <>
               <View style={{ paddingHorizontal: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 12, height: 44, marginBottom: 12 }}>
                   <Ionicons name="search" size={18} color={C.textMuted} />
-                  <TextInput value={libSearch} onChangeText={setLibSearch} placeholder="Hareket ara..." placeholderTextColor={C.textMuted} style={{ flex: 1, color: C.text, fontSize: 15 }} />
+                  <TextInput value={libSearch} onChangeText={setLibSearch} placeholder={t('Hareket ara...')} placeholderTextColor={C.textMuted} style={{ flex: 1, color: C.text, fontSize: 15 }} />
                 </View>
               </View>
               <View style={{ marginBottom: 6 }}>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
                   {['Tümü', ...Object.keys(libData)].map((g) => (
                     <TouchableOpacity key={g} onPress={() => setLibGroup(g)} style={{ backgroundColor: libGroup === g ? C.lime : C.surface, borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14 }}>
-                      <Text style={{ color: libGroup === g ? C.bg : C.textSec, fontSize: 13, fontWeight: '600' }}>{g}</Text>
+                      <Text style={{ color: libGroup === g ? C.bg : C.textSec, fontSize: 13, fontWeight: '600' }}>{t(g)}</Text>
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -4730,14 +4781,14 @@ const pickAndUploadProfilePhoto = async () => {
                     renderItem={({ item }: any) => renderCard(item)}
                     ListHeaderComponent={favExercises.length ? (
                       <View style={{ marginBottom: 6 }}>
-                        <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, marginBottom: 10, paddingHorizontal: 2 }}>⭐ Favorilerim</Text>
+                        <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, marginBottom: 10, paddingHorizontal: 2 }}>{t('⭐ Favorilerim')}</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 4 }}>
                           {favExercises.map((item) => renderCard(item, { maxWidth: 150, width: 150 }))}
                         </ScrollView>
                         <View style={{ height: 1, backgroundColor: C.surface2, marginVertical: 14 }} />
                       </View>
                     ) : null}
-                    ListEmptyComponent={<Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 }}>Eşleşen hareket yok.</Text>}
+                    ListEmptyComponent={<Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 }}>{t('Eşleşen hareket yok.')}</Text>}
                   />
                 );
               })()}
@@ -4773,19 +4824,19 @@ const pickAndUploadProfilePhoto = async () => {
                     <Text style={{ fontSize: 40 }}>{topBadge?.emoji || '🏅'}</Text>
                   </View>
                   {topBadge && <Text style={{ color: topBadge.color, fontSize: 11, fontWeight: '800', letterSpacing: 2, marginBottom: 4 }}>{topBadge.rarity.toUpperCase()}</Text>}
-                  <Text style={{ color: C.text, fontSize: 22, fontWeight: '900', marginBottom: 4 }}>Rozet Kazandın!</Text>
+                  <Text style={{ color: C.text, fontSize: 22, fontWeight: '900', marginBottom: 4 }}>{t('Rozet Kazandın!')}</Text>
                   {newBadges.map(b => {
                     const m = BADGE_META[b.id];
                     return (
                       <View key={b.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
                         <Text style={{ fontSize: 20 }}>{m?.emoji || '🏅'}</Text>
-                        <Text style={{ color: C.text, fontSize: 16, fontWeight: '700' }}>{b.label}</Text>
+                        <Text style={{ color: C.text, fontSize: 16, fontWeight: '700' }}>{t(b.label)}</Text>
                       </View>
                     );
                   })}
                   <TouchableOpacity onPress={() => setNewBadgeVisible(false)}
                     style={{ marginTop: 20, backgroundColor: topBadge?.color || C.orange, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 36 }}>
-                    <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>HARİKA! 🎉</Text>
+                    <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>{t('HARİKA! 🎉')}</Text>
                   </TouchableOpacity>
                 </>
               );
@@ -4799,46 +4850,46 @@ const pickAndUploadProfilePhoto = async () => {
         {(() => {
           const QUESTIONS = [
             {
-              key: 'goal', title: 'Hedefin ne?', subtitle: 'Sana en uygun programı hazırlayalım',
+              key: 'goal', title: t('Hedefin ne?'), subtitle: t('Sana en uygun programı hazırlayalım'),
               options: [
-                { id: 'fat_loss', icon: '🔥', label: 'Yağ Yak', desc: 'Kilo ver, form al' },
-                { id: 'muscle', icon: '💪', label: 'Kas Kazan', desc: 'Hacim ve güç artır' },
-                { id: 'maintain', icon: '⚖️', label: 'Form Koru', desc: 'Mevcut formu koru' },
-                { id: 'strength', icon: '🏋️', label: 'Güçlen', desc: 'Max kaldırmayı artır' },
+                { id: 'fat_loss', icon: '🔥', label: t('Yağ Yak'), desc: t('Kilo ver, form al') },
+                { id: 'muscle', icon: '💪', label: t('Kas Kazan'), desc: t('Hacim ve güç artır') },
+                { id: 'maintain', icon: '⚖️', label: t('Form Koru'), desc: t('Mevcut formu koru') },
+                { id: 'strength', icon: '🏋️', label: t('Güçlen'), desc: t('Max kaldırmayı artır') },
               ],
             },
             {
-              key: 'experience', title: 'Deneyim seviyeni seç', subtitle: 'Programın zorluğu buna göre ayarlanır',
+              key: 'experience', title: t('Deneyim seviyeni seç'), subtitle: t('Programın zorluğu buna göre ayarlanır'),
               options: [
-                { id: 'beginner', icon: '🌱', label: 'Yeni Başlayan', desc: '0-1 yıl' },
-                { id: 'intermediate', icon: '⚡', label: 'Orta Seviye', desc: '1-3 yıl' },
-                { id: 'advanced', icon: '🔱', label: 'İleri Seviye', desc: '3+ yıl' },
+                { id: 'beginner', icon: '🌱', label: t('Yeni Başlayan'), desc: t('0-1 yıl') },
+                { id: 'intermediate', icon: '⚡', label: t('Orta Seviye'), desc: t('1-3 yıl') },
+                { id: 'advanced', icon: '🔱', label: t('İleri Seviye'), desc: t('3+ yıl') },
               ],
             },
             {
-              key: 'daysPerWeek', title: 'Haftada kaç gün?', subtitle: 'Program bu gün sayısına göre oluşturulur',
+              key: 'daysPerWeek', title: t('Haftada kaç gün?'), subtitle: t('Program bu gün sayısına göre oluşturulur'),
               options: [
-                { id: '3', icon: '3️⃣', label: '3 Gün', desc: 'Haftada 3' },
-                { id: '4', icon: '4️⃣', label: '4 Gün', desc: 'Haftada 4' },
-                { id: '5', icon: '5️⃣', label: '5 Gün', desc: 'Haftada 5' },
-                { id: '6', icon: '6️⃣', label: '6 Gün', desc: 'Haftada 6' },
+                { id: '3', icon: '3️⃣', label: t('3 Gün'), desc: t('Haftada 3') },
+                { id: '4', icon: '4️⃣', label: t('4 Gün'), desc: t('Haftada 4') },
+                { id: '5', icon: '5️⃣', label: t('5 Gün'), desc: t('Haftada 5') },
+                { id: '6', icon: '6️⃣', label: t('6 Gün'), desc: t('Haftada 6') },
               ],
             },
             {
-              key: 'location', title: 'Nerede antrenman yapıyorsun?', subtitle: 'Ekipman durumuna göre egzersizler seçilir',
+              key: 'location', title: t('Nerede antrenman yapıyorsun?'), subtitle: t('Ekipman durumuna göre egzersizler seçilir'),
               options: [
-                { id: 'gym', icon: '🏋️', label: 'Spor Salonu', desc: 'Tam ekipman' },
-                { id: 'home_equipped', icon: '🏠', label: 'Evde (Ekipmanlı)', desc: 'Dambıl, bant vs.' },
-                { id: 'home_bare', icon: '🤸', label: 'Evde (Ekipmansız)', desc: 'Sadece vücut ağırlığı' },
+                { id: 'gym', icon: '🏋️', label: t('Spor Salonu'), desc: t('Tam ekipman') },
+                { id: 'home_equipped', icon: '🏠', label: t('Evde (Ekipmanlı)'), desc: t('Dambıl, bant vs.') },
+                { id: 'home_bare', icon: '🤸', label: t('Evde (Ekipmansız)'), desc: t('Sadece vücut ağırlığı') },
               ],
             },
             {
-              key: 'restrictions', title: 'Fiziksel kısıtlaman var mı?', subtitle: 'Sakatlık veya ağrı bölgelerini atlayalım',
+              key: 'restrictions', title: t('Fiziksel kısıtlaman var mı?'), subtitle: t('Sakatlık veya ağrı bölgelerini atlayalım'),
               options: [
-                { id: 'none', icon: '✅', label: 'Hayır, yok', desc: 'Her şey yolunda' },
-                { id: 'back', icon: '🔴', label: 'Bel', desc: 'Bel fıtığı / ağrısı' },
-                { id: 'knee', icon: '🔴', label: 'Diz', desc: 'Diz sorunu' },
-                { id: 'shoulder', icon: '🔴', label: 'Omuz', desc: 'Omuz ağrısı' },
+                { id: 'none', icon: '✅', label: t('Hayır, yok'), desc: t('Her şey yolunda') },
+                { id: 'back', icon: '🔴', label: t('Bel'), desc: t('Bel fıtığı / ağrısı') },
+                { id: 'knee', icon: '🔴', label: t('Diz'), desc: t('Diz sorunu') },
+                { id: 'shoulder', icon: '🔴', label: t('Omuz'), desc: t('Omuz ağrısı') },
               ],
             },
           ];
@@ -4925,7 +4976,7 @@ const pickAndUploadProfilePhoto = async () => {
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={{ borderRadius: 18, paddingVertical: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                     <Text style={{ color: selected ? '#1A1235' : '#2A3050', fontWeight: '900', fontSize: 16 }}>
-                      {isLast ? 'Programımı Oluştur' : 'Devam Et'}
+                      {isLast ? t('Programımı Oluştur') : t('Devam Et')}
                     </Text>
                     <Ionicons name={isLast ? 'rocket' : 'arrow-forward'} size={18} color={selected ? '#1A1235' : '#2A3050'} />
                   </LinearGradient>
@@ -4941,7 +4992,7 @@ const pickAndUploadProfilePhoto = async () => {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
           <View style={{ backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, borderTopWidth: 1, borderColor: C.border, maxHeight: '85%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={{ fontSize: 20, fontWeight: '800', color: C.text }}>📊 Bu Haftanın Özeti</Text>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: C.text }}>{t('📊 Bu Haftanın Özeti')}</Text>
               <TouchableOpacity onPress={() => setWeeklySummaryVisible(false)}>
                 <Ionicons name="close" size={24} color={C.textMuted} />
               </TouchableOpacity>
@@ -4950,10 +5001,10 @@ const pickAndUploadProfilePhoto = async () => {
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
                   {[
-                    { icon: 'flame', color: C.orange, val: weeklySummary.streak, label: 'Günlük Seri' },
-                    { icon: 'barbell-outline', color: C.lime, val: weeklySummary.workoutDays, label: 'Antrenman' },
-                    { icon: 'restaurant-outline', color: C.blue, val: weeklySummary.mealScans, label: 'Öğün Tarama' },
-                    { icon: 'flame-outline', color: C.red, val: `${weeklySummary.avgCalories} kal`, label: 'Ort. Kalori' },
+                    { icon: 'flame', color: C.orange, val: weeklySummary.streak, label: t('Günlük Seri') },
+                    { icon: 'barbell-outline', color: C.lime, val: weeklySummary.workoutDays, label: t('Antrenman') },
+                    { icon: 'restaurant-outline', color: C.blue, val: weeklySummary.mealScans, label: t('Öğün Tarama') },
+                    { icon: 'flame-outline', color: C.red, val: `${weeklySummary.avgCalories} ${t('kal')}`, label: t('Ort. Kalori') },
                   ].map(item => (
                     <View key={item.label} style={{ flex: 1, minWidth: '45%', backgroundColor: C.surface2, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: C.border, alignItems: 'center', gap: 4 }}>
                       <Ionicons name={item.icon as any} size={22} color={item.color} />
@@ -4965,24 +5016,24 @@ const pickAndUploadProfilePhoto = async () => {
                 {weeklySummary.weightDiff !== null && (
                   <View style={{ backgroundColor: weeklySummary.weightDiff <= 0 ? '#0f2a1a' : '#2a0f0f', borderRadius: 14, padding: 16, marginBottom: 10 }}>
                     <Text style={{ color: weeklySummary.weightDiff <= 0 ? C.green : C.red, fontWeight: '800', fontSize: 16, textAlign: 'center' }}>
-                      {weeklySummary.weightDiff <= 0 ? `−${Math.abs(weeklySummary.weightDiff)} kg verdin 🔥` : `+${weeklySummary.weightDiff} kg aldın`}
+                      {weeklySummary.weightDiff <= 0 ? t('−{{kg}} kg verdin 🔥', { kg: Math.abs(weeklySummary.weightDiff) }) : t('+{{kg}} kg aldın', { kg: weeklySummary.weightDiff })}
                     </Text>
-                    <Text style={{ color: C.textSec, fontSize: 13, textAlign: 'center', marginTop: 4 }}>Bu haftaki kilo değişimi</Text>
+                    <Text style={{ color: C.textSec, fontSize: 13, textAlign: 'center', marginTop: 4 }}>{t('Bu haftaki kilo değişimi')}</Text>
                   </View>
                 )}
                 {weeklySummary.fatDiff !== null && (
                   <View style={{ backgroundColor: weeklySummary.fatDiff > 0 ? '#0f2a1a' : '#2a0f0f', borderRadius: 14, padding: 16, marginBottom: 10 }}>
                     <Text style={{ color: weeklySummary.fatDiff > 0 ? C.green : C.red, fontWeight: '800', fontSize: 16, textAlign: 'center' }}>
-                      {weeklySummary.fatDiff > 0 ? `−%${weeklySummary.fatDiff} yağ oranı düştü 💪` : `+%${Math.abs(weeklySummary.fatDiff)} yağ oranı arttı`}
+                      {weeklySummary.fatDiff > 0 ? t('−%{{n}} yağ oranı düştü 💪', { n: weeklySummary.fatDiff }) : t('+%{{n}} yağ oranı arttı', { n: Math.abs(weeklySummary.fatDiff) })}
                     </Text>
-                    <Text style={{ color: C.textSec, fontSize: 13, textAlign: 'center', marginTop: 4 }}>Bu haftaki yağ oranı değişimi</Text>
+                    <Text style={{ color: C.textSec, fontSize: 13, textAlign: 'center', marginTop: 4 }}>{t('Bu haftaki yağ oranı değişimi')}</Text>
                   </View>
                 )}
                 <View style={{ backgroundColor: C.surface2, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.border }}>
                   <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
-                    {weeklySummary.workoutDays >= 4 ? '🏆 Mükemmel bir hafta geçirdin! Bu tempo devam ederse sonuçlar kaçınılmaz.' :
-                     weeklySummary.workoutDays >= 2 ? '💪 İyi bir haftaydı. Bir sonraki haftada biraz daha sıkıştır.' :
-                     '🎯 Bu hafta biraz sessiz geçti. Küçük adımlar da sayılır, hadi devam!'}
+                    {weeklySummary.workoutDays >= 4 ? t('🏆 Mükemmel bir hafta geçirdin! Bu tempo devam ederse sonuçlar kaçınılmaz.') :
+                     weeklySummary.workoutDays >= 2 ? t('💪 İyi bir haftaydı. Bir sonraki haftada biraz daha sıkıştır.') :
+                     t('🎯 Bu hafta biraz sessiz geçti. Küçük adımlar da sayılır, hadi devam!')}
                   </Text>
                 </View>
               </ScrollView>
@@ -5011,8 +5062,8 @@ const pickAndUploadProfilePhoto = async () => {
           <View style={{ backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1, borderColor: C.border, maxHeight: '80%', minHeight: '60%', flexDirection: 'column' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: C.border }}>
               <View>
-                <Text style={{ color: C.text, fontWeight: '800', fontSize: 17 }}>🤖 AI Koçun</Text>
-                <Text style={{ color: C.textMuted, fontSize: 12 }}>{userStats.isVip ? 'Sınırsız sohbet' : 'Günde 3 ücretsiz mesaj'}</Text>
+                <Text style={{ color: C.text, fontWeight: '800', fontSize: 17 }}>{t('🤖 AI Koçun')}</Text>
+                <Text style={{ color: C.textMuted, fontSize: 12 }}>{userStats.isVip ? t('Sınırsız sohbet') : t('Günde 3 ücretsiz mesaj')}</Text>
               </View>
               <TouchableOpacity onPress={() => { Keyboard.dismiss(); setChatVisible(false); }}>
                 <Ionicons name="close" size={24} color={C.textMuted} />
@@ -5022,9 +5073,9 @@ const pickAndUploadProfilePhoto = async () => {
               {chatMessages.length === 0 && (
                 <View style={{ alignItems: 'center', paddingTop: 20, gap: 8 }}>
                   <Text style={{ fontSize: 40 }}>🏋️</Text>
-                  <Text style={{ color: C.textSec, textAlign: 'center', lineHeight: 20 }}>Merhaba! Antrenman, beslenme veya hedeflerin hakkında her şeyi sorabilirsin.</Text>
+                  <Text style={{ color: C.textSec, textAlign: 'center', lineHeight: 20 }}>{t('Merhaba! Antrenman, beslenme veya hedeflerin hakkında her şeyi sorabilirsin.')}</Text>
                   <View style={{ gap: 8, width: '100%', marginTop: 12 }}>
-                    {['Bugün için antrenman öner', 'Protein ihtiyacım ne kadar?', 'Motivasyon düştü, ne yapayım?'].map(q => (
+                    {[t('Bugün için antrenman öner'), t('Protein ihtiyacım ne kadar?'), t('Motivasyon düştü, ne yapayım?')].map(q => (
                       <TouchableOpacity key={q} onPress={() => { setChatInput(q); }}
                         style={{ backgroundColor: C.surface2, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: C.border }}>
                         <Text style={{ color: C.textSec, fontSize: 13 }}>{q}</Text>
@@ -5049,7 +5100,7 @@ const pickAndUploadProfilePhoto = async () => {
             <View style={{ flexDirection: 'row', gap: 10, padding: 16, paddingTop: 10, borderTopWidth: 1, borderColor: C.border }}>
               <TextInput
                 style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, color: C.text, fontSize: 14, borderWidth: 1, borderColor: C.border }}
-                placeholder="Sor bakalım..."
+                placeholder={t('Sor bakalım...')}
                 placeholderTextColor={C.textMuted}
                 value={chatInput}
                 onChangeText={setChatInput}
@@ -5085,19 +5136,19 @@ const pickAndUploadProfilePhoto = async () => {
               const lift = LIFTS.find(l => l.key === liftModal);
               if (!lift) return null;
               const isRepBased = lift.unit === 'tekrar';
-              const unitLabel = isRepBased ? 'tekrar' : 'kg';
+              const unitLabel = isRepBased ? t('tekrar') : 'kg';
               const best = user?.lifts?.[liftModal!]?.best || 0;
               return (
                 <>
                   <Text style={{ fontSize: 34, textAlign: 'center', marginBottom: 6 }}>{lift.icon}</Text>
                   <Text style={{ color: C.text, fontWeight: '800', fontSize: 19, textAlign: 'center' }}>{lift.label}</Text>
                   <Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: lift.hint ? 8 : 18 }}>
-                    {lift.muscle} • Şu anki rekor: {best ? `${best} ${unitLabel}` : '—'}
+                    {t(lift.muscle)} • {t('Şu anki rekor:')} {best ? `${best} ${unitLabel}` : '—'}
                   </Text>
                   {lift.hint && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 16 }}>
                       <Ionicons name="information-circle-outline" size={14} color={C.orange} />
-                      <Text style={{ color: C.orange, fontSize: 12 }}>{lift.hint}</Text>
+                      <Text style={{ color: C.orange, fontSize: 12 }}>{t(lift.hint)}</Text>
                     </View>
                   )}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -5105,7 +5156,7 @@ const pickAndUploadProfilePhoto = async () => {
                       value={liftInput}
                       onChangeText={setLiftInput}
                       keyboardType="numeric"
-                      placeholder={isRepBased ? 'Kaç tekrar?' : 'Kaç kg?'}
+                      placeholder={isRepBased ? t('Kaç tekrar?') : t('Kaç kg?')}
                       placeholderTextColor={C.textMuted}
                       style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, color: C.text, fontSize: 18, fontWeight: '700' }}
                     />
@@ -5117,19 +5168,19 @@ const pickAndUploadProfilePhoto = async () => {
                         value={liftRepsInput}
                         onChangeText={setLiftRepsInput}
                         keyboardType="numeric"
-                        placeholder="Kaç tekrar?"
+                        placeholder={t('Kaç tekrar?')}
                         placeholderTextColor={C.textMuted}
                         style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, color: C.text, fontSize: 18, fontWeight: '700' }}
                       />
-                      <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>tekrar</Text>
+                      <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>{t('tekrar')}</Text>
                     </View>
                   )}
                   <Text style={{ color: C.textMuted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>
-                    {isRepBased ? 'Tek seferde (dinlenmeden) yapabildiğin en yüksek tekrar sayısını gir.' : 'Tek seferde kaldırdıysan "1" bırak. Birden fazla tekrar yaptıysan gerçek 1RM\'in daha doğru hesaplanır.'}
+                    {isRepBased ? t('Tek seferde (dinlenmeden) yapabildiğin en yüksek tekrar sayısını gir.') : t('Tek seferde kaldırdıysan "1" bırak. Birden fazla tekrar yaptıysan gerçek 1RM\'in daha doğru hesaplanır.')}
                   </Text>
                   <TouchableOpacity onPress={saveLift} disabled={liftSaving} activeOpacity={0.85}
                     style={{ marginTop: 16, backgroundColor: C.orange, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}>
-                    {liftSaving ? <ActivityIndicator color="#0B0D12" /> : <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Kaydet</Text>}
+                    {liftSaving ? <ActivityIndicator color="#0B0D12" /> : <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>{t('Kaydet')}</Text>}
                   </TouchableOpacity>
                 </>
               );
@@ -5153,7 +5204,7 @@ const pickAndUploadProfilePhoto = async () => {
                         <Text style={{ color: C.text, fontWeight: '800', fontSize: 19 }}>{lift?.label}</Text>
                         {leaderboardData?.bracket && (
                           <Text style={{ color: C.orange, fontWeight: '700', fontSize: 13, marginTop: 1 }}>
-                            🏋️ {leaderboardData.genderLabel ? `${leaderboardData.genderLabel} · ` : ''}{String(leaderboardData.bracket).replace(' kg', '')} sikleti
+                            🏋️ {leaderboardData.genderLabel ? `${leaderboardData.genderLabel} · ` : ''}{t('{{bracket}} sikleti', { bracket: String(leaderboardData.bracket).replace(' kg', '') })}
                           </Text>
                         )}
                       </View>
@@ -5168,7 +5219,7 @@ const pickAndUploadProfilePhoto = async () => {
                   ) : leaderboardData ? (
                     <>
                       <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 8, marginBottom: 16 }}>
-                        {leaderboardData.total} kişi yarışıyor · Senin sıran: {leaderboardData.myRank > 0 ? `#${leaderboardData.myRank}` : '—'}
+                        {t('{{count}} kişi yarışıyor · Senin sıran:', { count: leaderboardData.total })} {leaderboardData.myRank > 0 ? `#${leaderboardData.myRank}` : '—'}
                       </Text>
                       <ScrollView showsVerticalScrollIndicator={false}>
                         {leaderboardData.top10?.length > 0 ? leaderboardData.top10.map((row: any) => (
@@ -5188,15 +5239,15 @@ const pickAndUploadProfilePhoto = async () => {
                               </View>
                             )}
                             <Text style={{ flex: 1, color: row.isMe ? C.orange : C.text, fontWeight: row.isMe ? '800' : '600', fontSize: 14 }} numberOfLines={1}>
-                              {row.name}{row.isMe ? ' (sen)' : ''}
+                              {row.name}{row.isMe ? ` (${t('sen')})` : ''}
                             </Text>
                             {!row.isMe && row.id && (() => {
                               const sent = rankSentIds.includes(row.id) || String(row.friendStatus || '').startsWith('sent');
                               const accepted = String(row.friendStatus || '').includes('accepted');
                               const incoming = String(row.friendStatus || '').startsWith('received');
                               if (accepted) return <Ionicons name="checkmark-circle" size={22} color={C.green} />;
-                              if (sent) return <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>İstendi</Text>;
-                              if (incoming) return <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>Sana istek</Text>;
+                              if (sent) return <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>{t('İstendi')}</Text>;
+                              if (incoming) return <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>{t('Sana istek')}</Text>;
                               return (
                                 <TouchableOpacity onPress={() => { sendFriendRequest(row.id); setRankSentIds(prev => [...prev, row.id]); }}
                                   style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(198,255,61,0.14)', borderWidth: 1, borderColor: C.lime, alignItems: 'center', justifyContent: 'center' }}>
@@ -5204,19 +5255,19 @@ const pickAndUploadProfilePhoto = async () => {
                                 </TouchableOpacity>
                               );
                             })()}
-                            <Text style={{ color: row.isMe ? C.orange : C.textSec, fontWeight: '800', fontSize: 15, minWidth: 52, textAlign: 'right' }}>{row.best} {lift?.unit === 'tekrar' ? 'tekrar' : 'kg'}</Text>
+                            <Text style={{ color: row.isMe ? C.orange : C.textSec, fontWeight: '800', fontSize: 15, minWidth: 52, textAlign: 'right' }}>{row.best} {lift?.unit === 'tekrar' ? t('tekrar') : 'kg'}</Text>
                           </View>
                         )) : (
                           <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginVertical: 30 }}>
-                            Bu siklette henüz kimse PR girmemiş. İlk sen ol! 💪
+                            {t('Bu siklette henüz kimse PR girmemiş. İlk sen ol! 💪')}
                           </Text>
                         )}
                         {leaderboardData.myRank > 20 && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 12,
                             borderRadius: 12, marginTop: 6, backgroundColor: 'rgba(255,159,28,0.14)', borderWidth: 1, borderColor: C.orange }}>
                             <Text style={{ width: 30, textAlign: 'center', fontSize: 14, fontWeight: '800', color: C.orange }}>#{leaderboardData.myRank}</Text>
-                            <Text style={{ flex: 1, color: C.orange, fontWeight: '800', fontSize: 14 }}>Sen</Text>
-                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{leaderboardData.myBest} {lift?.unit === 'tekrar' ? 'tekrar' : 'kg'}</Text>
+                            <Text style={{ flex: 1, color: C.orange, fontWeight: '800', fontSize: 14 }}>{t('Sen')}</Text>
+                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{leaderboardData.myBest} {lift?.unit === 'tekrar' ? t('tekrar') : 'kg'}</Text>
                           </View>
                         )}
                       </ScrollView>
@@ -5225,7 +5276,7 @@ const pickAndUploadProfilePhoto = async () => {
                           style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
                             backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14 }}>
                           <Ionicons name="share-social" size={18} color="#0B0D12" />
-                          <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Sıranı Paylaş</Text>
+                          <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>{t('Sıranı Paylaş')}</Text>
                         </TouchableOpacity>
                       )}
                     </>
@@ -5242,7 +5293,7 @@ const pickAndUploadProfilePhoto = async () => {
         <TouchableOpacity activeOpacity={1} onPress={() => setMuscleLeaderboardKey(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
           <TouchableOpacity activeOpacity={1} style={{ backgroundColor: C.bgAlt, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: insets.bottom + 24, maxHeight: '82%' }}>
             {(() => {
-              const muscleName = muscleLeaderboardKey ? MUSCLE_NAMES[muscleLeaderboardKey] : '';
+              const muscleName = muscleLeaderboardKey ? t(MUSCLE_NAMES[muscleLeaderboardKey]) : '';
               return (
                 <>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -5252,7 +5303,7 @@ const pickAndUploadProfilePhoto = async () => {
                         <Text style={{ color: C.text, fontWeight: '800', fontSize: 19 }}>{muscleName}</Text>
                         {muscleLeaderboardData?.bracket && (
                           <Text style={{ color: C.orange, fontWeight: '700', fontSize: 13, marginTop: 1 }}>
-                            🏋️ {muscleLeaderboardData.genderLabel ? `${muscleLeaderboardData.genderLabel} · ` : ''}{String(muscleLeaderboardData.bracket).replace(' kg', '')} sikleti
+                            🏋️ {muscleLeaderboardData.genderLabel ? `${muscleLeaderboardData.genderLabel} · ` : ''}{t('{{bracket}} sikleti', { bracket: String(muscleLeaderboardData.bracket).replace(' kg', '') })}
                           </Text>
                         )}
                       </View>
@@ -5267,7 +5318,7 @@ const pickAndUploadProfilePhoto = async () => {
                   ) : muscleLeaderboardData ? (
                     <>
                       <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 8, marginBottom: 16 }}>
-                        {muscleLeaderboardData.total} kişi yarışıyor · Senin sıran: {muscleLeaderboardData.myRank > 0 ? `#${muscleLeaderboardData.myRank}` : '—'}
+                        {t('{{count}} kişi yarışıyor · Senin sıran:', { count: muscleLeaderboardData.total })} {muscleLeaderboardData.myRank > 0 ? `#${muscleLeaderboardData.myRank}` : '—'}
                       </Text>
                       <ScrollView showsVerticalScrollIndicator={false}>
                         {muscleLeaderboardData.top10?.length > 0 ? muscleLeaderboardData.top10.map((row: any) => (
@@ -5287,15 +5338,15 @@ const pickAndUploadProfilePhoto = async () => {
                               </View>
                             )}
                             <Text style={{ flex: 1, color: row.isMe ? C.orange : C.text, fontWeight: row.isMe ? '800' : '600', fontSize: 14 }} numberOfLines={1}>
-                              {row.name}{row.isMe ? ' (sen)' : ''}
+                              {row.name}{row.isMe ? ` (${t('sen')})` : ''}
                             </Text>
                             {!row.isMe && row.id && (() => {
                               const sent = rankSentIds.includes(row.id) || String(row.friendStatus || '').startsWith('sent');
                               const accepted = String(row.friendStatus || '').includes('accepted');
                               const incoming = String(row.friendStatus || '').startsWith('received');
                               if (accepted) return <Ionicons name="checkmark-circle" size={22} color={C.green} />;
-                              if (sent) return <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>İstendi</Text>;
-                              if (incoming) return <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>Sana istek</Text>;
+                              if (sent) return <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>{t('İstendi')}</Text>;
+                              if (incoming) return <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>{t('Sana istek')}</Text>;
                               return (
                                 <TouchableOpacity onPress={() => { sendFriendRequest(row.id); setRankSentIds(prev => [...prev, row.id]); }}
                                   style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(198,255,61,0.14)', borderWidth: 1, borderColor: C.lime, alignItems: 'center', justifyContent: 'center' }}>
@@ -5303,19 +5354,19 @@ const pickAndUploadProfilePhoto = async () => {
                                 </TouchableOpacity>
                               );
                             })()}
-                            <Text style={{ color: RANKS.find(r => r.key === row.rankKey)?.color || C.textSec, fontWeight: '800', fontSize: 13, minWidth: 52, textAlign: 'right' }}>{row.rankLabel}</Text>
+                            <Text style={{ color: RANKS.find(r => r.key === row.rankKey)?.color || C.textSec, fontWeight: '800', fontSize: 13, minWidth: 52, textAlign: 'right' }}>{t(row.rankLabel)}</Text>
                           </View>
                         )) : (
                           <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginVertical: 30 }}>
-                            Bu siklette henüz kimse bu kas grubunda rank almamış. İlk sen ol! 💪
+                            {t('Bu siklette henüz kimse bu kas grubunda rank almamış. İlk sen ol! 💪')}
                           </Text>
                         )}
                         {muscleLeaderboardData.myRank > 20 && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 12,
                             borderRadius: 12, marginTop: 6, backgroundColor: 'rgba(255,159,28,0.14)', borderWidth: 1, borderColor: C.orange }}>
                             <Text style={{ width: 30, textAlign: 'center', fontSize: 14, fontWeight: '800', color: C.orange }}>#{muscleLeaderboardData.myRank}</Text>
-                            <Text style={{ flex: 1, color: C.orange, fontWeight: '800', fontSize: 14 }}>Sen</Text>
-                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{muscleLeaderboardData.myRankLabel || '—'}</Text>
+                            <Text style={{ flex: 1, color: C.orange, fontWeight: '800', fontSize: 14 }}>{t('Sen')}</Text>
+                            <Text style={{ color: C.orange, fontWeight: '800', fontSize: 15 }}>{muscleLeaderboardData.myRankLabel ? t(muscleLeaderboardData.myRankLabel) : '—'}</Text>
                           </View>
                         )}
                       </ScrollView>
@@ -5335,9 +5386,9 @@ const pickAndUploadProfilePhoto = async () => {
             {/* CREATE: sadece hareket seç, kilo yok */}
             {challengeScreen === 'create' && (
               <View>
-                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 6 }}>⚔️ Meydan Okuma Oluştur</Text>
-                <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 18 }}>Arkadaşın katıldıktan sonra ikiniz de kiloyu o an girersiniz.</Text>
-                <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 }}>HANGİ HAREKET?</Text>
+                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 6 }}>{t('⚔️ Meydan Okuma Oluştur')}</Text>
+                <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 18 }}>{t('Arkadaşın katıldıktan sonra ikiniz de kiloyu o an girersiniz.')}</Text>
+                <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 }}>{t('HANGİ HAREKET?')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
                   {Object.entries(LIFT_LABELS_MAP).map(([key, label]) => (
                     <TouchableOpacity key={key} onPress={() => setChallengeLift(key)}
@@ -5348,7 +5399,7 @@ const pickAndUploadProfilePhoto = async () => {
                 </ScrollView>
                 <TouchableOpacity onPress={createChallenge} activeOpacity={0.85} disabled={loading}
                   style={{ backgroundColor: C.orange, borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
-                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? 'Oluşturuluyor...' : 'Kapışma Oluştur'}</Text>
+                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? t('Oluşturuluyor...') : t('Kapışma Oluştur')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -5356,32 +5407,32 @@ const pickAndUploadProfilePhoto = async () => {
             {/* CODE: kodu göster + kopyala + kendi kilonu gir */}
             {challengeScreen === 'code' && (
               <View style={{ alignItems: 'center' }}>
-                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 4 }}>Kapışma Hazır!</Text>
+                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 4 }}>{t('Kapışma Hazır!')}</Text>
                 <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 20 }}>
-                  Kodu arkadaşına gönder, o katıldıktan sonra ikiniz de kendi kilonuzu girin.
+                  {t('Kodu arkadaşına gönder, o katıldıktan sonra ikiniz de kendi kilonuzu girin.')}
                 </Text>
                 <View style={{ backgroundColor: C.surface2, borderRadius: 16, paddingVertical: 18, paddingHorizontal: 36, borderWidth: 2, borderColor: C.orange, marginBottom: 10 }}>
                   <Text style={{ color: C.orange, fontSize: 38, fontWeight: '900', letterSpacing: 6 }}>{challengeCode}</Text>
                 </View>
                 <Text style={{ color: C.textMuted, fontSize: 12, marginBottom: 20 }}>{LIFT_LABELS_MAP[challengeLift]}</Text>
                 <TouchableOpacity onPress={() => {
-                  const msg = `GymBodyAI'da ${LIFT_LABELS_MAP[challengeLift]} kapışması başlattım! ⚔️\nKatıl → GymBodyAI aç, "Kodu Gir" → ${challengeCode}\nKiloları o an girersiniz, kazanan belli olur!`;
+                  const msg = t("GymBodyAI'da {{lift}} kapışması başlattım! ⚔️\nKatıl → GymBodyAI aç, \"Kodu Gir\" → {{code}}\nKiloları o an girersiniz, kazanan belli olur!", { lift: LIFT_LABELS_MAP[challengeLift], code: challengeCode });
                   Share.share({ message: msg });
                 }} activeOpacity={0.85}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 22, marginBottom: 14, borderWidth: 1, borderColor: C.border }}>
                   <Ionicons name="copy-outline" size={16} color={C.textSec} />
-                  <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 14 }}>Davet Mesajını Kopyala</Text>
+                  <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 14 }}>{t('Davet Mesajını Kopyala')}</Text>
                 </TouchableOpacity>
 
                 {/* Challenger kendi kilosunu girer */}
                 <View style={{ alignSelf: 'stretch', backgroundColor: C.surface2, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.orange + '55' }}>
-                  <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 10 }}>SENİN AĞIRLIĞIN (kg) — rakip beklerken gir</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 10 }}>{t('SENİN AĞIRLIĞIN (kg) — rakip beklerken gir')}</Text>
                   <TextInput value={challengeMyWeight} onChangeText={setChallengeMyWeight} keyboardType="decimal-pad"
                     placeholder="0" placeholderTextColor={C.textMuted}
                     style={{ backgroundColor: C.surface, borderRadius: 10, padding: 12, color: C.text, fontSize: 17, fontWeight: '700', borderWidth: 1, borderColor: C.border, marginBottom: 12 }} />
                   <TouchableOpacity onPress={() => submitChallengeWeight(true)} activeOpacity={0.85} disabled={loading}
                     style={{ backgroundColor: C.orange, borderRadius: 12, paddingVertical: 13, alignItems: 'center' }}>
-                    <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>{loading ? 'Kaydediliyor...' : 'Kilonu Kaydet ⚡'}</Text>
+                    <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>{loading ? t('Kaydediliyor...') : t('Kilonu Kaydet ⚡')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -5390,14 +5441,14 @@ const pickAndUploadProfilePhoto = async () => {
             {/* ACCEPT: kod gir */}
             {challengeScreen === 'accept' && (
               <View>
-                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 6 }}>Kodu Gir</Text>
-                <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 18 }}>Sana gönderilen kapışma kodunu buraya yaz.</Text>
+                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 6 }}>{t('Kodu Gir')}</Text>
+                <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 18 }}>{t('Sana gönderilen kapışma kodunu buraya yaz.')}</Text>
                 <TextInput value={challengeCodeInput} onChangeText={t => setChallengeCodeInput(t.toUpperCase())}
                   placeholder="ABC123" placeholderTextColor={C.textMuted} autoCapitalize="characters" maxLength={8}
                   style={{ backgroundColor: C.surface2, borderRadius: 12, padding: 14, color: C.text, fontSize: 22, fontWeight: '900', letterSpacing: 4, textAlign: 'center', borderWidth: 1, borderColor: C.border, marginBottom: 20 }} />
                 <TouchableOpacity onPress={joinChallenge} activeOpacity={0.85} disabled={loading}
                   style={{ backgroundColor: C.orange, borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
-                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? 'Katılıyor...' : 'Katıl ⚔️'}</Text>
+                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? t('Katılıyor...') : t('Katıl ⚔️')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -5406,17 +5457,17 @@ const pickAndUploadProfilePhoto = async () => {
             {challengeScreen === 'accept-weight' && challengeInfo && (
               <View>
                 <View style={{ backgroundColor: C.surface2, borderRadius: 14, padding: 16, marginBottom: 18, borderLeftWidth: 3, borderLeftColor: C.orange }}>
-                  <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700' }}>KAPIŞMA BAŞLADI</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700' }}>{t('KAPIŞMA BAŞLADI')}</Text>
                   <Text style={{ color: C.text, fontWeight: '900', fontSize: 17, marginTop: 4 }}>{challengeInfo.liftLabel}</Text>
-                  <Text style={{ color: C.orange, fontSize: 16, fontWeight: '700', marginTop: 4 }}>{challengeInfo.challengerName} seni meydan okuyor!</Text>
+                  <Text style={{ color: C.orange, fontSize: 16, fontWeight: '700', marginTop: 4 }}>{t('{{name}} seni meydan okuyor!', { name: challengeInfo.challengerName })}</Text>
                 </View>
-                <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 }}>SENİN AĞIRLIĞIN (kg)</Text>
+                <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 8 }}>{t('SENİN AĞIRLIĞIN (kg)')}</Text>
                 <TextInput value={challengeTheirWeight} onChangeText={setChallengeTheirWeight} keyboardType="decimal-pad"
                   placeholder="0" placeholderTextColor={C.textMuted}
                   style={{ backgroundColor: C.surface2, borderRadius: 12, padding: 14, color: C.text, fontSize: 17, fontWeight: '700', borderWidth: 1, borderColor: C.border, marginBottom: 20 }} />
                 <TouchableOpacity onPress={() => submitChallengeWeight(false)} activeOpacity={0.85} disabled={loading}
                   style={{ backgroundColor: C.orange, borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
-                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? 'Kaydediliyor...' : 'Kapış! ⚔️'}</Text>
+                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 16 }}>{loading ? t('Kaydediliyor...') : t('Kapış! ⚔️')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -5425,13 +5476,13 @@ const pickAndUploadProfilePhoto = async () => {
             {challengeScreen === 'waiting' && (
               <View style={{ alignItems: 'center', paddingVertical: 12 }}>
                 <Text style={{ fontSize: 40, marginBottom: 12 }}>⏳</Text>
-                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 8 }}>Rakibini Bekliyorsun...</Text>
+                <Text style={{ color: C.text, fontWeight: '900', fontSize: 18, marginBottom: 8 }}>{t('Rakibini Bekliyorsun...')}</Text>
                 <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 28 }}>
-                  Rakibin kilosunu girdikten sonra sonucu görebilirsin.
+                  {t('Rakibin kilosunu girdikten sonra sonucu görebilirsin.')}
                 </Text>
                 <TouchableOpacity onPress={checkChallengeResult} activeOpacity={0.85} disabled={loading}
                   style={{ backgroundColor: C.orange, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 36, alignItems: 'center' }}>
-                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>{loading ? 'Kontrol ediliyor...' : 'Sonucu Kontrol Et'}</Text>
+                  <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>{loading ? t('Kontrol ediliyor...') : t('Sonucu Kontrol Et')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -5440,7 +5491,7 @@ const pickAndUploadProfilePhoto = async () => {
             {challengeScreen === 'result' && challengeResult && (
               <View style={{ alignItems: 'center' }}>
                 <Text style={{ color: challengeResult.iWon ? '#FFD700' : C.textMuted, fontSize: 30, fontWeight: '900', marginBottom: 4 }}>
-                  {challengeResult.iWon ? '🏆 KAZANDIN!' : '💪 İyi mücadele!'}
+                  {challengeResult.iWon ? t('🏆 KAZANDIN!') : t('💪 İyi mücadele!')}
                 </Text>
                 <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>{challengeResult.liftLabel}</Text>
 
@@ -5458,7 +5509,7 @@ const pickAndUploadProfilePhoto = async () => {
                       colors={['transparent', 'rgba(11,13,18,0.97)', '#0B0D12']}
                       style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 230, justifyContent: 'flex-end', padding: 20 }}
                     >
-                      <Text style={{ color: '#A3ABBA', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 12 }}>KAPIŞMA · {challengeResult.liftLabel.toUpperCase()}</Text>
+                      <Text style={{ color: '#A3ABBA', fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 12 }}>{t('KAPIŞMA ·')} {challengeResult.liftLabel.toUpperCase()}</Text>
                       {/* Kazanan üstte */}
                       {(() => {
                         const myBest = challengeResult.iWon
@@ -5493,12 +5544,12 @@ const pickAndUploadProfilePhoto = async () => {
                   <TouchableOpacity onPress={pickChallengePhoto} activeOpacity={0.85}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16, borderWidth: 1, borderColor: C.border }}>
                     <Ionicons name="image" size={17} color="#fff" />
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{challengeSharePhoto ? 'Değiştir' : 'Foto Seç'}</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{challengeSharePhoto ? t('Değiştir') : t('Foto Seç')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={captureChallengeShare} activeOpacity={0.85}
                     style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 14, paddingVertical: 13 }}>
                     <Ionicons name="share-social" size={17} color="#0B0D12" />
-                    <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Paylaş</Text>
+                    <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>{t('Paylaş')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -5533,10 +5584,10 @@ const pickAndUploadProfilePhoto = async () => {
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 7 }}>
                       <Text style={{ color: C.orange, fontSize: 46, fontWeight: '900' }}>#{rankShareData.rank}</Text>
-                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{rankShareData.genderLabel ? `${rankShareData.genderLabel} · ` : ''}{rankShareData.bracket} sikletinde</Text>
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{rankShareData.genderLabel ? `${rankShareData.genderLabel} · ` : ''}{t('{{bracket}} sikletinde', { bracket: rankShareData.bracket })}</Text>
                     </View>
                     <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', marginTop: 3 }}>{rankShareData.label} · {rankShareData.best} kg</Text>
-                    <Text style={{ color: '#A3ABBA', fontSize: 12, marginTop: 1 }}>{rankShareData.total} kişi arasında</Text>
+                    <Text style={{ color: '#A3ABBA', fontSize: 12, marginTop: 1 }}>{t('{{count}} kişi arasında', { count: rankShareData.total })}</Text>
                     <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginTop: 8 }}>{user?.name || ''} · GymBodyAI</Text>
                     <Text style={{ color: '#6B7384', fontSize: 12 }}>gymbodyai.app</Text>
                   </LinearGradient>
@@ -5546,12 +5597,12 @@ const pickAndUploadProfilePhoto = async () => {
                 <TouchableOpacity onPress={pickRankSharePhoto} activeOpacity={0.85}
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 16, paddingVertical: 13, paddingHorizontal: 18 }}>
                   <Ionicons name="image" size={18} color="#fff" />
-                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{rankSharePhoto ? 'Değiştir' : 'Foto Seç'}</Text>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{rankSharePhoto ? t('Değiştir') : t('Foto Seç')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={captureRankShare} activeOpacity={0.85}
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 13 }}>
                   <Ionicons name="share-social" size={18} color="#0B0D12" />
-                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Paylaş</Text>
+                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>{t('Paylaş')}</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -5590,7 +5641,7 @@ const pickAndUploadProfilePhoto = async () => {
                       </View>
                       {/* Rank pill */}
                       <View style={{ backgroundColor: rank.color + '22', borderColor: rank.color, borderWidth: 1, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 6 }}>
-                        <Text style={{ color: rank.color, fontSize: 22, fontWeight: '900', letterSpacing: 2 }}>{rank.label.toUpperCase()}</Text>
+                        <Text style={{ color: rank.color, fontSize: 22, fontWeight: '900', letterSpacing: 2 }}>{t(rank.label).toUpperCase()}</Text>
                       </View>
                       {/* Hareket + kilo */}
                       <Text style={{ color: C.textSec, fontSize: 15, fontWeight: '700', marginTop: 22, letterSpacing: 0.5 }}>{lift.label}</Text>
@@ -5598,16 +5649,16 @@ const pickAndUploadProfilePhoto = async () => {
                         <Text style={{ color: '#fff', fontSize: 54, fontWeight: '900', lineHeight: 58 }}>{best}</Text>
                         <Text style={{ color: rank.color, fontSize: 22, fontWeight: '900', marginBottom: 9 }}>kg</Text>
                       </View>
-                      <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 2 }}>Vücut ağırlığının {ratio.toFixed(2)}× katı</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 2 }}>{t('Vücut ağırlığının {{ratio}}× katı', { ratio: ratio.toFixed(2) })}</Text>
                       {/* Alt bilgi */}
                       {nextWeight ? (
                         <View style={{ marginTop: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 16 }}>
-                          <Text style={{ color: C.textSec, fontSize: 12 }}>Sonraki rank'a <Text style={{ color: '#fff', fontWeight: '800' }}>{nextWeight - best} kg</Text> kaldı</Text>
+                          <Text style={{ color: C.textSec, fontSize: 12 }}>{t("Sonraki rank'a {{kg}} kg kaldı", { kg: nextWeight - best })}</Text>
                         </View>
                       ) : (
                         <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: rank.color + '22', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 16 }}>
                           <Ionicons name="flame" size={15} color={rank.color} />
-                          <Text style={{ color: rank.color, fontSize: 12, fontWeight: '900', letterSpacing: 1 }}>EN YÜKSEK RANK</Text>
+                          <Text style={{ color: rank.color, fontSize: 12, fontWeight: '900', letterSpacing: 1 }}>{t('EN YÜKSEK RANK')}</Text>
                         </View>
                       )}
                     </LinearGradient>
@@ -5616,7 +5667,7 @@ const pickAndUploadProfilePhoto = async () => {
                 <TouchableOpacity onPress={captureLiftShare} activeOpacity={0.85}
                   style={{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 32 }}>
                   <Ionicons name="share-social" size={18} color="#0B0D12" />
-                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Paylaş</Text>
+                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>{t('Paylaş')}</Text>
                 </TouchableOpacity>
               </>
             );
@@ -5637,7 +5688,7 @@ const pickAndUploadProfilePhoto = async () => {
             const bodyAvgIdx = computeBodyAverageRank(liftsData, bw, user?.gender);
             const displayIdx = selectedMuscle ? computeMuscleRank(selectedMuscle, liftsData, bw, user?.gender) : bodyAvgIdx;
             const rank = displayIdx >= 0 ? RANKS[displayIdx] : RANKS[0];
-            const shareLabel = selectedMuscle ? `${MUSCLE_NAMES[selectedMuscle].toUpperCase()} ORTALAMASI` : 'VÜCUT ORTALAMASI';
+            const shareLabel = selectedMuscle ? t('{{muscle}} ORTALAMASI', { muscle: t(MUSCLE_NAMES[selectedMuscle]).toUpperCase() }) : t('VÜCUT ORTALAMASI');
             return (
               <>
                 <ViewShot ref={bodyShareRef} options={{ format: 'jpg', quality: 0.95 }}>
@@ -5663,7 +5714,7 @@ const pickAndUploadProfilePhoto = async () => {
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: rank.color + '22', borderColor: rank.color, borderWidth: 1, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 6 }}>
                         <RankBadgeSvg rankKey={rank.key} color={rank.color} size={26} />
-                        <Text style={{ color: rank.color, fontSize: 18, fontWeight: '900', letterSpacing: 1.5 }}>{rank.label.toUpperCase()}</Text>
+                        <Text style={{ color: rank.color, fontSize: 18, fontWeight: '900', letterSpacing: 1.5 }}>{t(rank.label).toUpperCase()}</Text>
                       </View>
                       <Text style={{ color: C.textSec, fontSize: 12.5, fontWeight: '700', marginTop: 10, letterSpacing: 0.5 }}>{shareLabel}</Text>
                     </LinearGradient>
@@ -5672,7 +5723,7 @@ const pickAndUploadProfilePhoto = async () => {
                 <TouchableOpacity onPress={captureBodyShare} activeOpacity={0.85}
                   style={{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 32 }}>
                   <Ionicons name="share-social" size={18} color="#0B0D12" />
-                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>Paylaş</Text>
+                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>{t('Paylaş')}</Text>
                 </TouchableOpacity>
               </>
             );
@@ -5695,11 +5746,11 @@ const pickAndUploadProfilePhoto = async () => {
                 thenIdx: computeMuscleRankForPeriod(mk, liftsData, bw, user?.gender, trendPeriod),
                 nowIdx: computeMuscleRankForPeriod(mk, liftsData, bw, user?.gender, 'now'),
               })).filter((c) => c.nowIdx > c.thenIdx);
-              const periodLabel = trendPeriod === 'first' ? 'İlk Kayıt' : '1 Ay Önce';
+              const periodLabel = trendPeriod === 'first' ? t('İlk Kayıt') : t('1 Ay Önce');
               return (
                 <>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <Text style={{ color: C.text, fontWeight: '800', fontSize: 17 }}>Kas Gelişimi</Text>
+                    <Text style={{ color: C.text, fontWeight: '800', fontSize: 17 }}>{t('Kas Gelişimi')}</Text>
                     <TouchableOpacity onPress={() => setMuscleTrendVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Ionicons name="close" size={22} color={C.textMuted} />
                     </TouchableOpacity>
@@ -5709,11 +5760,11 @@ const pickAndUploadProfilePhoto = async () => {
                     <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 20, padding: 3 }}>
                       <TouchableOpacity onPress={() => setTrendPeriod('1m')}
                         style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 16, backgroundColor: trendPeriod === '1m' ? C.orange : 'transparent' }}>
-                        <Text style={{ fontSize: 12.5, fontWeight: '800', color: trendPeriod === '1m' ? '#0B0D12' : C.textMuted }}>1 Ay Önce</Text>
+                        <Text style={{ fontSize: 12.5, fontWeight: '800', color: trendPeriod === '1m' ? '#0B0D12' : C.textMuted }}>{t('1 Ay Önce')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => setTrendPeriod('first')}
                         style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 16, backgroundColor: trendPeriod === 'first' ? C.orange : 'transparent' }}>
-                        <Text style={{ fontSize: 12.5, fontWeight: '800', color: trendPeriod === 'first' ? '#0B0D12' : C.textMuted }}>İlk Kayıt</Text>
+                        <Text style={{ fontSize: 12.5, fontWeight: '800', color: trendPeriod === 'first' ? '#0B0D12' : C.textMuted }}>{t('İlk Kayıt')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -5721,11 +5772,11 @@ const pickAndUploadProfilePhoto = async () => {
                     <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 20, padding: 3 }}>
                       <TouchableOpacity onPress={() => setTrendView('front')}
                         style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: trendView === 'front' ? C.orange : 'transparent' }}>
-                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: trendView === 'front' ? '#0B0D12' : C.textMuted }}>Ön</Text>
+                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: trendView === 'front' ? '#0B0D12' : C.textMuted }}>{t('Ön')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => setTrendView('back')}
                         style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: trendView === 'back' ? C.orange : 'transparent' }}>
-                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: trendView === 'back' ? '#0B0D12' : C.textMuted }}>Arka</Text>
+                        <Text style={{ fontSize: 11.5, fontWeight: '800', color: trendView === 'back' ? '#0B0D12' : C.textMuted }}>{t('Arka')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -5738,22 +5789,22 @@ const pickAndUploadProfilePhoto = async () => {
                     <Ionicons name="arrow-forward" size={18} color={C.textMuted} style={{ marginBottom: 30 }} />
                     <View style={{ alignItems: 'center' }}>
                       <MuscleBodyMap width={120} view={trendView} ranks={nowMap} rankColors={rankColorsProp} defaultColor={C.surface2} baseColor={C.surface2} outlineColor={C.border} strokeColor="rgba(0,0,0,0.35)" detailColor="rgba(0,0,0,0.25)" showLabels={false} />
-                      <Text style={{ color: C.lime, fontSize: 10.5, fontWeight: '800', marginTop: 6 }}>ŞİMDİ</Text>
+                      <Text style={{ color: C.lime, fontSize: 10.5, fontWeight: '800', marginTop: 6 }}>{t('ŞİMDİ')}</Text>
                     </View>
                   </View>
 
                   <View style={{ marginTop: 18, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 14 }}>
                     {changes.length > 0 ? changes.map(({ mk, thenIdx, nowIdx }) => (
                       <View key={mk} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-                        <Text style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{MUSCLE_NAMES[mk]}</Text>
+                        <Text style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{t(MUSCLE_NAMES[mk])}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={{ color: C.textMuted, fontSize: 12 }}>{thenIdx >= 0 ? RANKS[thenIdx].label : 'Yok'}</Text>
+                          <Text style={{ color: C.textMuted, fontSize: 12 }}>{thenIdx >= 0 ? t(RANKS[thenIdx].label) : t('Yok')}</Text>
                           <Ionicons name="arrow-forward" size={12} color={C.textMuted} />
-                          <Text style={{ color: RANKS[nowIdx].color, fontSize: 12, fontWeight: '800' }}>{RANKS[nowIdx].label}</Text>
+                          <Text style={{ color: RANKS[nowIdx].color, fontSize: 12, fontWeight: '800' }}>{t(RANKS[nowIdx].label)}</Text>
                         </View>
                       </View>
                     )) : (
-                      <Text style={{ color: C.textMuted, fontSize: 12.5, textAlign: 'center' }}>Bu dönemde rank değişikliği yok, devam et 💪</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 12.5, textAlign: 'center' }}>{t('Bu dönemde rank değişikliği yok, devam et 💪')}</Text>
                     )}
                   </View>
                 </>
@@ -5799,14 +5850,14 @@ const pickAndUploadProfilePhoto = async () => {
             return (
               <View style={{ alignItems: 'center', width: '100%' }}>
                 <Text style={{ fontSize: 56, marginBottom: 8 }}>🏆</Text>
-                <Text style={{ color: '#FFD700', fontSize: 32, fontWeight: '900', textAlign: 'center' }}>YENİ KİŞİSEL REKOR!</Text>
+                <Text style={{ color: '#FFD700', fontSize: 32, fontWeight: '900', textAlign: 'center' }}>{t('YENİ KİŞİSEL REKOR!')}</Text>
                 <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 6, marginBottom: 20 }}>{lift?.label}</Text>
 
                 <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 20, padding: 24, alignItems: 'center', width: '100%', borderWidth: 1, borderColor: C.orange + '66' }}>
                   <Text style={{ color: C.orange, fontSize: 60, fontWeight: '900' }}>{prCelebration.weight} <Text style={{ fontSize: 24, color: C.textSec }}>kg</Text></Text>
                   {prCelebration.prevBest > 0 && (
                     <Text style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>
-                      Önceki: {prCelebration.prevBest} kg → +{(prCelebration.weight - prCelebration.prevBest).toFixed(1)} kg
+                      {t('Önceki: {{prev}} kg → +{{diff}} kg', { prev: prCelebration.prevBest, diff: (prCelebration.weight - prCelebration.prevBest).toFixed(1) })}
                     </Text>
                   )}
                 </View>
@@ -5815,11 +5866,11 @@ const pickAndUploadProfilePhoto = async () => {
                   <TouchableOpacity onPress={() => { setPrCelebration(null); setShareLiftKey(prCelebration.lift); }}
                     activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 24 }}>
                     <Ionicons name="share-social" size={18} color="#0B0D12" />
-                    <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>Paylaş</Text>
+                    <Text style={{ color: '#0B0D12', fontWeight: '900', fontSize: 15 }}>{t('Paylaş')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => setPrCelebration(null)}
                     activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 24 }}>
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Tamam</Text>
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{t('Tamam')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -5849,7 +5900,7 @@ const pickAndUploadProfilePhoto = async () => {
                 </View>
                 <ScrollView style={{ flex: 1, padding: 16 }} contentContainerStyle={{ paddingBottom: 8 }}>
                   {friendMessages.length === 0 && (
-                    <Text style={{ color: C.textMuted, textAlign: 'center', marginTop: 32, fontSize: 14 }}>Henüz mesaj yok. Merhaba de! 👋</Text>
+                    <Text style={{ color: C.textMuted, textAlign: 'center', marginTop: 32, fontSize: 14 }}>{t('Henüz mesaj yok. Merhaba de! 👋')}</Text>
                   )}
                   {friendMessages.map((msg, i) => {
                     const isMe = msg.senderId === user?._id;
@@ -5863,7 +5914,7 @@ const pickAndUploadProfilePhoto = async () => {
                   })}
                 </ScrollView>
                 <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, paddingBottom: Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: C.border, gap: 8 }}>
-                  <TextInput value={friendChatInput} onChangeText={setFriendChatInput} placeholder="Mesaj yaz..." placeholderTextColor={C.textMuted}
+                  <TextInput value={friendChatInput} onChangeText={setFriendChatInput} placeholder={t('Mesaj yaz...')} placeholderTextColor={C.textMuted}
                     style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16, color: C.text, fontSize: 15, borderWidth: 1, borderColor: C.border }} />
                   <TouchableOpacity onPress={sendMessage} disabled={!friendChatInput.trim()}
                     style={{ backgroundColor: friendChatInput.trim() ? C.orange : C.surface2, borderRadius: 20, padding: 10 }}>
@@ -5875,7 +5926,7 @@ const pickAndUploadProfilePhoto = async () => {
               /* ARKADAŞ LİSTESİ ekranı */
               <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, flex: 1 }}>Arkadaşlar</Text>
+                  <Text style={{ color: C.text, fontWeight: '900', fontSize: 20, flex: 1 }}>{t('Arkadaşlar')}</Text>
                   <TouchableOpacity onPress={() => setFriendsVisible(false)}>
                     <Ionicons name="close" size={22} color={C.textMuted} />
                   </TouchableOpacity>
@@ -5884,7 +5935,7 @@ const pickAndUploadProfilePhoto = async () => {
                 {/* Arama */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface2, borderRadius: 12, paddingHorizontal: 12, marginBottom: 16, borderWidth: 1, borderColor: C.border }}>
                   <Ionicons name="search" size={16} color={C.textMuted} />
-                  <TextInput value={friendSearch} onChangeText={searchFriends} placeholder="İsimle ara..." placeholderTextColor={C.textMuted}
+                  <TextInput value={friendSearch} onChangeText={searchFriends} placeholder={t('İsimle ara...')} placeholderTextColor={C.textMuted}
                     style={{ flex: 1, paddingVertical: 11, paddingHorizontal: 8, color: C.text, fontSize: 14 }} />
                 </View>
 
@@ -5892,7 +5943,7 @@ const pickAndUploadProfilePhoto = async () => {
                   {/* Arama sonuçları */}
                   {friendSearchResults.length > 0 && (
                     <View style={{ marginBottom: 16 }}>
-                      <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>SONUÇLAR</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>{t('SONUÇLAR')}</Text>
                       {friendSearchResults.map(u => (
                         <View key={u._id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border }}>
                           <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.orange + '33', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
@@ -5902,12 +5953,12 @@ const pickAndUploadProfilePhoto = async () => {
                           {u.friendStatus === 'none' ? (
                             <TouchableOpacity onPress={() => sendFriendRequest(u._id)}
                               style={{ backgroundColor: C.orange, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 14 }}>
-                              <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 13 }}>Ekle</Text>
+                              <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 13 }}>{t('Ekle')}</Text>
                             </TouchableOpacity>
                           ) : u.friendStatus.includes('sent') ? (
-                            <Text style={{ color: C.textMuted, fontSize: 12 }}>İstek gönderildi</Text>
+                            <Text style={{ color: C.textMuted, fontSize: 12 }}>{t('İstek gönderildi')}</Text>
                           ) : u.friendStatus.includes('accepted') ? (
-                            <Text style={{ color: C.lime, fontSize: 12 }}>Arkadaş ✓</Text>
+                            <Text style={{ color: C.lime, fontSize: 12 }}>{t('Arkadaş ✓')}</Text>
                           ) : null}
                         </View>
                       ))}
@@ -5917,7 +5968,7 @@ const pickAndUploadProfilePhoto = async () => {
                   {/* Gelen istekler */}
                   {friendRequests.length > 0 && friendSearchResults.length === 0 && (
                     <View style={{ marginBottom: 16 }}>
-                      <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>GELEN İSTEKLER ({friendRequests.length})</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>{t('GELEN İSTEKLER ({{count}})', { count: friendRequests.length })}</Text>
                       {friendRequests.map(r => (
                         <View key={r._id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border }}>
                           <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
@@ -5926,7 +5977,7 @@ const pickAndUploadProfilePhoto = async () => {
                           <Text style={{ color: C.text, fontSize: 15, flex: 1 }}>{r.name}</Text>
                           <TouchableOpacity onPress={() => acceptFriendRequest(r._id)}
                             style={{ backgroundColor: C.orange, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 14 }}>
-                            <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 13 }}>Kabul Et</Text>
+                            <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 13 }}>{t('Kabul Et')}</Text>
                           </TouchableOpacity>
                         </View>
                       ))}
@@ -5937,11 +5988,11 @@ const pickAndUploadProfilePhoto = async () => {
                   {friends.length === 0 && friendSearchResults.length === 0 ? (
                     <View style={{ alignItems: 'center', paddingVertical: 32 }}>
                       <Text style={{ fontSize: 40, marginBottom: 10 }}>👥</Text>
-                      <Text style={{ color: C.textMuted, fontSize: 14, textAlign: 'center' }}>Henüz arkadaşın yok. Yukarıdan ara ve ekle!</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 14, textAlign: 'center' }}>{t('Henüz arkadaşın yok. Yukarıdan ara ve ekle!')}</Text>
                     </View>
                   ) : friendSearchResults.length === 0 && (
                     <>
-                      <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>ARKADAŞLARIM ({friends.length})</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>{t('ARKADAŞLARIM ({{count}})', { count: friends.length })}</Text>
                       {friends.map(f => (
                         <TouchableOpacity key={f._id} onPress={() => openChat(f)}
                           style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border }}>
@@ -5981,35 +6032,35 @@ const pickAndUploadProfilePhoto = async () => {
 
       {/* ALT TAB BAR */}
       <View style={[styles.tabBarOuter, { paddingBottom: (insets.bottom || 8) + 4 }]}>
-        {TABS.map((t) => {
-          const active = currentTab === t.key;
-          if (t.gym) {
+        {TABS.map((tab) => {
+          const active = currentTab === tab.key;
+          if (tab.gym) {
             return (
-              <TouchableOpacity key={t.key} activeOpacity={0.85} style={styles.gymTabBtn}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setCurrentTab(t.key); }}>
+              <TouchableOpacity key={tab.key} activeOpacity={0.85} style={styles.gymTabBtn}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setCurrentTab(tab.key); }}>
                 <LinearGradient
                   colors={active ? [C.orange, '#E07800'] : ['#252525', '#1C1C1C']}
                   style={styles.gymTabCircle}
                 >
-                  <Ionicons name={t.icon} size={26} color={active ? '#0B0D12' : C.orange} />
+                  <Ionicons name={tab.icon} size={26} color={active ? '#0B0D12' : C.orange} />
                 </LinearGradient>
-                <Text style={[styles.tabBtnText, { marginTop: 4 }, active && { color: C.orange, fontWeight: '700' }]}>{t.label}</Text>
+                <Text style={[styles.tabBtnText, { marginTop: 4 }, active && { color: C.orange, fontWeight: '700' }]}>{t(tab.label)}</Text>
               </TouchableOpacity>
             );
           }
           return (
-            <TouchableOpacity key={t.key} activeOpacity={0.85} style={styles.tabBtn}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(t.key); }}>
+            <TouchableOpacity key={tab.key} activeOpacity={0.85} style={styles.tabBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tab.key); }}>
               {active && <View style={styles.tabActivePill} />}
               <View>
-                <Ionicons name={t.icon} size={22} color={active ? C.orange : C.textSec} />
-                {t.key === 'pt' && coachData.unread > 0 && (
+                <Ionicons name={tab.icon} size={22} color={active ? C.orange : C.textSec} />
+                {tab.key === 'pt' && coachData.unread > 0 && (
                   <View style={{ position: 'absolute', top: -5, right: -9, backgroundColor: '#EF4444', borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: C.bg }}>
                     <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>{coachData.unread > 9 ? '9+' : coachData.unread}</Text>
                   </View>
                 )}
               </View>
-              <Text style={[styles.tabBtnText, active && { color: C.orange, fontWeight: '700' }]}>{t.label}</Text>
+              <Text style={[styles.tabBtnText, active && { color: C.orange, fontWeight: '700' }]}>{t(tab.label)}</Text>
             </TouchableOpacity>
           );
         })}

@@ -10,6 +10,7 @@
 // `ranks` objesinde olmayan kaslar defaultColor ile (notr gri) boyanir.
 import React from 'react';
 import Svg, { G, Path, Ellipse, Text as SvgText } from 'react-native-svg';
+import i18n from '../lib/i18n';
 
 export const DEFAULT_RANK_COLORS: Record<string, string> = {
   baslangic: '#96948b',
@@ -200,10 +201,10 @@ export default function MuscleBodyMap({
       {showLabels && bothViews && (
         <>
           <SvgText x={115} y={462} textAnchor="middle" fontSize={13} fill={labelColor}>
-            On gorunum
+            {i18n.t('On gorunum')}
           </SvgText>
           <SvgText x={365} y={462} textAnchor="middle" fontSize={13} fill={labelColor}>
-            Arka gorunum
+            {i18n.t('Arka gorunum')}
           </SvgText>
         </>
       )}
