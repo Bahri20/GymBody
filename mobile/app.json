@@ -2,7 +2,7 @@
   "expo": {
     "name": "GymBodyAI",
     "slug": "mobile",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gymbodyai",
@@ -65,7 +65,8 @@
           "cameraPermission": "Gelişim ve yemek fotoğraflarını çekebilmen için kameraya erişim gerekiyor."
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "./plugins/withRemoveAdIdPermission"
     ],
     "experiments": {
       "typedRoutes": true,

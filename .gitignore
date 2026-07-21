@@ -1,8 +1,12 @@
 # Secrets — ASLA commit'lenmez
 .env
 .env.*
+!.env.example
 *.pem
 *.key
+# Google Play service account anahtarı (yerel, repoya girmez)
+keygoogle.json
+**/keygoogle.json
 
 # Bağımlılıklar
 node_modules/
@@ -27,3 +31,6 @@ Thumbs.db
 
 # Claude Code yerel ayarları (repoya gitmez)
 .claude/
+
+# graphify çıktısı (araç üretir, repoya gitmez)
+graphify-out/
