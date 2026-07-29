@@ -1,0 +1,15 @@
+# Bağımlılıklar imaj içinde npm ci ile kurulur
+node_modules
+
+# Sırlar asla imaja girmez — env'ler Cloud Run'a ayrıca verilir
+.env
+.env.*
+env.yaml
+keygoogle.json
+
+# Gereksiz dosyalar
+.git
+*.log
+Dockerfile
+.dockerignore
+DEPLOY.md

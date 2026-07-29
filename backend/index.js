@@ -139,7 +139,9 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:8081',   // Expo dev
   'exp://',                  // Expo Go
-  'https://gymbody.onrender.com', // canlı (admin/PT panelleri)
+  'https://gymbody.onrender.com', // eski canlı (Render — geçiş bitince silinebilir)
+  'https://gymbody-api-651063071338.europe-west1.run.app', // Cloud Run ham adresi
+  'https://gymbody.bahriapps.com', // canlı (özel domain, admin/PT panelleri)
 ];
 app.use(cors({
   origin: (origin, cb) => {
@@ -2773,74 +2775,105 @@ async function sendPushNotification(pushToken, title, body) {
 // ==================== CRON JOBS ====================
 const cron = require('node-cron');
 
-// Her gün saat 20:00'de streak hatırlatıcısı
-cron.schedule('0 20 * * *', async () => {
-  try {
-    const today = toDateString(new Date());
-    // Streak'i olan ama bugün antrenman yapmayan kullanıcılar
-    const users = await User.find({
-      streak: { $gt: 0 },
-      pushToken: { $exists: true, $ne: null },
-      lastActivityDate: { $ne: new Date(today) }
-    });
-    for (const u of users) {
-      await sendPushNotification(
-        u.pushToken,
-        `🔥 ${u.streak} günlük serinı kaybetme!`,
-        'Bugün henüz antrenman yapmadın. Hadi git, seni bekliyoruz!'
-      );
-    }
-    console.log(`📬 Streak hatırlatıcısı gönderildi: ${users.length} kullanıcı`);
-  } catch (err) {
-    console.error('Streak cron hatası:', err.message);
-  }
-}, { timezone: 'Europe/Istanbul' });
+// Zamanlanmış görevler: hem node-cron (Render gibi sürekli çalışan ortamlar)
+// hem de /internal/cron endpoint'leri (Cloud Scheduler gibi harici tetikleyiciler)
+// aynı fonksiyonları kullanır.
 
-// Her Pazar 10:00'da haftalık özet bildirimi
-cron.schedule('0 10 * * 0', async () => {
-  try {
-    const users = await User.find({ pushToken: { $exists: true, $ne: null } });
-    for (const u of users) {
-      await sendPushNotification(
-        u.pushToken,
-        '📊 Haftalık Özet Hazır!',
-        `${u.name}, bu haftanın raporunu görmek için aç!`
-      );
-    }
-    console.log(`📊 Haftalık özet bildirimi: ${users.length} kullanıcı`);
-  } catch (err) {
-    console.error('Haftalık özet cron hatası:', err.message);
+// Her gün 20:00 — streak'i olan ama bugün antrenman yapmayan kullanıcılara hatırlatıcı
+async function runStreakReminderJob() {
+  const today = toDateString(new Date());
+  const users = await User.find({
+    streak: { $gt: 0 },
+    pushToken: { $exists: true, $ne: null },
+    lastActivityDate: { $ne: new Date(today) }
+  });
+  for (const u of users) {
+    await sendPushNotification(
+      u.pushToken,
+      `🔥 ${u.streak} günlük serinı kaybetme!`,
+      'Bugün henüz antrenman yapmadın. Hadi git, seni bekliyoruz!'
+    );
   }
-}, { timezone: 'Europe/Istanbul' });
+  console.log(`📬 Streak hatırlatıcısı gönderildi: ${users.length} kullanıcı`);
+  return { notified: users.length };
+}
 
-// Her ayın 1'inde 00:30'da bir önceki ayın performans rozetlerini herkese dağıt
-cron.schedule('30 0 1 * *', async () => {
-  try {
-    const now = new Date();
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const period = periodKey(prev);
-    const users = await User.find({}).select('_id');
-    let awarded = 0;
-    for (const u of users) {
-      const r = await awardMonthlyBadgeForPeriod(u._id, period).catch(() => null);
-      if (r) {
-        awarded++;
-        const fresh = await User.findById(u._id).select('pushToken name');
-        if (fresh?.pushToken) {
-          const tierLabel = r.tier === 'legend' ? 'Efsanesi' : r.tier === 'elite' ? 'Eliti' : 'Yıldızı';
-          await sendPushNotification(
-            fresh.pushToken,
-            `🏅 ${MONTH_NAMES_TR[prev.getMonth()]} ${tierLabel}!`,
-            'Bu ayın performans rozetini kazandın, profilinden gör!'
-          ).catch(() => {});
-        }
+// Her Pazar 10:00 — haftalık özet bildirimi
+async function runWeeklySummaryJob() {
+  const users = await User.find({ pushToken: { $exists: true, $ne: null } });
+  for (const u of users) {
+    await sendPushNotification(
+      u.pushToken,
+      '📊 Haftalık Özet Hazır!',
+      `${u.name}, bu haftanın raporunu görmek için aç!`
+    );
+  }
+  console.log(`📊 Haftalık özet bildirimi: ${users.length} kullanıcı`);
+  return { notified: users.length };
+}
+
+// Her ayın 1'i 00:30 — bir önceki ayın performans rozetlerini herkese dağıt
+async function runMonthlyBadgeJob() {
+  const now = new Date();
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const period = periodKey(prev);
+  const users = await User.find({}).select('_id');
+  let awarded = 0;
+  for (const u of users) {
+    const r = await awardMonthlyBadgeForPeriod(u._id, period).catch(() => null);
+    if (r) {
+      awarded++;
+      const fresh = await User.findById(u._id).select('pushToken name');
+      if (fresh?.pushToken) {
+        const tierLabel = r.tier === 'legend' ? 'Efsanesi' : r.tier === 'elite' ? 'Eliti' : 'Yıldızı';
+        await sendPushNotification(
+          fresh.pushToken,
+          `🏅 ${MONTH_NAMES_TR[prev.getMonth()]} ${tierLabel}!`,
+          'Bu ayın performans rozetini kazandın, profilinden gör!'
+        ).catch(() => {});
       }
     }
-    console.log(`🏅 Aylık rozet dağıtıldı (${period}): ${awarded} kullanıcı`);
-  } catch (err) {
-    console.error('Aylık rozet cron hatası:', err.message);
   }
-}, { timezone: 'Europe/Istanbul' });
+  console.log(`🏅 Aylık rozet dağıtıldı (${period}): ${awarded} kullanıcı`);
+  return { period, awarded };
+}
+
+// Cloud Run gibi istek dışında uyuyan ortamlarda node-cron çalışamaz;
+// orada DISABLE_NODE_CRON=1 verilir ve görevleri Cloud Scheduler tetikler.
+if (process.env.DISABLE_NODE_CRON !== '1') {
+  cron.schedule('0 20 * * *', () =>
+    runStreakReminderJob().catch(err => console.error('Streak cron hatası:', err.message)),
+    { timezone: 'Europe/Istanbul' });
+
+  cron.schedule('0 10 * * 0', () =>
+    runWeeklySummaryJob().catch(err => console.error('Haftalık özet cron hatası:', err.message)),
+    { timezone: 'Europe/Istanbul' });
+
+  cron.schedule('30 0 1 * *', () =>
+    runMonthlyBadgeJob().catch(err => console.error('Aylık rozet cron hatası:', err.message)),
+    { timezone: 'Europe/Istanbul' });
+}
+
+// Harici zamanlayıcı endpoint'i — sadece CRON_SECRET bilenler tetikleyebilir
+const CRON_JOBS = {
+  'streak-reminder': runStreakReminderJob,
+  'weekly-summary': runWeeklySummaryJob,
+  'monthly-badges': runMonthlyBadgeJob
+};
+app.post('/internal/cron/:job', async (req, res) => {
+  if (!process.env.CRON_SECRET || req.get('X-Cron-Secret') !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Yetkisiz.' });
+  }
+  const job = CRON_JOBS[req.params.job];
+  if (!job) return res.status(404).json({ error: 'Bilinmeyen görev.' });
+  try {
+    const result = await job();
+    res.json({ ok: true, job: req.params.job, ...result });
+  } catch (err) {
+    console.error(`Cron görev hatası (${req.params.job}):`, err.message);
+    res.status(500).json({ error: 'Görev çalışırken hata oluştu.' });
+  }
+});
 
 // ─── ARKADAŞ MEYDAN OKUMASI ───────────────────────────────────────────────────
 const challengeSchema = new mongoose.Schema({

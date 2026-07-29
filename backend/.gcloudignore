@@ -1,0 +1,15 @@
+# gcloud run deploy --source ile Cloud Build'e YÜKLENMEYECEK dosyalar
+# (.dockerignore imajı korur, bu dosya kaynak yüklemesini korur)
+.gcloudignore
+.git
+.gitignore
+node_modules
+
+# Sırlar asla yüklenmez
+.env
+.env.*
+env.yaml
+keygoogle.json
+
+*.log
+DEPLOY.md
