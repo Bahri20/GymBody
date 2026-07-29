@@ -184,8 +184,8 @@ function parseExSets(raw: string): { sets: number; repsLabel: string } {
   return { sets: n ? parseInt(n[1]) : 3, repsLabel: '10' };
 }
 
-// Canlı backend (Render). Yerel geliştirme için: 'http://192.168.1.100:3000'
-const API_URL = 'https://gymbody.onrender.com';
+// Canlı backend (Cloud Run, özel domain). Yerel geliştirme için: 'http://192.168.1.100:3000'
+const API_URL = 'https://gymbody.bahriapps.com';
 const RC_API_KEY_ANDROID = 'goog_eftKBcKbeMJVYLeJIRfhpyPHWdW';
 const RC_API_KEY_IOS = 'appl_FkkFrtwjKozHMrvNSMEgWOHALgO';
 
