@@ -5,7 +5,7 @@
     "version": "1.2.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": ["gymbodyai", "com.gymbodyai.app"],
+    "scheme": "gymbodyai",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -66,7 +66,13 @@
         }
       ],
       "expo-localization",
-      "./plugins/withRemoveAdIdPermission"
+      "./plugins/withRemoveAdIdPermission",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.715798761426-vpka1e4obfhgut4uo1d9ibf1h8qe51qk"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

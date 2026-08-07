@@ -8,12 +8,10 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
-import * as Google from 'expo-auth-session/providers/google';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Haptics from 'expo-haptics';
-import * as WebBrowser from 'expo-web-browser';
 
-WebBrowser.maybeCompleteAuthSession(); // Google girişi sonrası tarayıcı sekmesini kapat
 import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import axios from 'axios';
 import { LineChart } from 'react-native-chart-kit';
@@ -370,6 +368,16 @@ const GOOGLE_CLIENT_IDS = {
   iosClientId: '715798761426-vpka1e4obfhgut4uo1d9ibf1h8qe51qk.apps.googleusercontent.com',
   androidClientId: '715798761426-sg8b01jtn26djnkno3acce1dcmbbl6kj.apps.googleusercontent.com',
 };
+
+// Native Google girişi. Tarayıcı/özel şema yönlendirmesi kullanmaz; Android'in
+// kendi hesap seçicisini açıp idToken'ı doğrudan döndürür.
+// Android'de client, paket adı + SHA-1 üzerinden eşleşir (androidClientId kodda
+// verilmez); dönen idToken'ın audience'ı webClientId olur — backend zaten bu üç
+// client ID'yi de kabul ediyor.
+GoogleSignin.configure({
+  webClientId: GOOGLE_CLIENT_IDS.webClientId,
+  iosClientId: GOOGLE_CLIENT_IDS.iosClientId,
+});
 
 export default function App() {
   const insets = useSafeAreaInsets();
@@ -756,13 +764,6 @@ export default function App() {
   const [onboardingAnswers, setOnboardingAnswers] = useState<Record<string, string>>({});
   const onboardingAnim = useRef(new RNAnimated.Value(1)).current;
 
-  // Google ile giriş isteği
-  const [gRequest, gResponse, gPromptAsync] = Google.useAuthRequest({
-    webClientId: GOOGLE_CLIENT_IDS.webClientId,
-    iosClientId: GOOGLE_CLIENT_IDS.iosClientId,
-    androidClientId: GOOGLE_CLIENT_IDS.androidClientId,
-  });
-
 
   // Uygulama içi Genel State'ler
   const [image, setImage] = useState<string | null>(null);
@@ -861,19 +862,30 @@ export default function App() {
    return () => clearInterval(t);
  }, [token]);
 
- // Google giriş sonucu döndüğünde backend'e gönder
- useEffect(() => {
-   if (gResponse?.type === 'success') {
-     const idToken = gResponse.authentication?.idToken || (gResponse.params as any)?.id_token;
-     const accessToken = gResponse.authentication?.accessToken;
-     loginWithGoogle(idToken, accessToken);
-   } else if (gResponse?.type === 'error') {
+ // Google ile giriş: native hesap seçici açılır, idToken doğrudan döner.
+ const startGoogleSignIn = async () => {
+   try {
+     setGoogleLoading(true);
+     if (Platform.OS === 'android') await GoogleSignin.hasPlayServices();
+     // Önceki oturum açıkken hesap seçici atlanabiliyor; her seferinde sorulsun.
+     await GoogleSignin.signOut().catch(() => {});
+     const response = await GoogleSignin.signIn();
+     if (response.type === 'cancelled') {
+       setGoogleLoading(false);
+       return;
+     }
+     const idToken = response.data.idToken;
+     if (!idToken) {
+       setGoogleLoading(false);
+       Alert.alert(t('Google Hatası'), t('Google kimlik bilgisi alınamadı.'));
+       return;
+     }
+     await loginWithGoogle(idToken);
+   } catch (e: any) {
      setGoogleLoading(false);
-     Alert.alert(t('Google Hatası'), t('Google ile giriş tamamlanamadı.'));
-   } else if (gResponse?.type === 'dismiss' || gResponse?.type === 'cancel') {
-     setGoogleLoading(false);
+     Alert.alert(t('Google Hatası'), e?.message || t('Google ile giriş tamamlanamadı.'));
    }
- }, [gResponse]);
+ };
 
  const loginWithGoogle = async (idToken?: string, accessToken?: string) => {
    if (!idToken && !accessToken) {
@@ -2036,12 +2048,12 @@ const pickAndUploadProfilePhoto = async () => {
             {/* GOOGLE İLE GİRİŞ */}
             <TouchableOpacity
               activeOpacity={0.85}
-              disabled={!gRequest || googleLoading}
-              onPress={() => { setGoogleLoading(true); gPromptAsync(); }}
+              disabled={googleLoading}
+              onPress={startGoogleSignIn}
               style={{
                 flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
                 backgroundColor: '#FFFFFF', borderRadius: 14, paddingVertical: 14,
-                opacity: (!gRequest || googleLoading) ? 0.6 : 1,
+                opacity: googleLoading ? 0.6 : 1,
               }}
             >
               {googleLoading ? (
