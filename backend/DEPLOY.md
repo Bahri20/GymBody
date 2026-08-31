@@ -85,7 +85,14 @@ gcloud run deploy gymbody-api \
 - `sharp` görsel işlemede bellek yetmezse (loglarda OOM): `--memory 1Gi` ile tekrar deploy.
 - Çıktıdaki servis URL'ini not al: `https://gymbody-api-XXXX.europe-west1.run.app`
 
-Sonraki deploy'lar: sadece aynı komutu tekrar çalıştır (env değişmediyse `--env-vars-file` gerekmez).
+Sonraki deploy'lar (env değişmediyse) tek satır — Cloud Run mevcut ayarları korur:
+
+```bash
+cd backend && gcloud run deploy gymbody-api --source . --region europe-west1
+```
+
+Kod değişikliğini canlıya çıkaran komut budur. `git commit` / `git push` canlıyı
+etkilemez; onlar sadece kodun kaydı ve GitHub yedeğidir.
 
 ### MongoDB Atlas erişimi
 
