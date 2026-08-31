@@ -15,6 +15,7 @@ const PromoCode = require('./models/PromoCode');
 const ProgressPhoto = require('./models/ProgressPhoto');
 const MealLog = require('./models/MealLog');
 const CoachMessage = require('./models/CoachMessage');
+const CoachWorkoutLog = require('./models/CoachWorkoutLog');
 const sharp = require('sharp');
 const toDateString = (date) => date.toISOString().split('T')[0];
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -2215,6 +2216,27 @@ app.get('/coach/dashboard', coachMiddleware, async (req, res) => {
       }
     }
 
+    // Antrenman takibi — her öğrenci için son 7 günde tamamlanan antrenman sayısı
+    // ve son antrenman tarihi. Tek aggregate ile (öğrenci başına sorgu atmıyoruz).
+    const allIds = [...students.map(s => s._id), ...gymStudents.map(s => s._id)];
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const statsByUser = {};
+    if (allIds.length) {
+      const rows = await CoachWorkoutLog.aggregate([
+        { $match: { user: { $in: allIds }, status: 'completed' } },
+        { $group: {
+          _id: '$user',
+          last7: { $sum: { $cond: [{ $gte: ['$createdAt', weekAgo] }, 1, 0] } },
+          lastWorkoutAt: { $max: '$createdAt' },
+        } },
+      ]);
+      for (const r of rows) statsByUser[String(r._id)] = r;
+    }
+    const withStats = (s) => {
+      const st = statsByUser[String(s._id)];
+      return { ...s, last7: st?.last7 || 0, lastWorkoutAt: st?.lastWorkoutAt || null };
+    };
+
     res.json({
       name: coach.name,
       coachId: coach._id,
@@ -2225,8 +2247,8 @@ app.get('/coach/dashboard', coachMiddleware, async (req, res) => {
       balance: coach.balance,
       totalEarned: coach.totalEarned,
       referredCount: students.length,
-      students,
-      gymStudents,
+      students: students.map(withStats),
+      gymStudents: gymStudents.map(withStats),
       recentCommissions,
       withdrawals: coach.withdrawals.slice(-20).reverse(),
     });
@@ -2524,6 +2546,19 @@ app.get('/my-coach', authMiddleware, async (req, res) => {
     if (!user.referredBy) return res.json({ hasCoach: false });
     const coach = await Coach.findById(user.referredBy, 'name');
     const unread = await CoachMessage.countDocuments({ coach: user.referredBy, user: user._id, from: 'coach', readByStudent: false });
+
+    // Antrenman takibi — öğrenci de kendi durumunu görsün.
+    // "Bugün" kararını sunucu vermez: sunucu UTC'de çalışıyor, kullanıcı başka saat
+    // diliminde olabilir. Ham tarihleri gönderiyoruz, cihaz kendi yerel gününe göre filtreliyor.
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const doneLogs = await CoachWorkoutLog.find(
+      { user: user._id, status: 'completed', createdAt: { $gte: weekAgo } },
+      'dayNumber createdAt'
+    ).lean();
+    const recentCompleted = doneLogs
+      .filter(l => l.dayNumber != null)
+      .map(l => ({ dayNumber: l.dayNumber, at: l.createdAt }));
+
     res.json({
       hasCoach: true,
       coachName: coach?.name || user.coachPlan?.coachName || 'Hocan',
@@ -2531,6 +2566,8 @@ app.get('/my-coach', authMiddleware, async (req, res) => {
       nutritionPlan: user.coachPlan?.nutritionPlan || [],
       updatedAt: user.coachPlan?.updatedAt || null,
       unread,
+      recentCompleted,
+      last7: doneLogs.length,
     });
   } catch (err) { console.error("my-coach hatası:", err); res.status(500).json({ error: "Yüklenemedi." }); }
 });
@@ -2563,6 +2600,86 @@ app.post('/my-coach/messages', authMiddleware, async (req, res) => {
     });
     res.json({ from: 'student', text: msg.text, at: msg.createdAt });
   } catch (err) { console.error("my-coach send hatası:", err); res.status(500).json({ error: "Mesaj gönderilemedi." }); }
+});
+
+// ==================== HOCA PROGRAMI — ANTRENMAN TAKİBİ ====================
+// Öğrenci hocanın yazdığı günü açınca kayıt açılır, son set bitince 'completed' olur.
+// Hoca panelde kimin devam ettiğini / kimin bıraktığını görür.
+
+// Öğrenci: hoca programındaki bir güne başladı
+app.post('/my-coach/workout/start', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId, 'referredBy');
+    if (!user?.referredBy) return res.status(400).json({ error: "Bağlı bir hocan yok." });
+    const { dayNumber, focus, totalExercises } = req.body;
+    const log = await CoachWorkoutLog.create({
+      coach: user.referredBy,
+      user: user._id,
+      dayNumber: Number(dayNumber) || null,
+      focus: typeof focus === 'string' ? focus.slice(0, 120) : '',
+      totalExercises: Number(totalExercises) || 0,
+      status: 'abandoned',   // bitirilmezse doğru varsayılan bu
+      startedAt: new Date(),
+    });
+    res.json({ logId: log._id });
+  } catch (err) { console.error("workout start hatası:", err); res.status(500).json({ error: "Kayıt açılamadı." }); }
+});
+
+// Öğrenci: antrenmanı bitirdi ya da yarıda bıraktı
+app.post('/my-coach/workout/:logId/finish', authMiddleware, async (req, res) => {
+  try {
+    const log = await CoachWorkoutLog.findOne({ _id: req.params.logId, user: req.userId });
+    if (!log) return res.status(404).json({ error: "Kayıt bulunamadı." });
+    const completed = req.body.status === 'completed';
+    log.status = completed ? 'completed' : 'abandoned';
+    log.doneExercises = Math.max(0, Number(req.body.doneExercises) || 0);
+    if (completed) {
+      log.completedAt = new Date();
+      if (!log.doneExercises) log.doneExercises = log.totalExercises;
+    }
+    await log.save();
+    res.json({ message: "ok" });
+  } catch (err) { console.error("workout finish hatası:", err); res.status(500).json({ error: "Kayıt güncellenemedi." }); }
+});
+
+// Hoca: öğrencinin antrenman geçmişi (son 60 gün)
+app.get('/coach/students/:userId/workouts', coachMiddleware, async (req, res) => {
+  try {
+    if (!(await studentInCoachGym(req.coachId, req.params.userId)))
+      return res.status(403).json({ error: "Bu öğrenciye erişimin yok." });
+    const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+    const logs = await CoachWorkoutLog.find({ user: req.params.userId, createdAt: { $gte: since } })
+      .sort({ createdAt: -1 }).limit(200).lean();
+
+    // Gürültü filtresi: yanlışlıkla açılıp hemen kapatılan kayıtlar (60 sn'den kısa, hiç hareket yapılmamış)
+    const clean = logs.filter(l => {
+      if (l.status === 'completed') return true;
+      const secs = (new Date(l.updatedAt) - new Date(l.startedAt)) / 1000;
+      return !(secs < 60 && !l.doneExercises);
+    });
+
+    const now = Date.now();
+    const completedSince = (days) => clean.filter(l =>
+      l.status === 'completed' && (now - new Date(l.createdAt)) <= days * 24 * 60 * 60 * 1000
+    ).length;
+    const lastCompleted = clean.find(l => l.status === 'completed');
+
+    res.json({
+      last7: completedSince(7),
+      last30: completedSince(30),
+      lastWorkoutAt: lastCompleted?.completedAt || lastCompleted?.createdAt || null,
+      logs: clean.map(l => ({
+        _id: l._id,
+        dayNumber: l.dayNumber,
+        focus: l.focus,
+        status: l.status,
+        startedAt: l.startedAt,
+        completedAt: l.completedAt,
+        totalExercises: l.totalExercises,
+        doneExercises: l.doneExercises,
+      })),
+    });
+  } catch (err) { console.error("workout geçmişi hatası:", err); res.status(500).json({ error: "Antrenman geçmişi yüklenemedi." }); }
 });
 
 // Hoca kendi şifresini değiştirir

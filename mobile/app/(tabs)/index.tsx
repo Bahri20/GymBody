@@ -556,6 +556,9 @@ export default function App() {
   // PT sekmesinde seçili gün — hocanın planında GymBody'deki gibi "bugün" kavramı yok,
   // kullanıcı gün sekmelerinden birini seçiyor.
   const [ptSelectedDay, setPtSelectedDay] = useState(1);
+  // Hoca programında açık olan antrenman kaydının id'si — hoca panelinde
+  // "tamamladı / yarıda bıraktı" olarak görünür. Ağ hatasında null kalır (antrenman yine açılır).
+  const ptLogIdRef = useRef<string | null>(null);
 
   // Egzersiz adından lift key bul (fuzzy)
   // NOT: daha özel kalıplar (incline, romanian, hammer, seated row...) genel kalıplardan
@@ -1340,6 +1343,30 @@ const closeChat = () => {
 };
 
 // ─── PT (HOCA) ───
+// Hoca programında antrenman kaydı — hoca panelde takip eder.
+// Ağ hatası antrenmanı ENGELLEMEZ; sadece kayıt tutulmaz (offline'da da çalışsın).
+const ptWorkoutStart = async (day: any, totalExercises: number) => {
+  ptLogIdRef.current = null;
+  if (!token || !coachData?.hasCoach) return;
+  try {
+    const { data } = await axios.post(`${API_URL}/my-coach/workout/start`,
+      { dayNumber: day?.dayNumber ?? null, focus: day?.focus || '', totalExercises },
+      { headers: { Authorization: `Bearer ${token}` } });
+    ptLogIdRef.current = data?.logId || null;
+  } catch {}
+};
+const ptWorkoutFinish = async (status: 'completed' | 'abandoned', doneExercises: number) => {
+  const logId = ptLogIdRef.current;
+  ptLogIdRef.current = null;
+  if (!logId || !token) return;
+  try {
+    await axios.post(`${API_URL}/my-coach/workout/${logId}/finish`,
+      { status, doneExercises },
+      { headers: { Authorization: `Bearer ${token}` } });
+    fetchCoach();
+  } catch {}
+};
+
 const fetchCoach = async () => {
   if (!token) return;
   try {
@@ -2468,7 +2495,7 @@ const pickAndUploadProfilePhoto = async () => {
                 <Text style={{ color: C.text, fontSize: 13, fontWeight: '800' }}>{weeklyPlan.currentDay}/{total}</Text>
               </View>
             </View>
-            <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutSource('gymbody'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }}
+            <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutSource('gymbody'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); ptLogIdRef.current = null; }}
               style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <Ionicons name="play" size={18} color="#0B1207" />
               <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>{t('Antrenmana başla')}</Text>
@@ -2632,6 +2659,11 @@ const pickAndUploadProfilePhoto = async () => {
               )}
               {(coachData.workoutPlan || []).length > 0 && (() => {
                 const ptDays: any[] = coachData.workoutPlan || [];
+                // "Bugün" cihazın yerel gününe göre — sunucu UTC'de çalışıyor, o karar veremez.
+                const todayKey = new Date().toDateString();
+                const ptDoneToday: number[] = (coachData.recentCompleted || [])
+                  .filter((r: any) => new Date(r.at).toDateString() === todayKey)
+                  .map((r: any) => r.dayNumber);
                 const activeDay = ptDays.find((d: any) => d.dayNumber === ptSelectedDay) ? ptSelectedDay : (ptDays[0]?.dayNumber ?? 1);
                 const day = ptDays.find((d: any) => d.dayNumber === activeDay);
                 const nutritionDay = (coachData.nutritionPlan || []).find((d: any) => d.dayNumber === activeDay);
@@ -2672,9 +2704,15 @@ const pickAndUploadProfilePhoto = async () => {
                             </View>
                           </View>
                         </View>
+                        {ptDoneToday.includes(day.dayNumber) && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, backgroundColor: 'rgba(163,230,53,0.12)', borderWidth: 1, borderColor: 'rgba(163,230,53,0.35)', borderRadius: 12, paddingVertical: 9, paddingHorizontal: 12 }}>
+                            <Ionicons name="checkmark-circle" size={17} color={C.lime} />
+                            <Text style={{ color: C.lime, fontWeight: '800', fontSize: 13 }}>{t('Bugün tamamladın — hocan görüyor')}</Text>
+                          </View>
+                        )}
                         {exs.length > 0 && (
                           <TouchableOpacity activeOpacity={0.88}
-                            onPress={() => { setWorkoutSource('pt'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); }}
+                            onPress={() => { setWorkoutSource('pt'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); ptWorkoutStart(day, exs.length); }}
                             style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                             <Ionicons name="play" size={18} color="#0B1207" />
                             <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>{t('Antrenmana başla')}</Text>
@@ -4530,8 +4568,10 @@ const pickAndUploadProfilePhoto = async () => {
               setWorkoutWeights({});
               setRestSeconds(null);
               // PT programı GymBody'nin "günü tamamladım" akışına (weeklyPlan.currentDay
-              // ilerletme + /complete-day) bağlı değil — sadece bir bitirme mesajı gösterilir.
+              // ilerletme + /complete-day) bağlı değil; ama hoca panelde görsün diye
+              // kayıt 'completed' olarak kapatılır.
               if (workoutSource === 'pt') {
+                ptWorkoutFinish('completed', exercises.length);
                 showToast(t('Antrenmanı bitirdin, tebrikler! 💪'), 'success');
               } else {
                 setDayFeedbackVisible(true);
@@ -4540,12 +4580,19 @@ const pickAndUploadProfilePhoto = async () => {
           }
         };
 
+        // Antrenmanı yarıda kapatma — PT kaydı 'abandoned' olarak kapanır ki
+        // hoca "başladı ama bitirmedi" bilgisini de görebilsin.
+        const closeWorkout = () => {
+          if (workoutSource === 'pt') ptWorkoutFinish('abandoned', workoutExIdx);
+          setWorkoutActive(false);
+        };
+
         return (
-          <Modal visible={workoutActive} transparent={false} animationType="slide" onRequestClose={() => setWorkoutActive(false)}>
+          <Modal visible={workoutActive} transparent={false} animationType="slide" onRequestClose={closeWorkout}>
             <View style={{ flex: 1, backgroundColor: C.bg }}>
               {/* Üst bar */}
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: C.border }}>
-                <TouchableOpacity onPress={() => setWorkoutActive(false)} style={{ marginRight: 12 }}>
+                <TouchableOpacity onPress={closeWorkout} style={{ marginRight: 12 }}>
                   <Ionicons name="close" size={24} color={C.text} />
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>

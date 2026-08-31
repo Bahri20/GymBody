@@ -301,6 +301,7 @@
             <button class="btn btn-ghost btn-sm" onclick="closeStudent()">← Geri</button>
           </div>
           <div class="glass" id="sProgress" style="padding:18px;margin-bottom:14px"></div>
+          <div class="glass" id="sWorkouts" style="padding:18px;margin-bottom:14px"></div>
           <div class="glass" id="sMuscleMap" style="padding:18px;margin-bottom:14px"></div>
 
           <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px">
@@ -635,10 +636,13 @@
     b.innerHTML=list.map(function(s){
       var nm=encodeURIComponent(s.name||''), coach=esc(s.coachName||_coachName);
       var vip=s.isVip?'<span class="badge vip"><span class="dot"></span>VIP</span>':'<span class="badge uye">ÜYE</span>';
+      // Bu hafta tamamlanan antrenman — 0 ise soluk göster, hoca kimin durduğunu tek bakışta görsün
+      var n=s.last7||0;
+      var wk='<span class="badge" title="Son 7 günde tamamlanan antrenman" style="background:'+(n?'rgba(163,230,53,.14)':'rgba(255,255,255,.06)')+';color:'+(n?'var(--primary)':'var(--muted)')+'">'+n+' antrenman</span>';
       return '<div class="strow" onclick="openStudent(\''+s._id+'\',decodeURIComponent(\''+nm+'\'))">'+
         '<div class="cell-name"><div class="savatar">'+initials(s.name)+'</div>'+
           '<div class="min0"><div class="sname">'+esc(s.name)+'</div>'+(s.email?'<div class="smail">'+esc(s.email)+'</div>':'')+'</div></div>'+
-        '<div class="cell-status">'+vip+'<span class="muted" style="font-size:12px">🏋️ '+coach+'</span></div>'+
+        '<div class="cell-status">'+vip+wk+'<span class="muted" style="font-size:12px">🏋️ '+coach+'</span></div>'+
         '<div class="cell-actions">'+
           '<button class="btn btn-ghost btn-sm btn-edit" onclick="event.stopPropagation();openStudent(\''+s._id+'\',decodeURIComponent(\''+nm+'\'))">Programı Düzenle</button>'+
           '<button class="icon-btn" title="Çıkar" onclick="event.stopPropagation();rmStudent(\''+s._id+'\')">✕</button>'+
@@ -672,6 +676,7 @@
       (bs.shoulder?'<div style="display:flex;justify-content:space-between;padding:3px 0"><span class="muted">Omuz</span><b style="color:var(--primary)">'+bs.shoulder+' cm</b></div>':''))
       :'<p class="muted">Henüz ölçü kaydı yok.</p>');
     document.getElementById('sMuscleMap').innerHTML=renderMuscleMap(d.lifts, d.weight, d.gender);
+    loadWorkouts(id);
     _plan=(d.workoutPlan&&d.workoutPlan.length)?JSON.parse(JSON.stringify(d.workoutPlan)):[];
     _activeDay=0;_openGroups={};
     renderPlan();
@@ -681,6 +686,71 @@
     renderNut();
     document.getElementById('chatBox').innerHTML='<div class="muted">Yükleniyor…</div>';
     startChatPoll();
+  }
+  // ---- Antrenman takibi ----
+  // Hoca planında "bugün" kavramı yok (öğrenci günü kendi seçiyor), bu yüzden
+  // "plana uydu mu" diye yargılamıyoruz; hangi tarihte ne yapıldığını gösteriyoruz.
+  function agoText(d){
+    if(!d) return '—';
+    var days=Math.floor((Date.now()-new Date(d))/86400000);
+    if(days<=0) return 'bugün';
+    if(days===1) return 'dün';
+    return days+' gün önce';
+  }
+  function dmy(d){
+    var x=new Date(d), M=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+    return x.getDate()+' '+M[x.getMonth()];
+  }
+  function renderWorkouts(d){
+    var el=document.getElementById('sWorkouts');
+    var head='<p class="muted" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">🏋️ Antrenman Takibi</p>';
+    var logs=(d&&d.logs)||[];
+    if(!logs.length){
+      el.innerHTML=head+'<p class="muted">Henüz antrenman kaydı yok. Öğrenci programı uygulamadan başlattığında burada görünecek.</p>';
+      return;
+    }
+    // Son 30 günün ızgarası — dolu yeşil: tamamladı, turuncu: yarıda bıraktı, boş: yok
+    var byDay={};
+    logs.forEach(function(l){
+      var k=new Date(l.completedAt||l.startedAt).toDateString();
+      if(byDay[k]==='completed') return;           // aynı gün tamamlanan varsa o kazanır
+      byDay[k]=l.status;
+    });
+    var cells='';
+    for(var i=29;i>=0;i--){
+      var day=new Date(Date.now()-i*86400000);
+      var st=byDay[day.toDateString()];
+      var bg=st==='completed'?'var(--primary)':(st==='abandoned'?'#e8a33d':'rgba(255,255,255,.07)');
+      var ttl=dmy(day)+(st==='completed'?' · tamamladı':(st==='abandoned'?' · yarıda bıraktı':' · antrenman yok'));
+      cells+='<div title="'+ttl+'" style="width:100%;aspect-ratio:1;border-radius:3px;background:'+bg+'"></div>';
+    }
+    var rows=logs.slice(0,10).map(function(l){
+      var ok=l.status==='completed';
+      var label=ok?'✅ Tamamladı'
+        :'⚠️ '+(l.doneExercises||0)+'/'+(l.totalExercises||0)+' harekette bıraktı';
+      var name=(l.dayNumber?l.dayNumber+'. Gün':'Antrenman')+(l.focus?' · '+esc(l.focus):'');
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)">'+
+        '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
+          '<span class="muted" style="font-size:12px">'+dmy(l.completedAt||l.startedAt)+'</span> '+name+'</span>'+
+        '<b style="font-size:12px;white-space:nowrap;color:'+(ok?'var(--primary)':'#e8a33d')+'">'+label+'</b>'+
+      '</div>';
+    }).join('');
+
+    el.innerHTML=head+
+      '<div style="display:flex;justify-content:space-between;padding:3px 0"><span class="muted">Son 7 gün</span><b style="color:var(--primary)">'+(d.last7||0)+' antrenman</b></div>'+
+      '<div style="display:flex;justify-content:space-between;padding:3px 0"><span class="muted">Son 30 gün</span><b style="color:var(--primary)">'+(d.last30||0)+' antrenman</b></div>'+
+      '<div style="display:flex;justify-content:space-between;padding:3px 0"><span class="muted">Son antrenman</span><b>'+agoText(d.lastWorkoutAt)+'</b></div>'+
+      '<div style="display:grid;grid-template-columns:repeat(30,1fr);gap:3px;margin:12px 0 4px">'+cells+'</div>'+
+      '<div class="muted" style="font-size:11px;margin-bottom:10px">son 30 gün</div>'+
+      rows;
+  }
+  async function loadWorkouts(id){
+    document.getElementById('sWorkouts').innerHTML='<p class="muted">Antrenman geçmişi yükleniyor…</p>';
+    try{
+      var r=await fetch('/coach/students/'+id+'/workouts',{headers:H()});
+      if(!r.ok){document.getElementById('sWorkouts').innerHTML='<p class="muted">Antrenman geçmişi yüklenemedi.</p>';return;}
+      renderWorkouts(await r.json());
+    }catch(_){document.getElementById('sWorkouts').innerHTML='<p class="muted">Antrenman geçmişi yüklenemedi.</p>';}
   }
   function closeStudent(){
     stopChatPoll();
