@@ -2,7 +2,7 @@
   "expo": {
     "name": "GymBodyAI",
     "slug": "mobile",
-    "version": "1.2.3",
+    "version": "1.2.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gymbodyai",
@@ -48,11 +48,11 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 180,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#0B0D12",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#0B0D12"
           }
         }
       ],
