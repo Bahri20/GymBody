@@ -2637,6 +2637,34 @@ const pickAndUploadProfilePhoto = async () => {
                   </View>
                 );
               })()}
+              {/* HAREKETLER — AI ve PT programındaki liste ile aynı görsel dil */}
+              {(() => {
+                const days = customPlan.filter((d: any) => (d.exercises || []).length > 0);
+                const day = days.find((d: any) => d.dayNumber === customSelectedDay) || days[0];
+                const exs = day?.exercises || [];
+                if (!exs.length) return null;
+                return (
+                  <>
+                    <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', marginBottom: 8, marginLeft: 2, marginTop: 12 }}>{t('Hareketler · {{day}}. gün', { day: day.dayNumber || 1 })}</Text>
+                    {exs.map((ex: any, j: number) => (
+                      <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 7, borderWidth: 1, borderColor: C.border }}>
+                        <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
+                          {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{ex.name}</Text>
+                          <Text style={{ color: C.textMuted, fontSize: 12 }}>{ex.sets}</Text>
+                        </View>
+                        {ex.gifUrl && (
+                          <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name="play" size={16} color={C.lime} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </>
+                );
+              })()}
             </View>
           );
         })()}
