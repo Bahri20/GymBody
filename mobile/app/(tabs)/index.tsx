@@ -2916,7 +2916,7 @@ const pickAndUploadProfilePhoto = async () => {
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100, paddingTop: 12 }}>
           {!userStats.isVip ? (
             <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
-              style={{ margin: 16, padding: 24, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: 'center', gap: 12 }}>
+              style={{ margin: 16, padding: 24, borderRadius: 20, backgroundColor: C.surface, alignItems: 'center', gap: 12 }}>
               <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: 'rgba(37,99,235,0.14)', alignItems: 'center', justifyContent: 'center' }}>
                 <Ionicons name="person-circle-outline" size={40} color="#5B8DEF" />
               </View>
@@ -3054,7 +3054,7 @@ const pickAndUploadProfilePhoto = async () => {
                       <>
                         <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', marginBottom: 8, marginLeft: 2, marginTop: 12 }}>{t('Hareketler · {{day}}. gün', { day: day.dayNumber || 1 })}</Text>
                         {exs.map((ex: any, j: number) => (
-                          <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 7, borderWidth: 1, borderColor: C.border }}>
+                          <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 7,  }}>
                             <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
                               {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
                             </View>
@@ -3188,7 +3188,7 @@ const pickAndUploadProfilePhoto = async () => {
               {/* 🖼️ GELİŞİM KARŞILAŞTIRMASI */}
               {!userStats.isVip ? (
                 <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
-                  style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 16, marginBottom: 16, alignItems: 'center', gap: 10 }}>
+                  style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, alignItems: 'center', gap: 10 }}>
                   <Ionicons name="lock-closed" size={24} color={AZ_DARK.lime} />
                   <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, textAlign: 'center' }}>{t('Gelişim Karşılaştırması')}</Text>
                   <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>{t('İlk ve son fotoğraflarını kıyasla, yağ oranı farkını gör. VIP üyelere özel.')}</Text>
@@ -3198,7 +3198,7 @@ const pickAndUploadProfilePhoto = async () => {
                 const withFat = gallery.filter(p => p.bodyFatPercentage != null);
                 if (withFat.length < 2) {
                   return (
-                    <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 16, marginBottom: 16, alignItems: 'center', gap: 8 }}>
+                    <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, alignItems: 'center', gap: 8 }}>
                       <Ionicons name="images-outline" size={24} color={AZ_DARK.onSurfaceVariant} />
                       <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>{t('Kıyaslama için yağ oranı bilinen en az 2 fotoğraf gerekiyor.')}</Text>
                     </View>
@@ -3235,7 +3235,7 @@ const pickAndUploadProfilePhoto = async () => {
                   : sameish ? t('🎯 Yağ oranın koruyor.') : t('📈 Küçük artış var, bırakma!');
 
                 return (
-                  <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 16, marginBottom: 16, gap: 14 }}>
+                  <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, gap: 14 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>{t('Gelişim Karşılaştırması')}</Text>
                       <View style={{ backgroundColor: improved ? AZ_DARK.limeSoft20 : 'rgba(255,180,171,0.2)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 }}>
@@ -3247,7 +3247,7 @@ const pickAndUploadProfilePhoto = async () => {
 
                     {/* Yan yana fotoğraf — Başlangıç / Güncel */}
                     <View style={{ flexDirection: 'row', gap: 8, height: 192 }}>
-                      <View style={{ flex: 1, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+                      <View style={{ flex: 1, borderRadius: 12, overflow: 'hidden', }}>
                         <Image source={{ uri: first.url }} style={{ width: '100%', height: '100%' }} />
                         <View style={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
                           <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11 }}>{t('Başlangıç')}</Text>
@@ -3323,7 +3323,7 @@ const pickAndUploadProfilePhoto = async () => {
             </View>
           }
       renderItem={({ item }) => (
-  <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, padding: 12, flexDirection: 'row', gap: 12 }}>
+  <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, marginBottom: 12, padding: 12, flexDirection: 'row', gap: 12 }}>
     <TouchableOpacity activeOpacity={0.92} onPress={() => setLightboxUrl(item.url)}>
       <Image source={{ uri: item.url }} style={{ width: 96, height: 128, borderRadius: 12 }} />
     </TouchableOpacity>
@@ -3394,7 +3394,7 @@ const pickAndUploadProfilePhoto = async () => {
           {mealTab === 'plan' && (
           <View>
             {/* SEVDİĞİM YEMEKLER */}
-            <View style={{ borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, backgroundColor: AZ_DARK.glass }}>
+            <View style={{ borderRadius: 16, padding: 16, marginBottom: 16, backgroundColor: AZ_DARK.glass }}>
               <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 15, marginBottom: 4 }}>{t('Sevdiğim Yemekler')}</Text>
               <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5, marginBottom: 12, lineHeight: 17 }}>{t('Yapay zeka beslenme planını burada yazdığın yemeklere göre kurar — badem yağı gibi tuhaf şeyler değil, senin yediklerin önerilir.')}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
@@ -3464,7 +3464,7 @@ const pickAndUploadProfilePhoto = async () => {
           {mealTab === 'analiz' && (
           <View>
           {/* YAPAY ZEKA KALORİ ÖLÇER */}
-          <View style={{ borderRadius: 22, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, backgroundColor: AZ_DARK.glass, alignItems: 'center' }}>
+          <View style={{ borderRadius: 22, padding: 16, marginBottom: 16, backgroundColor: AZ_DARK.glass, alignItems: 'center' }}>
             <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: AZ_DARK.limeSoft10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
               <Ionicons name="restaurant" size={22} color={AZ_DARK.lime} />
             </View>
@@ -3514,7 +3514,7 @@ const pickAndUploadProfilePhoto = async () => {
           )}
 
           {mealResult && !loading && (
-            <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 22, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+            <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 22, padding: 18, marginBottom: 20, }}>
               {mealImage && <Image source={{ uri: mealImage }} style={{ width: '100%', height: 190, borderRadius: 14, marginBottom: 14 }} />}
               <Text style={{ fontSize: 22, fontWeight: '800', color: AZ_DARK.onSurface, textAlign: 'center' }}>{mealResult.mealName}</Text>
               <Text style={{ fontSize: 13.5, color: AZ_DARK.onSurfaceVariant, textAlign: 'center', marginVertical: 10, lineHeight: 20 }}>{mealResult.description}</Text>
@@ -3544,7 +3544,7 @@ const pickAndUploadProfilePhoto = async () => {
           )}
 
           {/* GÜNLÜK KALORİ HEDEFİ — halka + makro barları (Stitch tasarımı) */}
-          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder, alignItems: 'center' }}>
+          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 20, marginBottom: 16, alignItems: 'center' }}>
             <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, alignSelf: 'flex-start', marginBottom: 24 }}>{t('Günlük Kalori Hedefi')}</Text>
 
             {(() => {
@@ -3595,7 +3595,7 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
 
           {/* BAZAL METABOLİZMA — sadece kalori analizi tabında */}
-          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, }}>
             <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, marginBottom: 6 }}>{t('Kalori Hedefi')}</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
               <TextInput style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, fontSize: 15, color: AZ_DARK.onSurface }} placeholder={t('Yaş')} placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalAge} onChangeText={setGoalAge} keyboardType="numeric" />
@@ -3640,7 +3640,7 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
 
           {/* YENEN ÜRÜNLER & DETAYLAR — bu hafta */}
-          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, }}>
             <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>{t('Bu Hafta Yenenler')}</Text>
             <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, marginBottom: 10 }}>{t('Liste her hafta başında (Pazartesi) yenilenir.')}</Text>
             {thisWeekMealLogs.length === 0 ? (
@@ -3677,7 +3677,7 @@ const pickAndUploadProfilePhoto = async () => {
             const minW = Math.min(...weights) - 2;
             const maxW = Math.max(...weights) + 2;
             return (
-              <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+              <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 12, }}>
                 <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>{t('Kilo Takibi')}</Text>
                 <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, marginBottom: 10 }}>
                   {weights[0] > weights[weights.length - 1]
@@ -4934,11 +4934,6 @@ const pickAndUploadProfilePhoto = async () => {
                   <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>{t('{{cur}}/{{total}}. EGZERSİZ', { cur: workoutExIdx + 1, total: exercises.length })}</Text>
                   <Text style={{ color: C.text, fontWeight: '900', fontSize: 17 }} numberOfLines={1}>{ex.name}</Text>
                 </View>
-                {ex.gifUrl && (
-                  <TouchableOpacity onPress={() => setGifModalUrl(ex.gifUrl)} style={{ padding: 8 }}>
-                    <Ionicons name="play-circle" size={28} color={C.lime} />
-                  </TouchableOpacity>
-                )}
               </View>
 
               {/* İlerleme barı */}
@@ -4947,6 +4942,21 @@ const pickAndUploadProfilePhoto = async () => {
               </View>
 
               <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 28 }}>
+                {/* Hareket görseli — kütüphanedeki gibi büyük ve ortada; dokununca gif oynatıcı açılır */}
+                {ex.gifUrl && (
+                  <TouchableOpacity activeOpacity={0.88} onPress={() => setGifModalUrl(ex.gifUrl)}
+                    style={{ width: '100%', aspectRatio: 1.5, borderRadius: 24, overflow: 'hidden', backgroundColor: C.surface2, marginBottom: 28 }}>
+                    <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }}
+                      style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                      <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 2, borderColor: '#FF9F1C', alignItems: 'center', justifyContent: 'center', shadowColor: '#FF9F1C', shadowOpacity: 0.6, shadowRadius: 16, elevation: 8 }}>
+                        <Ionicons name="play" size={26} color="#FF9F1C" style={{ marginLeft: 3 }} />
+                      </View>
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{t('Egzersiz Videosunu İzle')}</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
                 {/* Set göstergesi */}
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 32 }}>
                   {Array.from({ length: totalSets }).map((_, i) => (
