@@ -3,6 +3,10 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import '@/lib/i18n'; // dil algılama + çeviriler uygulama açılırken yüklensin
+import { useFonts } from 'expo-font';
+// Tasarım sistemi fontları: başlıklarda Sora (geometrik, teknik), gövdede Hanken Grotesk
+import { Sora_600SemiBold, Sora_700Bold, Sora_800ExtraBold } from '@expo-google-fonts/sora';
+import { HankenGrotesk_400Regular, HankenGrotesk_500Medium, HankenGrotesk_600SemiBold } from '@expo-google-fonts/hanken-grotesk';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -21,6 +25,13 @@ const AppDarkTheme = {
 };
 
 export default function RootLayout() {
+  // Fontlar yüklenene kadar splash açık kalır; yüklenemezse uygulama sistem fontuyla açılır
+  const [fontsLoaded, fontError] = useFonts({
+    Sora_600SemiBold, Sora_700Bold, Sora_800ExtraBold,
+    HankenGrotesk_400Regular, HankenGrotesk_500Medium, HankenGrotesk_600SemiBold,
+  });
+  if (!fontsLoaded && !fontError) return null;
+
   return (
     <ThemeProvider value={AppDarkTheme}>
       <Stack>

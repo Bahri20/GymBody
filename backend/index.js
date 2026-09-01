@@ -2610,6 +2610,52 @@ app.post('/my-coach/messages', authMiddleware, async (req, res) => {
   } catch (err) { console.error("my-coach send hatası:", err); res.status(500).json({ error: "Mesaj gönderilemedi." }); }
 });
 
+// Kullanıcı AI programındaki bir günün hareketlerini elle düzenler.
+// AI'a "şunu değiştir" demek tüm programı yeniden ürettirir (Gemini maliyeti + diğer
+// günler de değişir); buradaki düzenleme hedeflidir ve hiçbir AI çağrısı yapmaz.
+// Sadece o günün exercises listesi değişir — ilerleme (currentDay, started,
+// lastDayCompletedAt) ve beslenme planı olduğu gibi korunur.
+app.patch('/weekly-plan/day/:dayNumber', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user?.weeklyPlan?.workoutPlan?.length) return res.status(404).json({ error: "Aktif program yok." });
+
+    const dayNumber = parseInt(req.params.dayNumber, 10);
+    const idx = user.weeklyPlan.workoutPlan.findIndex((d) => d.dayNumber === dayNumber);
+    if (idx === -1) return res.status(404).json({ error: "Gün bulunamadı." });
+
+    const incoming = Array.isArray(req.body.exercises) ? req.body.exercises : null;
+    if (!incoming) return res.status(400).json({ error: "Geçersiz hareket listesi." });
+    if (!incoming.length) return res.status(400).json({ error: "Bir günde en az bir hareket olmalı." });
+    if (incoming.length > CUSTOM_PLAN_MAX_EX_PER_DAY)
+      return res.status(400).json({ error: `Bir güne en fazla ${CUSTOM_PLAN_MAX_EX_PER_DAY} hareket ekleyebilirsin.` });
+
+    // Hareket adları kütüphaneye karşı doğrulanır — uydurma isim/gifUrl geçmez
+    const known = await ExerciseGif.find({}, 'name gifUrl').lean();
+    const byName = new Map(known.map((e) => [String(e.name).toLowerCase().trim(), e]));
+    const cleaned = [];
+    for (const ex of incoming) {
+      const match = byName.get(String(ex?.name || '').toLowerCase().trim());
+      if (!match) continue;
+      cleaned.push({
+        name: match.name,
+        gifUrl: match.gifUrl || null,
+        sets: String(ex?.sets || '3x10').slice(0, 20),
+      });
+    }
+    if (!cleaned.length) return res.status(400).json({ error: "Geçerli hareket bulunamadı." });
+
+    user.weeklyPlan.workoutPlan[idx].exercises = cleaned;
+    user.markModified('weeklyPlan');
+    await user.save();
+    console.log(`✏️ AI programı elle düzenlendi → ${user.name} (gün ${dayNumber}, ${cleaned.length} hareket)`);
+    res.json(user.weeklyPlan);
+  } catch (err) {
+    console.error("weekly-plan gün düzenleme hatası:", err);
+    res.status(500).json({ error: "Gün güncellenemedi." });
+  }
+});
+
 // ==================== KENDİ PROGRAMIN ====================
 // Kullanıcı kütüphaneden hareket seçip kendi haftalık programını kurar.
 // VIP gerekmez — AI çağrısı yok, maliyeti sıfır. Amaç: VIP almayan kullanıcının da

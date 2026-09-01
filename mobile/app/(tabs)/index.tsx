@@ -128,6 +128,41 @@ const AZ_DARK = {
   macroFat: '#34D399',
 };
 
+// "Lumina Kinetic" tasarım sistemi — GymBody ana sayfası ve Kendi Programın ekranı.
+// AZ_DARK (Analiz ekranı) ile aynı mantık, ayrı token seti: henüz çevrilmemiş ekranlar etkilenmesin.
+const LK = {
+  bg: '#121414',
+  surfaceContainerLow: '#1a1c1c',
+  surfaceContainer: '#1e2020',
+  surfaceContainerHigh: '#282a2b',
+  surfaceContainerHighest: '#333535',
+  onSurface: '#e2e2e2',
+  onSurfaceVariant: '#c3c9b2',
+  outlineVariant: '#434937',
+  primaryContainer: '#b6f05d',      // ana aksiyon dolgusu
+  onPrimaryContainer: '#476c00',
+  primaryFixed: '#baf461',          // vurgu metin/ikon
+  // Kendi programın turuncu ile ayrışır; AI programı lime kalır
+  accent: '#FF9F1C',
+  onAccent: '#2A1500',
+  accentFixed: '#FFB84D',
+  accentSoft: 'rgba(255,159,28,0.1)',
+  accentBorder: 'rgba(255,159,28,0.3)',
+  error: '#ffb4ab',
+  // Glassmorphism: koyu zeminde hafif gradyan + ince beyaz kenar
+  glassTop: 'rgba(26,28,30,0.8)',
+  glassBottom: 'rgba(18,20,20,0.95)',
+  glassBorder: 'rgba(255,255,255,0.05)',
+  glow: 'rgba(182,240,93,0.2)',
+  // Tipografi: başlıklar Sora, gövde/etiket Hanken Grotesk
+  fontHeadline: 'Sora_700Bold',
+  fontHeadlineSemi: 'Sora_600SemiBold',
+  fontHeadlineXl: 'Sora_800ExtraBold',
+  fontBody: 'HankenGrotesk_400Regular',
+  fontLabel: 'HankenGrotesk_600SemiBold',
+  fontLabelSm: 'HankenGrotesk_500Medium',
+};
+
 // GEÇİCİ: GymBody'nin kendi (AI) haftalık planındaki "Günün Beslenme Planı" kartı
 // bir süreliğine gizli — sadece haftalık antrenman programı + hareket kütüphanesi kalsın.
 // PT sekmesindeki hocanın yazdığı beslenme planına dokunulmadı.
@@ -493,6 +528,21 @@ export default function App() {
   const [customSelectedDay, setCustomSelectedDay] = useState(1);
   // Kendi programı olan kullanıcıda AI formu daraltılmış durur — ekranı işgal etmesin
   const [aiFormExpanded, setAiFormExpanded] = useState(false);
+  // Hero kartındaki program geçişi: AI programı ↔ kendi programın.
+  // İkisi de varsa üstte anahtar çıkar, yoksa var olan gösterilir.
+  const [activeProgram, setActiveProgram] = useState<'ai' | 'custom'>('ai');
+  // Program editörü iki plan tipini de düzenler: kendi programın ve AI programının tek günü
+  const [plannerTarget, setPlannerTarget] = useState<'custom' | 'ai'>('custom');
+  const [plannerDraft, setPlannerDraft] = useState<any[]>([]);
+  // Renk kimliği: AI programı lime, kendi programın turuncu
+  const progAccent = activeProgram === 'custom' ? LK.accent : LK.primaryContainer;
+  const progAccentFixed = activeProgram === 'custom' ? LK.accentFixed : LK.primaryFixed;
+  const onProgAccent = activeProgram === 'custom' ? LK.onAccent : LK.onPrimaryContainer;
+  const plannerAccent = plannerTarget === 'ai' ? LK.primaryContainer : LK.accent;
+  const plannerAccentFixed = plannerTarget === 'ai' ? LK.primaryFixed : LK.accentFixed;
+  // Program editörü artık iki plan tipini de düzenliyor: kendi programın ve AI programının
+  // tek bir günü. Düzenleme ayrı bir taslak üzerinde yapılır — iptal edilirse orijinal bozulmaz.
+
   const plannerSnapshotRef = useRef<string>('');
   // Ücretsiz üyelikte kurulabilecek gün sayısı — sunucudan gelir (VIP: 7, ücretsiz: 2)
   const [customDayLimit, setCustomDayLimit] = useState(2);
@@ -538,14 +588,53 @@ export default function App() {
       return false;
     } finally { setPlannerSaving(false); }
   };
-  // Programı aç: hiç gün yoksa boş bir 1. günle başlat ki kullanıcı boş ekrana bakmasın
+  // Kendi programını düzenle
   const openPlanner = () => {
     const start = customPlan.length ? customPlan : [{ dayNumber: 1, focus: '', exercises: [] }];
-    if (!customPlan.length) setCustomPlan(start);
+    setPlannerTarget('custom');
+    setPlannerDraft(JSON.parse(JSON.stringify(start)));
     plannerSnapshotRef.current = planKey(start);
     setPlannerDay(0);
     setPlannerVisible(true);
     if (!Object.keys(libData).length) loadLibraryData();
+  };
+  // AI programının TEK bir gününü düzenle — hareket ekle/çıkar, sırala, set/tekrar değiştir.
+  // AI'a yeniden ürettirmeye göre farkı: sadece o gün değişir, diğer günler ve ilerleme durur.
+  const openAiDayEditor = (day: any) => {
+    if (!day) return;
+    const draft = [{ dayNumber: day.dayNumber, focus: day.focus || '', exercises: JSON.parse(JSON.stringify(day.exercises || [])) }];
+    setPlannerTarget('ai');
+    setPlannerDraft(draft);
+    plannerSnapshotRef.current = planKey(draft);
+    setPlannerDay(0);
+    setPlannerVisible(true);
+    if (!Object.keys(libData).length) loadLibraryData();
+  };
+  // Editörden kaydet — hedefe göre farklı uca gider
+  const savePlanner = async () => {
+    if (plannerTarget === 'ai') {
+      const day = plannerDraft[0];
+      if (!day) return false;
+      if (!(day.exercises || []).length) {
+        showToast(t('Bir günde en az bir hareket olmalı.'), 'error');
+        return false;
+      }
+      setPlannerSaving(true);
+      try {
+        const { data } = await axios.patch(`${API_URL}/weekly-plan/day/${day.dayNumber}`,
+          { exercises: day.exercises }, { headers: { Authorization: `Bearer ${token}` } });
+        setWeeklyPlan(data);
+        plannerSnapshotRef.current = planKey(plannerDraft);
+        return true;
+      } catch (error: any) {
+        const msg = error.response?.status === 404
+          ? t('Sunucu güncellenene kadar programın kaydedilemiyor. Birazdan tekrar dene.')
+          : (error.userMessage || error.response?.data?.error || t('Program kaydedilemedi.'));
+        showToast(msg, 'error');
+        return false;
+      } finally { setPlannerSaving(false); }
+    }
+    return saveCustomPlan(plannerDraft);
   };
   // iOS'ta iki Modal aynı anda açık olamaz — kütüphane, planner kapanmadan görünmüyor.
   // Bu yüzden planner'ı kapatıp kütüphaneyi açıyoruz, seçim bitince planner geri geliyor.
@@ -567,14 +656,14 @@ export default function App() {
 
   // Kaydedilmemiş değişiklikle kapatma — kullanıcı emeğini sessizce kaybetmesin
   const closePlanner = () => {
-    if (planKey(customPlan) === plannerSnapshotRef.current) { setPlannerVisible(false); return; }
+    if (planKey(plannerDraft) === plannerSnapshotRef.current) { setPlannerVisible(false); return; }
     Alert.alert(
       t('Kaydedilmemiş değişiklikler'),
       t('Programındaki değişiklikleri kaydetmek ister misin?'),
       [
-        { text: t('Vazgeç'), style: 'destructive', onPress: () => { fetchCustomPlan(); setPlannerVisible(false); } },
+        { text: t('Vazgeç'), style: 'destructive', onPress: () => { setPlannerVisible(false); } },
         { text: t('Kaydet'), onPress: async () => {
-          const ok = await saveCustomPlan(customPlan);
+          const ok = await savePlanner();
           if (ok) { showToast(t('Programın kaydedildi ✓'), 'success'); setPlannerVisible(false); }
         } },
       ]
@@ -2571,36 +2660,55 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
         )}
 
-        {/* HAREKET KÜTÜPHANESİ girişi */}
-        <TouchableOpacity onPress={openLibrary} activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 10 }}>
-          <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="albums-outline" size={20} color={C.lime} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>{t('Hareket Kütüphanesi')}</Text>
-            <Text style={{ color: C.textMuted, fontSize: 12 }}>{t('Hareketlerin yapılışına bak')}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
-        </TouchableOpacity>
+        {/* HIZLI ERİŞİM — kütüphane + kendi programın, yan yana (Lumina Kinetic) */}
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+          <TouchableOpacity onPress={openLibrary} activeOpacity={0.85} style={lkStyles.quickCard}>
+            <View style={lkStyles.quickIcon}>
+              <Ionicons name="book-outline" size={20} color={LK.primaryFixed} />
+            </View>
+            <Text style={lkStyles.quickTitle} numberOfLines={2}>{t('Hareket Kütüphanesi')}</Text>
+            <Text style={lkStyles.quickSub} numberOfLines={1}>{t('Hareketlerin yapılışına bak')}</Text>
+          </TouchableOpacity>
 
-        {/* KENDİ PROGRAMIN — kütüphanenin hemen yanında; VIP gerekmez */}
-        <TouchableOpacity onPress={openPlanner} activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: customPlanTotalEx > 0 ? 'rgba(163,230,53,0.35)' : C.border }}>
-          <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="construct-outline" size={20} color={C.lime} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>{t('Kendi Programın')}</Text>
-            <Text style={{ color: C.textMuted, fontSize: 12 }}>
+          <TouchableOpacity onPress={openPlanner} activeOpacity={0.85}
+            style={[lkStyles.quickCard, customPlanTotalEx > 0 && { borderColor: LK.accentBorder }]}>
+            <View style={lkStyles.quickIcon}>
+              <Ionicons name="construct-outline" size={19} color={LK.accentFixed} />
+            </View>
+            <Text style={lkStyles.quickTitle} numberOfLines={2}>{t('Kendi Programın')}</Text>
+            <Text style={lkStyles.quickSub} numberOfLines={1}>
               {customPlanTotalEx > 0
                 ? t('{{days}} gün · {{count}} hareket', { days: customPlan.length, count: customPlanTotalEx })
-                : t('Kütüphaneden seç, kendi programını kur')}
+                : t('Kütüphaneden seç, kur')}
             </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* PROGRAM ANAHTARI — iki program da varsa aralarında geçiş */}
+        {weeklyPlan && customPlanTotalEx > 0 && (
+          <View style={lkStyles.segment}>
+            {([
+              { key: 'ai' as const, label: t('AI Programı'), icon: 'sparkles' as const },
+              { key: 'custom' as const, label: t('Kendi Programın'), icon: 'construct' as const },
+            ]).map(opt => {
+              const on = activeProgram === opt.key;
+              return (
+                <TouchableOpacity key={opt.key} activeOpacity={0.85} onPress={() => setActiveProgram(opt.key)}
+                  style={[lkStyles.segmentBtn, on && { backgroundColor: opt.key === 'ai' ? LK.primaryContainer : LK.accent }]}>
+                  <Ionicons name={opt.icon} size={15}
+                    color={on ? (opt.key === 'ai' ? LK.onPrimaryContainer : LK.onAccent) : LK.onSurfaceVariant} />
+                  <Text numberOfLines={1}
+                    style={[lkStyles.segmentText, on && { fontFamily: LK.fontLabel, color: opt.key === 'ai' ? LK.onPrimaryContainer : LK.onAccent }]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
-          <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
-        </TouchableOpacity>
+        )}
 
         {/* KENDİ PROGRAMIN — gün kartları ve "Antrenmana başla" */}
-        {customPlanTotalEx > 0 && (() => {
+        {customPlanTotalEx > 0 && (!weeklyPlan || activeProgram === 'custom') && (() => {
           const days = customPlan.filter((d: any) => (d.exercises || []).length > 0);
           return (
             <View style={{ marginBottom: 12 }}>
@@ -2609,9 +2717,9 @@ const pickAndUploadProfilePhoto = async () => {
                   const on = d.dayNumber === customSelectedDay;
                   return (
                     <TouchableOpacity key={i} activeOpacity={0.85} onPress={() => setCustomSelectedDay(d.dayNumber)}
-                      style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: on ? C.lime : C.surface, borderWidth: 1, borderColor: on ? C.lime : C.border }}>
-                      <Text style={{ color: on ? '#0B1207' : C.text, fontWeight: '800', fontSize: 13 }}>{t('{{day}}. Gün', { day: d.dayNumber })}</Text>
-                      {!!d.focus && <Text style={{ color: on ? '#0B1207' : C.textMuted, fontSize: 11, marginTop: 1 }} numberOfLines={1}>{d.focus}</Text>}
+                      style={[lkStyles.dayChip, on && { backgroundColor: LK.accent, borderColor: LK.accent }]}>
+                      <Text style={[lkStyles.dayChipText, on && { color: LK.onAccent }]}>{t('{{day}}. Gün', { day: d.dayNumber })}</Text>
+                      {!!d.focus && <Text style={[lkStyles.dayChipSub, on && { color: LK.onAccent }]} numberOfLines={1}>{d.focus}</Text>}
                     </TouchableOpacity>
                   );
                 })}
@@ -2621,18 +2729,25 @@ const pickAndUploadProfilePhoto = async () => {
                 if (!day) return null;
                 const exs = day.exercises || [];
                 return (
-                  <View style={styles.gymDayCard}>
-                    <Text style={{ color: C.lime, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>{t('{{day}}. GÜN', { day: day.dayNumber })}</Text>
-                    <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginTop: 3 }}>{day.focus || t('Antrenman')}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
-                      <Ionicons name="barbell-outline" size={15} color={C.textMuted} />
-                      <Text style={{ color: C.textSec, fontSize: 12 }}>{t('{{count}} hareket', { count: exs.length })}</Text>
+                  <View style={[lkStyles.heroCard, { borderColor: LK.accentBorder }]}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[lkStyles.heroEyebrow, { color: LK.accentFixed }]}>{t('{{day}}. GÜN', { day: day.dayNumber })}</Text>
+                        <Text style={lkStyles.heroTitle}>{day.focus || t('Antrenman')}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12 }}>
+                          <Ionicons name="barbell-outline" size={16} color={LK.onSurfaceVariant} />
+                          <Text style={lkStyles.heroMeta}>{t('{{count}} hareket', { count: exs.length })}</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity activeOpacity={0.85} onPress={openPlanner} style={lkStyles.exIconBtn}>
+                        <Ionicons name="create-outline" size={18} color={LK.onSurface} />
+                      </TouchableOpacity>
                     </View>
                     <TouchableOpacity activeOpacity={0.88}
                       onPress={() => { setWorkoutSource('custom'); setCustomSelectedDay(day.dayNumber); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); ptLogIdRef.current = null; }}
-                      style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                      <Ionicons name="play" size={18} color="#0B1207" />
-                      <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>{t('Antrenmana başla')}</Text>
+                      style={[lkStyles.primaryPill, { backgroundColor: LK.accent, shadowColor: LK.accent }]}>
+                      <Ionicons name="play" size={18} color={LK.onAccent} />
+                      <Text style={[lkStyles.primaryPillText, { color: LK.onAccent }]}>{t('Antrenmana başla')}</Text>
                     </TouchableOpacity>
                   </View>
                 );
@@ -2645,22 +2760,22 @@ const pickAndUploadProfilePhoto = async () => {
                 if (!exs.length) return null;
                 return (
                   <>
-                    <Text style={{ color: C.text, fontSize: 15, fontWeight: '800', marginBottom: 8, marginLeft: 2, marginTop: 12 }}>{t('Hareketler · {{day}}. gün', { day: day.dayNumber || 1 })}</Text>
+                    <Text style={[lkStyles.sectionTitle, { marginTop: 24, marginBottom: 16 }]}>{t('Hareketler')}</Text>
                     {exs.map((ex: any, j: number) => (
-                      <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 7, borderWidth: 1, borderColor: C.border }}>
-                        <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
+                      <LinearGradient key={j} colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={lkStyles.exRow}>
+                        <View style={lkStyles.exThumb}>
                           {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{ex.name}</Text>
-                          <Text style={{ color: C.textMuted, fontSize: 12 }}>{ex.sets}</Text>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={lkStyles.exName} numberOfLines={1}>{ex.name}</Text>
+                          <Text style={lkStyles.exSets}>{ex.sets}</Text>
                         </View>
                         {ex.gifUrl && (
-                          <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
-                            <Ionicons name="play" size={16} color={C.lime} />
+                          <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={lkStyles.exIconBtn}>
+                            <Ionicons name="play" size={17} color={LK.onSurface} />
                           </TouchableOpacity>
                         )}
-                      </View>
+                      </LinearGradient>
                     ))}
                   </>
                 );
@@ -2670,7 +2785,7 @@ const pickAndUploadProfilePhoto = async () => {
         })()}
 
         {/* PLAN GÖSTERİMİ */}
-        {weeklyPlan && !weeklyPlan.completedFully && !isRestDay && !showRestPrompt && !(!weeklyPlan.started && weeklyPlan.currentDay === 1 && !weeklyPlan.lastDayCompletedAt) && (() => {
+        {weeklyPlan && (customPlanTotalEx === 0 || activeProgram === 'ai') && !weeklyPlan.completedFully && !isRestDay && !showRestPrompt && !(!weeklyPlan.started && weeklyPlan.currentDay === 1 && !weeklyPlan.lastDayCompletedAt) && (() => {
   const currentWorkoutDay = weeklyPlan.workoutPlan?.find((d: any) => d.dayNumber === weeklyPlan.currentDay);
   const currentNutritionDay = weeklyPlan.nutritionPlan?.find((d: any) => d.dayNumber === weeklyPlan.currentDay);
 
@@ -2682,61 +2797,66 @@ const pickAndUploadProfilePhoto = async () => {
         const estMin = exs.length * 6 + 8;
         return (
         <View>
-          {/* HERO — bugünkü antrenman */}
-          <View style={styles.gymDayCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          {/* HERO — bugünkü antrenman (Lumina Kinetic) */}
+          <View style={lkStyles.heroCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: C.lime, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>{t('BUGÜN')}</Text>
-                <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginTop: 3 }}>{currentWorkoutDay.focus}</Text>
-                <View style={{ flexDirection: 'row', gap: 14, marginTop: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="barbell-outline" size={15} color={C.textMuted} />
-                    <Text style={{ color: C.textSec, fontSize: 12 }}>{t('{{count}} hareket', { count: exs.length })}</Text>
+                <Text style={lkStyles.heroEyebrow}>{t('BUGÜN')}</Text>
+                <Text style={lkStyles.heroTitle}>{currentWorkoutDay.focus}</Text>
+                <View style={{ flexDirection: 'row', gap: 16, marginTop: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Ionicons name="barbell-outline" size={16} color={LK.onSurfaceVariant} />
+                    <Text style={lkStyles.heroMeta}>{t('{{count}} hareket', { count: exs.length })}</Text>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Ionicons name="time-outline" size={15} color={C.textMuted} />
-                    <Text style={{ color: C.textSec, fontSize: 12 }}>~{estMin} {t('dk')}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Ionicons name="time-outline" size={16} color={LK.onSurfaceVariant} />
+                    <Text style={lkStyles.heroMeta}>~{estMin} {t('dk')}</Text>
                   </View>
                 </View>
               </View>
-              <View style={{ width: 54, height: 54, borderRadius: 27, borderWidth: 4, borderColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: C.text, fontSize: 13, fontWeight: '800' }}>{weeklyPlan.currentDay}/{total}</Text>
+              {/* İlerleme halkası — üst kenar lime, gerisi nötr */}
+              <View style={lkStyles.progressRing}>
+                <Text style={lkStyles.progressText}>{weeklyPlan.currentDay}/{total}</Text>
               </View>
             </View>
             <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutSource('gymbody'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); ptLogIdRef.current = null; }}
-              style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <Ionicons name="play" size={18} color="#0B1207" />
-              <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>{t('Antrenmana başla')}</Text>
+              style={lkStyles.primaryPill}>
+              <Ionicons name="play" size={18} color={LK.onPrimaryContainer} />
+              <Text style={lkStyles.primaryPillText}>{t('Antrenmana başla')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* HAREKETLER */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, marginLeft: 2 }}>
-            <Text style={{ color: C.text, fontSize: 15, fontWeight: '800' }}>{t('Hareketler · {{day}}. gün', { day: currentWorkoutDay.dayNumber })}</Text>
-            <TouchableOpacity activeOpacity={0.8} onPress={() => setDayFeedbackVisible(true)}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.lime + '1A', borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: C.lime + '55' }}>
-              <Ionicons name="checkmark-done" size={13} color={C.lime} />
-              <Text style={{ color: C.lime, fontWeight: '800', fontSize: 12 }}>{t('Tamamla')}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 16, gap: 8 }}>
+            <Text style={lkStyles.sectionTitle} numberOfLines={1}>{t('Hareketler')}</Text>
+            {/* Beğenmediğin hareketi değiştir — AI'a yeniden ürettirmeden, sadece bu gün değişir */}
+            <TouchableOpacity activeOpacity={0.8} onPress={() => openAiDayEditor(currentWorkoutDay)} style={lkStyles.ghostPill}>
+              <Ionicons name="create-outline" size={14} color={LK.onSurface} />
+              <Text style={lkStyles.ghostPillText}>{t('Düzenle')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.8} onPress={() => setDayFeedbackVisible(true)} style={lkStyles.limePill}>
+              <Ionicons name="checkmark" size={14} color={LK.primaryFixed} />
+              <Text style={lkStyles.limePillText}>{t('Tamamla')}</Text>
             </TouchableOpacity>
           </View>
           {exs.map((ex: any, j: number) => (
-            <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 7, borderWidth: 1, borderColor: C.border }}>
-              <View style={{ width: 48, height: 48, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
+            <LinearGradient key={j} colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={lkStyles.exRow}>
+              <View style={lkStyles.exThumb}>
                 {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{ex.name}</Text>
-                <Text style={{ color: C.textMuted, fontSize: 12 }}>{ex.sets}</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={lkStyles.exName} numberOfLines={1}>{ex.name}</Text>
+                <Text style={lkStyles.exSets}>{ex.sets}</Text>
               </View>
-              <TouchableOpacity activeOpacity={0.8} onPress={() => toggleFavExercise(ex.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name={(user?.favoriteExercises || []).includes(ex.name) ? 'star' : 'star-outline'} size={18} color={(user?.favoriteExercises || []).includes(ex.name) ? C.lime : C.textMuted} />
+              <TouchableOpacity activeOpacity={0.8} onPress={() => toggleFavExercise(ex.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={lkStyles.exIconBtnPlain}>
+                <Ionicons name={(user?.favoriteExercises || []).includes(ex.name) ? 'star' : 'star-outline'} size={19} color={(user?.favoriteExercises || []).includes(ex.name) ? LK.primaryFixed : LK.onSurfaceVariant} />
               </TouchableOpacity>
               {ex.gifUrl && (
-                <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="play" size={16} color={C.lime} />
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setGifModalUrl(ex.gifUrl)} style={lkStyles.exIconBtn}>
+                  <Ionicons name="play" size={17} color={LK.onSurface} />
                 </TouchableOpacity>
               )}
-            </View>
+            </LinearGradient>
           ))}
         </View>
         );
@@ -4268,6 +4388,8 @@ const pickAndUploadProfilePhoto = async () => {
 
     {!isEditingProfile ? (
       <>
+
+
         {/* Özet — boy / kilo / VKİ */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 14, borderTopWidth: 1, borderColor: C.border }}>
           <View style={{ alignItems: 'center' }}>
@@ -4971,37 +5093,41 @@ const pickAndUploadProfilePhoto = async () => {
           "seçim modu"nda açar (libPickForDay), böylece liste kodu tek yerde kalır. */}
       <Modal visible={plannerVisible} animationType="slide" onRequestClose={closePlanner}>
         <View style={{ flex: 1, backgroundColor: C.bg }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, gap: 12 }}>
-            <TouchableOpacity onPress={closePlanner}>
-              <Ionicons name="close" size={26} color={C.text} />
+          <View style={lkStyles.plannerHeader}>
+            <TouchableOpacity onPress={closePlanner} style={lkStyles.exIconBtnPlain}>
+              <Ionicons name="close" size={24} color={LK.onSurface} />
             </TouchableOpacity>
-            <Text style={{ color: C.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{t('Kendi Programın')}</Text>
+            <Text style={lkStyles.plannerTitle} numberOfLines={1}>
+              {plannerTarget === 'ai' ? t('Günü Düzenle') : t('Kendi Programın')}
+            </Text>
             <TouchableOpacity
               disabled={plannerSaving}
               onPress={async () => {
-                const ok = await saveCustomPlan(customPlan);
+                const ok = await savePlanner();
                 if (ok) { showToast(t('Programın kaydedildi ✓'), 'success'); setPlannerVisible(false); }
               }}
-              style={{ backgroundColor: C.lime, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, opacity: plannerSaving ? 0.6 : 1 }}>
-              <Text style={{ color: '#0B1207', fontWeight: '900', fontSize: 13 }}>{plannerSaving ? t('Kaydediliyor...') : t('Kaydet')}</Text>
+              style={[lkStyles.savePill, { backgroundColor: plannerAccent }, plannerSaving && { opacity: 0.6 }]}>
+              <Text style={[lkStyles.savePillText, { color: plannerTarget === 'ai' ? LK.onPrimaryContainer : LK.onAccent }]}>
+                {plannerSaving ? t('Kaydediliyor...') : t('Kaydet')}
+              </Text>
             </TouchableOpacity>
           </View>
 
           {/* GÜN SEKMELERİ */}
           <View style={{ paddingHorizontal: 16 }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
-              {customPlan.map((d: any, i: number) => {
+              {plannerDraft.map((d: any, i: number) => {
                 const on = i === plannerDay;
                 return (
                   <TouchableOpacity key={i} onPress={() => setPlannerDay(i)}
-                    style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, backgroundColor: on ? C.lime : C.surface, borderWidth: 1, borderColor: on ? C.lime : C.border }}>
-                    <Text style={{ color: on ? '#0B1207' : C.text, fontWeight: '800', fontSize: 13 }}>{t('{{day}}. Gün', { day: i + 1 })}</Text>
+                    style={[lkStyles.dayChip, on && { backgroundColor: plannerAccent, borderColor: plannerAccent }]}>
+                    <Text style={[lkStyles.dayChipText, on && { color: plannerTarget === 'ai' ? LK.onPrimaryContainer : LK.onAccent }]}>{t('{{day}}. Gün', { day: i + 1 })}</Text>
                   </TouchableOpacity>
                 );
               })}
-              {customPlan.length < 7 && (() => {
+              {plannerDraft.length < 7 && (() => {
                 // Ücretsiz üyelikte 2 gün; 3. gün VIP'e özel
-                const locked = customPlan.length >= customDayLimit;
+                const locked = plannerDraft.length >= customDayLimit;
                 return (
                   <TouchableOpacity
                     onPress={() => {
@@ -5011,8 +5137,8 @@ const pickAndUploadProfilePhoto = async () => {
                         setCurrentTab('profile');
                         return;
                       }
-                      const next = [...customPlan, { dayNumber: customPlan.length + 1, focus: '', exercises: [] }];
-                      setCustomPlan(next);
+                      const next = [...plannerDraft, { dayNumber: plannerDraft.length + 1, focus: '', exercises: [] }];
+                      setPlannerDraft(next);
                       setPlannerDay(next.length - 1);
                     }}
                     style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -5030,41 +5156,44 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
 
           {(() => {
-            const day = customPlan[plannerDay];
+            const day = plannerDraft[plannerDay];
             if (!day) return null;
             const exs = day.exercises || [];
             const patchDay = (patch: any) => {
-              const next = customPlan.map((d: any, i: number) => (i === plannerDay ? { ...d, ...patch } : d));
-              setCustomPlan(next);
+              const next = plannerDraft.map((d: any, i: number) => (i === plannerDay ? { ...d, ...patch } : d));
+              setPlannerDraft(next);
             };
             return (
               <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
                 {/* GÜN BAŞLIĞI */}
-                <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>{t('BU GÜN NE ÇALIŞIYORSUN?')}</Text>
+                <Text style={lkStyles.fieldLabel}>
+                  {plannerTarget === 'ai' ? t('{{day}}. GÜN', { day: day.dayNumber }) : t('BU GÜN NE ÇALIŞIYORSUN?')}
+                </Text>
                 <TextInput
+                  editable={plannerTarget === 'custom'}
                   value={day.focus}
                   onChangeText={(v) => patchDay({ focus: v })}
                   placeholder={t('örn. Göğüs & Triceps')}
-                  placeholderTextColor={C.textMuted}
+                  placeholderTextColor={LK.onSurfaceVariant + '80'}
                   maxLength={60}
-                  style={{ backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 14, height: 46, color: C.text, fontSize: 15, borderWidth: 1, borderColor: C.border }}
+                  style={lkStyles.fieldInput}
                 />
 
                 {/* HAREKETLER */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 8 }}>
-                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{t('Hareketler')}</Text>
-                  <Text style={{ color: C.textMuted, fontSize: 12 }}>{exs.length}/12</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 28, marginBottom: 16 }}>
+                  <Text style={lkStyles.sectionTitle}>{t('Hareketler')}</Text>
+                  <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12 }}>{exs.length}/12</Text>
                 </View>
 
                 {exs.map((ex: any, j: number) => (
-                  <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 8, borderWidth: 1, borderColor: C.border }}>
-                    <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
+                  <LinearGradient key={j} colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={lkStyles.exRow}>
+                    <View style={lkStyles.exThumb}>
                       {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text numberOfLines={1} style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{ex.name}</Text>
-                      {/* Set × tekrar — düzenlenebilir olduğu belli olsun diye kutu + kalem ikonu */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5, alignSelf: 'flex-start', backgroundColor: C.surface2, borderRadius: 8, borderWidth: 1, borderColor: C.border, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text numberOfLines={1} style={lkStyles.exName}>{ex.name}</Text>
+                      {/* Set × tekrar — düzenlenebilir olduğu belli olsun diye çip + kalem ikonu */}
+                      <View style={lkStyles.setChip}>
                         <TextInput
                           value={ex.sets}
                           onChangeText={(v) => {
@@ -5072,26 +5201,29 @@ const pickAndUploadProfilePhoto = async () => {
                             patchDay({ exercises: nextEx });
                           }}
                           placeholder="3x10"
-                          placeholderTextColor={C.textMuted}
+                          placeholderTextColor={LK.onSurfaceVariant + '80'}
                           maxLength={20}
-                          style={{ color: C.lime, fontSize: 13, fontWeight: '700', padding: 0, minWidth: 42 }}
+                          style={[lkStyles.setChipText, { color: plannerAccentFixed }]}
                         />
-                        <Ionicons name="pencil" size={11} color={C.textMuted} />
+                        <Ionicons name="pencil" size={12} color={LK.onSurfaceVariant} />
                       </View>
                     </View>
                     {/* Sıra değiştir */}
-                    <TouchableOpacity disabled={j === 0} onPress={() => {
-                      const nextEx = [...exs];
-                      [nextEx[j - 1], nextEx[j]] = [nextEx[j], nextEx[j - 1]];
-                      patchDay({ exercises: nextEx });
-                    }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ opacity: j === 0 ? 0.25 : 1, padding: 4 }}>
-                      <Ionicons name="chevron-up" size={18} color={C.textSec} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => patchDay({ exercises: exs.filter((_: any, k: number) => k !== j) })}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ padding: 4 }}>
-                      <Ionicons name="trash-outline" size={18} color="#E8654F" />
-                    </TouchableOpacity>
-                  </View>
+                    <View style={{ alignItems: 'center', gap: 2 }}>
+                      <TouchableOpacity disabled={j === 0} onPress={() => {
+                        const nextEx = [...exs];
+                        [nextEx[j - 1], nextEx[j]] = [nextEx[j], nextEx[j - 1]];
+                        patchDay({ exercises: nextEx });
+                      }} hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                        style={[lkStyles.exIconBtnPlain, { width: 32, height: 32 }, j === 0 && { opacity: 0.25 }]}>
+                        <Ionicons name="chevron-up" size={18} color={LK.onSurfaceVariant} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => patchDay({ exercises: exs.filter((_: any, k: number) => k !== j) })}
+                        hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }} style={[lkStyles.exIconBtnPlain, { width: 32, height: 32 }]}>
+                        <Ionicons name="trash-outline" size={18} color={LK.error} />
+                      </TouchableOpacity>
+                    </View>
+                  </LinearGradient>
                 ))}
 
                 {!exs.length && (
@@ -5103,24 +5235,24 @@ const pickAndUploadProfilePhoto = async () => {
                 {exs.length < 12 && (
                   <TouchableOpacity activeOpacity={0.85}
                     onPress={() => openLibraryForPicking(plannerDay)}
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.surface2, borderRadius: 12, paddingVertical: 13, borderWidth: 1, borderColor: C.border, marginTop: 4 }}>
-                    <Ionicons name="add-circle-outline" size={19} color={C.lime} />
-                    <Text style={{ color: C.lime, fontWeight: '800', fontSize: 14 }}>{t('Kütüphaneden Hareket Ekle')}</Text>
+                    style={lkStyles.addExerciseBtn}>
+                    <Ionicons name="add-circle-outline" size={20} color={plannerAccentFixed} />
+                    <Text style={[lkStyles.addExerciseText, { color: plannerAccentFixed }]}>{t('Kütüphaneden Hareket Ekle')}</Text>
                   </TouchableOpacity>
                 )}
 
                 {/* GÜNÜ SİL */}
-                {customPlan.length > 1 && (
+                {plannerTarget === 'custom' && plannerDraft.length > 1 && (
                   <TouchableOpacity
                     onPress={() => {
-                      const next = customPlan
+                      const next = plannerDraft
                         .filter((_: any, i: number) => i !== plannerDay)
                         .map((d: any, i: number) => ({ ...d, dayNumber: i + 1 }));
-                      setCustomPlan(next);
+                      setPlannerDraft(next);
                       setPlannerDay(Math.max(0, plannerDay - 1));
                     }}
                     style={{ alignItems: 'center', marginTop: 22 }}>
-                    <Text style={{ color: '#E8654F', fontSize: 13, fontWeight: '700' }}>{t('{{day}}. günü sil', { day: plannerDay + 1 })}</Text>
+                    <Text style={{ color: LK.error, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4, opacity: 0.8 }}>{t('{{day}}. günü sil', { day: plannerDay + 1 })}</Text>
                   </TouchableOpacity>
                 )}
               </ScrollView>
@@ -5202,24 +5334,24 @@ const pickAndUploadProfilePhoto = async () => {
                 // Seçim modunda karta dokunmak hareketi güne ekler; normal modda detayı açar.
                 // Seçim modunda o güne ekli hareketler — kartta yeşil tik olarak görünür
                 const pickedNames = new Set<string>(
-                  libPickForDay !== null ? ((customPlan[libPickForDay]?.exercises || []).map((e: any) => e.name)) : []
+                  libPickForDay !== null ? ((plannerDraft[libPickForDay]?.exercises || []).map((e: any) => e.name)) : []
                 );
                 // Dokunmak ekler, tekrar dokunmak çıkarır
                 const pickExercise = (item: any) => {
                   const di = libPickForDay;
                   if (di === null) return;
-                  const day = customPlan[di];
+                  const day = plannerDraft[di];
                   if (!day) return;
                   const exs = day.exercises || [];
                   if (exs.some((e: any) => e.name === item.name)) {
-                    setCustomPlan(customPlan.map((d: any, i: number) =>
+                    setPlannerDraft(plannerDraft.map((d: any, i: number) =>
                       i === di ? { ...d, exercises: exs.filter((e: any) => e.name !== item.name) } : d
                     ));
                     showToast(t('{{name}} çıkarıldı', { name: item.name }));
                     return;
                   }
                   if (exs.length >= 12) { showToast(t('Bir güne en fazla 12 hareket ekleyebilirsin.'), 'error'); return; }
-                  setCustomPlan(customPlan.map((d: any, i: number) =>
+                  setPlannerDraft(plannerDraft.map((d: any, i: number) =>
                     i === di ? { ...d, exercises: [...exs, { name: item.name, gifUrl: item.gifUrl || null, sets: '3x10' }] } : d
                   ));
                   showToast(t('{{name}} eklendi', { name: item.name }), 'success');
@@ -6562,6 +6694,136 @@ const makeChartConfig = (C: Palette) => ({
   propsForBackgroundLines: { stroke: C.border },
   propsForDots: { r: '4', strokeWidth: '2', stroke: C.lime }
 });
+// Lumina Kinetic bileşen stilleri (GymBody ana sayfası + Kendi Programın).
+// Palete bağlı değil — bu ekranlar tek koyu temada tasarlandı.
+const lkStyles = StyleSheet.create({
+  quickCard: {
+    flex: 1, backgroundColor: LK.surfaceContainerLow, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: LK.glassBorder, gap: 10,
+  },
+  quickIcon: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: LK.surfaceContainerHigh,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  quickTitle: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.5 },
+  quickSub: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12 },
+
+  // Hero — bugünkü antrenman
+  heroCard: {
+    backgroundColor: LK.surfaceContainerLow, borderRadius: 24, padding: 24,
+    borderWidth: 1, borderColor: 'rgba(186,244,97,0.1)', marginBottom: 4,
+  },
+  heroEyebrow: {
+    color: LK.primaryFixed, fontFamily: LK.fontLabel, fontSize: 14,
+    letterSpacing: 1.4, marginBottom: 4,
+  },
+  heroTitle: { color: LK.onSurface, fontFamily: LK.fontHeadline, fontSize: 28, lineHeight: 34 },
+  heroMeta: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12 },
+  progressRing: {
+    width: 56, height: 56, borderRadius: 28, borderWidth: 4,
+    borderColor: LK.surfaceContainerHigh, borderTopColor: LK.primaryFixed,
+    backgroundColor: LK.surfaceContainer, alignItems: 'center', justifyContent: 'center',
+  },
+  progressText: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 14 },
+
+  // Butonlar — pill (tasarım sisteminde tüm butonlar tam yuvarlak)
+  primaryPill: {
+    marginTop: 24, backgroundColor: LK.primaryContainer, borderRadius: 999, paddingVertical: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    shadowColor: '#b6f05d', shadowOpacity: 0.2, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 6,
+  },
+  primaryPillText: { color: LK.onPrimaryContainer, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.5 },
+  ghostPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999,
+    paddingVertical: 6, paddingHorizontal: 12,
+    backgroundColor: 'rgba(30,32,32,0.5)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+  },
+  ghostPillText: { color: LK.onSurface, fontFamily: LK.fontLabelSm, fontSize: 12 },
+  limePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999,
+    paddingVertical: 6, paddingHorizontal: 12,
+    backgroundColor: 'rgba(186,244,97,0.05)', borderWidth: 1, borderColor: 'rgba(186,244,97,0.3)',
+  },
+  limePillText: { color: LK.primaryFixed, fontFamily: LK.fontLabelSm, fontSize: 12 },
+
+  // Bölüm başlığı
+  sectionTitle: { color: LK.onSurface, fontFamily: LK.fontHeadlineSemi, fontSize: 20, flex: 1 },
+
+  // Hareket satırı
+  exRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 12,
+    borderRadius: 16, padding: 12,
+    borderWidth: 1, borderColor: LK.glassBorder,
+  },
+  exThumb: { width: 64, height: 64, borderRadius: 12, backgroundColor: LK.surfaceContainer, overflow: 'hidden' },
+  exName: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4 },
+  exSets: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12, marginTop: 2 },
+  exIconBtn: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: LK.surfaceContainerHigh,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  exIconBtnPlain: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+
+  // Program anahtarı (AI ↔ kendi programın)
+  segment: {
+    flexDirection: 'row', backgroundColor: LK.surfaceContainerLow, borderRadius: 999,
+    padding: 4, gap: 4, marginBottom: 16, borderWidth: 1, borderColor: LK.glassBorder,
+  },
+  segmentBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 10, borderRadius: 999,
+  },
+  segmentBtnOn: { backgroundColor: LK.primaryContainer },
+  segmentText: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12.5 },
+  segmentTextOn: { color: LK.onPrimaryContainer, fontFamily: LK.fontLabel },
+
+  // Gün çipleri (kendi programın)
+  dayChip: {
+    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 999,
+    backgroundColor: LK.surfaceContainer, borderWidth: 1, borderColor: LK.glassBorder,
+  },
+  dayChipOn: {
+    backgroundColor: LK.primaryContainer, borderColor: LK.primaryContainer,
+    shadowColor: '#b6f05d', shadowOpacity: 0.15, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4,
+  },
+  dayChipText: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4 },
+  dayChipTextOn: { color: LK.onPrimaryContainer },
+  dayChipSub: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 11, marginTop: 1 },
+
+  // Kendi Programın / Günü Düzenle ekranı
+  plannerHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingTop: 56, paddingHorizontal: 20, paddingBottom: 14,
+    borderBottomWidth: 1, borderBottomColor: LK.glassBorder,
+  },
+  plannerTitle: { flex: 1, color: LK.onSurface, fontFamily: LK.fontHeadlineSemi, fontSize: 22 },
+  savePill: {
+    borderRadius: 999, paddingVertical: 9, paddingHorizontal: 20,
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4,
+  },
+  savePillText: { fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4 },
+  fieldLabel: {
+    color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12,
+    letterSpacing: 1, marginBottom: 8,
+  },
+  fieldInput: {
+    backgroundColor: LK.surfaceContainer, borderRadius: 12, paddingHorizontal: 20, height: 50,
+    color: LK.onSurface, fontFamily: LK.fontBody, fontSize: 16,
+    borderWidth: 1, borderColor: LK.glassBorder,
+  },
+  setChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 6,
+    backgroundColor: LK.surfaceContainerHighest, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5,
+  },
+  setChipText: { fontFamily: LK.fontLabel, fontSize: 12, padding: 0, minWidth: 40 },
+  addExerciseBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8,
+    backgroundColor: LK.surfaceContainer, borderRadius: 16, paddingVertical: 15,
+    borderWidth: 1, borderColor: LK.glassBorder,
+  },
+  addExerciseText: { fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4 },
+});
+
 const makeStyles = (C: Palette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 16 },
 
