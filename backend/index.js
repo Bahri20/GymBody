@@ -18,6 +18,15 @@ const CoachMessage = require('./models/CoachMessage');
 const CoachWorkoutLog = require('./models/CoachWorkoutLog');
 const sharp = require('sharp');
 const toDateString = (date) => date.toISOString().split('T')[0];
+
+// Yeni kullanıcıya kayıtta verilen ücretsiz VIP süresi (gün).
+// Kullanıcı çekme dönemi: bilerek cömert tutuluyor, sonra kısılabilir.
+const FREE_TRIAL_DAYS = 3;
+const trialVipExpiry = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + FREE_TRIAL_DAYS);
+  return d;
+};
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const cloudinary = require('cloudinary').v2;
 const appleSignin = require('apple-signin-auth');
@@ -397,10 +406,9 @@ app.post('/register', async (req, res) => {
       }
     }
 
-    // Tüm yeni kullanıcılara 1 gün ücretsiz VIP
+    // Tüm yeni kullanıcılara ücretsiz VIP (FREE_TRIAL_DAYS gün)
     const isVip = true;
-    const vipExpiresAt = new Date();
-    vipExpiresAt.setDate(vipExpiresAt.getDate() + 1);
+    const vipExpiresAt = trialVipExpiry();
 
     const newUser = await User.create({
       email, password: hashedPassword, name, height, weight,
@@ -515,9 +523,8 @@ app.post('/google-login', async (req, res) => {
     let isNew = false;
 
     if (!user) {
-      // Yeni kullanıcı → kayıttaki gibi 1 gün ücretsiz VIP
-      const vipExpiresAt = new Date();
-      vipExpiresAt.setDate(vipExpiresAt.getDate() + 1);
+      // Yeni kullanıcı → kayıttaki gibi ücretsiz VIP
+      const vipExpiresAt = trialVipExpiry();
       user = await User.create({
         email, name, googleId, authProvider: 'google',
         googlePhoto: googlePhoto || null,
@@ -574,8 +581,7 @@ app.post('/apple-login', async (req, res) => {
       const name = (fullName && (fullName.givenName || fullName.familyName))
         ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim()
         : (email ? email.split('@')[0] : 'GymBody Üyesi');
-      const vipExpiresAt = new Date();
-      vipExpiresAt.setDate(vipExpiresAt.getDate() + 1); // kayıttaki gibi 1 gün VIP
+      const vipExpiresAt = trialVipExpiry(); // kayıttaki gibi ücretsiz VIP
       user = await User.create({
         email: finalEmail, name, appleId, authProvider: 'apple',
         isVip: true, vipExpiresAt,
@@ -1448,10 +1454,6 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     const restrictionsText = od.restrictions && od.restrictions !== 'none' ? `Kısıtlama: ${od.restrictions} sorunu var — o bölgeyi zorlayan egzersizlerden kaçın` : 'Fiziksel kısıtlama yok';
 
     const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
-    if (!isVipActive) {
-      return res.status(403).json({ error: "Bu özellik sadece VIP üyeler için kanka!" });
-    }
-
     const existingPlan = user.weeklyPlan;
 
     // ARTIK TAKVİM HAFTASINA GÖRE DEĞİL: program tamamlanana kadar aynı plan dönüyor
@@ -1474,6 +1476,12 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
       user.markModified('weeklyPlan');
       await user.save();
       return res.json(existingPlan);
+    }
+
+    // VIP duvarı burada: devam eden programı görmek herkese açık (yukarıda döndü),
+    // AI ile YENİ program üretmek VIP'e özel. Gemini maliyeti sadece VIP'te oluşuyor.
+    if (!isVipActive) {
+      return res.status(403).json({ error: "Yeni program oluşturmak VIP üyelere özel kanka!" });
     }
 
     console.log("🤖 Yeni program üretiliyor...");
