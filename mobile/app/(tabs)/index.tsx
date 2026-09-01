@@ -2671,7 +2671,7 @@ const pickAndUploadProfilePhoto = async () => {
           </TouchableOpacity>
 
           <TouchableOpacity onPress={openPlanner} activeOpacity={0.85}
-            style={[lkStyles.quickCard, customPlanTotalEx > 0 && { borderColor: LK.accentBorder }]}>
+            style={lkStyles.quickCard}>
             <View style={lkStyles.quickIcon}>
               <Ionicons name="construct-outline" size={19} color={LK.accentFixed} />
             </View>
@@ -2717,7 +2717,7 @@ const pickAndUploadProfilePhoto = async () => {
                   const on = d.dayNumber === customSelectedDay;
                   return (
                     <TouchableOpacity key={i} activeOpacity={0.85} onPress={() => setCustomSelectedDay(d.dayNumber)}
-                      style={[lkStyles.dayChip, on && { backgroundColor: LK.accent, borderColor: LK.accent }]}>
+                      style={[lkStyles.dayChip, on && { backgroundColor: LK.accent }]}>
                       <Text style={[lkStyles.dayChipText, on && { color: LK.onAccent }]}>{t('{{day}}. Gün', { day: d.dayNumber })}</Text>
                       {!!d.focus && <Text style={[lkStyles.dayChipSub, on && { color: LK.onAccent }]} numberOfLines={1}>{d.focus}</Text>}
                     </TouchableOpacity>
@@ -2729,7 +2729,7 @@ const pickAndUploadProfilePhoto = async () => {
                 if (!day) return null;
                 const exs = day.exercises || [];
                 return (
-                  <View style={[lkStyles.heroCard, { borderColor: LK.accentBorder }]}>
+                  <View style={lkStyles.heroCard}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                       <View style={{ flex: 1 }}>
                         <Text style={[lkStyles.heroEyebrow, { color: LK.accentFixed }]}>{t('{{day}}. GÜN', { day: day.dayNumber })}</Text>
@@ -5092,7 +5092,7 @@ const pickAndUploadProfilePhoto = async () => {
       {/* KENDİ PROGRAMIN — kurma ekranı. Hareket seçimi kütüphane modalını
           "seçim modu"nda açar (libPickForDay), böylece liste kodu tek yerde kalır. */}
       <Modal visible={plannerVisible} animationType="slide" onRequestClose={closePlanner}>
-        <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <View style={{ flex: 1, backgroundColor: LK.bg }}>
           <View style={lkStyles.plannerHeader}>
             <TouchableOpacity onPress={closePlanner} style={lkStyles.exIconBtnPlain}>
               <Ionicons name="close" size={24} color={LK.onSurface} />
@@ -6750,10 +6750,13 @@ const lkStyles = StyleSheet.create({
   sectionTitle: { color: LK.onSurface, fontFamily: LK.fontHeadlineSemi, fontSize: 20, flex: 1 },
 
   // Hareket satırı
+  // Kenarda keskin çizgi yok: yumuşak gölge/ışıma ile sınır bulanıklaşıyor,
+  // kartlar zeminden yükseliyormuş gibi duruyor ("kutu" hissini kaldırır).
   exRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 12,
-    borderRadius: 16, padding: 12,
-    borderWidth: 1, borderColor: LK.glassBorder,
+    flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 10,
+    borderRadius: 20, padding: 12,
+    shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   exThumb: { width: 64, height: 64, borderRadius: 12, backgroundColor: LK.surfaceContainer, overflow: 'hidden' },
   exName: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4 },
@@ -6767,7 +6770,9 @@ const lkStyles = StyleSheet.create({
   // Program anahtarı (AI ↔ kendi programın)
   segment: {
     flexDirection: 'row', backgroundColor: LK.surfaceContainerLow, borderRadius: 999,
-    padding: 4, gap: 4, marginBottom: 16, borderWidth: 1, borderColor: LK.glassBorder,
+    padding: 4, gap: 4, marginBottom: 16,
+    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   segmentBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -6780,7 +6785,9 @@ const lkStyles = StyleSheet.create({
   // Gün çipleri (kendi programın)
   dayChip: {
     paddingHorizontal: 20, paddingVertical: 10, borderRadius: 999,
-    backgroundColor: LK.surfaceContainer, borderWidth: 1, borderColor: LK.glassBorder,
+    backgroundColor: LK.surfaceContainer,
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
   dayChipOn: {
     backgroundColor: LK.primaryContainer, borderColor: LK.primaryContainer,
@@ -6793,8 +6800,10 @@ const lkStyles = StyleSheet.create({
   // Kendi Programın / Günü Düzenle ekranı
   plannerHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingTop: 56, paddingHorizontal: 20, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: LK.glassBorder,
+    paddingTop: 56, paddingHorizontal: 20, paddingBottom: 16,
+    backgroundColor: LK.bg,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
+    elevation: 6, zIndex: 2,
   },
   plannerTitle: { flex: 1, color: LK.onSurface, fontFamily: LK.fontHeadlineSemi, fontSize: 22 },
   savePill: {
@@ -6807,19 +6816,21 @@ const lkStyles = StyleSheet.create({
     letterSpacing: 1, marginBottom: 8,
   },
   fieldInput: {
-    backgroundColor: LK.surfaceContainer, borderRadius: 12, paddingHorizontal: 20, height: 50,
+    backgroundColor: LK.surfaceContainer, borderRadius: 14, paddingHorizontal: 20, height: 50,
     color: LK.onSurface, fontFamily: LK.fontBody, fontSize: 16,
-    borderWidth: 1, borderColor: LK.glassBorder,
+    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   setChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 6,
-    backgroundColor: LK.surfaceContainerHighest, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5,
+    backgroundColor: LK.surfaceContainerHighest, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5,
   },
   setChipText: { fontFamily: LK.fontLabel, fontSize: 12, padding: 0, minWidth: 40 },
   addExerciseBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8,
-    backgroundColor: LK.surfaceContainer, borderRadius: 16, paddingVertical: 15,
-    borderWidth: 1, borderColor: LK.glassBorder,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10,
+    backgroundColor: LK.surfaceContainer, borderRadius: 20, paddingVertical: 15,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 5 },
+    elevation: 6,
   },
   addExerciseText: { fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4 },
 });
