@@ -2610,6 +2610,77 @@ app.post('/my-coach/messages', authMiddleware, async (req, res) => {
   } catch (err) { console.error("my-coach send hatası:", err); res.status(500).json({ error: "Mesaj gönderilemedi." }); }
 });
 
+// ==================== KENDİ PROGRAMIN ====================
+// Kullanıcı kütüphaneden hareket seçip kendi haftalık programını kurar.
+// VIP gerekmez — AI çağrısı yok, maliyeti sıfır. Amaç: VIP almayan kullanıcının da
+// uygulamada yapacak bir işi olsun, aktif kalsın.
+
+const CUSTOM_PLAN_MAX_DAYS = 7;
+const CUSTOM_PLAN_MAX_EX_PER_DAY = 12;
+
+// Gelen planı temizle: sadece bilinen alanlar, sınırlar içinde, gifUrl DB'den doğrulanmış.
+async function sanitizeCustomPlan(workoutPlan) {
+  if (!Array.isArray(workoutPlan)) return { error: "Geçersiz program." };
+  if (workoutPlan.length > CUSTOM_PLAN_MAX_DAYS)
+    return { error: `En fazla ${CUSTOM_PLAN_MAX_DAYS} gün ekleyebilirsin.` };
+
+  // Hareket adları kütüphanede var mı — uydurma isim/gifUrl enjeksiyonunu engeller
+  const known = await ExerciseGif.find({}, 'name gifUrl').lean();
+  const byName = new Map(known.map(e => [String(e.name).toLowerCase().trim(), e]));
+
+  const clean = [];
+  for (let i = 0; i < workoutPlan.length; i++) {
+    const d = workoutPlan[i] || {};
+    const exercises = Array.isArray(d.exercises) ? d.exercises : [];
+    if (exercises.length > CUSTOM_PLAN_MAX_EX_PER_DAY)
+      return { error: `Bir güne en fazla ${CUSTOM_PLAN_MAX_EX_PER_DAY} hareket ekleyebilirsin.` };
+
+    const cleanEx = [];
+    for (const ex of exercises) {
+      const match = byName.get(String(ex?.name || '').toLowerCase().trim());
+      if (!match) continue;   // kütüphanede olmayan hareket sessizce düşer
+      cleanEx.push({
+        name: match.name,
+        gifUrl: match.gifUrl || null,
+        sets: String(ex?.sets || '3x10').slice(0, 20),
+      });
+    }
+    clean.push({
+      dayNumber: i + 1,
+      focus: String(d.focus || '').slice(0, 60),
+      exercises: cleanEx,
+    });
+  }
+  return { plan: clean };
+}
+
+// Kendi programını getir
+app.get('/custom-plan', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId, 'customPlan');
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    res.json({
+      workoutPlan: user.customPlan?.workoutPlan || [],
+      updatedAt: user.customPlan?.updatedAt || null,
+    });
+  } catch (err) { console.error("custom-plan getirme hatası:", err); res.status(500).json({ error: "Program yüklenemedi." }); }
+});
+
+// Kendi programını kaydet (tamamını değiştirir)
+app.post('/custom-plan', authMiddleware, async (req, res) => {
+  try {
+    const { plan, error } = await sanitizeCustomPlan(req.body.workoutPlan);
+    if (error) return res.status(400).json({ error });
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    user.customPlan = { workoutPlan: plan, updatedAt: new Date() };
+    user.markModified('customPlan');
+    await user.save();
+    console.log(`🛠️ Kendi programı kaydedildi → ${user.name} (${plan.length} gün)`);
+    res.json({ workoutPlan: plan, updatedAt: user.customPlan.updatedAt });
+  } catch (err) { console.error("custom-plan kaydetme hatası:", err); res.status(500).json({ error: "Program kaydedilemedi." }); }
+});
+
 // ==================== HOCA PROGRAMI — ANTRENMAN TAKİBİ ====================
 // Öğrenci hocanın yazdığı günü açınca kayıt açılır, son set bitince 'completed' olur.
 // Hoca panelde kimin devam ettiğini / kimin bıraktığını görür.

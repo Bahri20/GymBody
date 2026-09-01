@@ -62,6 +62,12 @@ const userSchema = new mongoose.Schema({
     nutritionPlan: { type: mongoose.Schema.Types.Mixed },
     coachName: { type: String },
     updatedAt: { type: Date }
+  },
+  // Kullanıcının kendi kurduğu program — AI (weeklyPlan) ve hoca (coachPlan) planlarından ayrı.
+  // VIP gerekmez: AI maliyeti yok, kullanıcı hareketleri kütüphaneden kendi seçiyor.
+  customPlan: {
+    workoutPlan: { type: mongoose.Schema.Types.Mixed },
+    updatedAt: { type: Date }
   }
 }, { timestamps: true });
 

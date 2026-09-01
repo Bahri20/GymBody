@@ -483,17 +483,69 @@ export default function App() {
   const [libGroup, setLibGroup] = useState('Tümü');
   const [libDetail, setLibDetail] = useState<any>(null);
   const [libLoading, setLibLoading] = useState(false);
+  // Kendi programın — kullanıcının kütüphaneden kurduğu plan (VIP gerekmez)
+  const [customPlan, setCustomPlan] = useState<any[]>([]);
+  const [plannerVisible, setPlannerVisible] = useState(false);
+  const [plannerDay, setPlannerDay] = useState(0);
+  const [plannerSaving, setPlannerSaving] = useState(false);
+  // Kütüphane "seçim modu": null → normal gezinme, sayı → o gün indeksine hareket ekleniyor
+  const [libPickForDay, setLibPickForDay] = useState<number | null>(null);
+  const [customSelectedDay, setCustomSelectedDay] = useState(1);
+  const plannerSnapshotRef = useRef<string>('');
   useEffect(() => {
     if (!gifModalUrl && !libDetail) return;
     setGifFrame(0);
     const id = setInterval(() => setGifFrame((f) => (f === 0 ? 1 : 0)), 650);
     return () => clearInterval(id);
   }, [gifModalUrl, libDetail]);
-  const openLibrary = async () => {
-    setLibVisible(true);
-    // NOT: eskiden "zaten yüklendiyse tekrar çekme" vardı — bu, kütüphaneyi oturum
-    // boyunca kalıcı olarak eskitiyordu (yeni eklenen egzersizler DB'de olsa da
-    // uygulama açık kaldığı sürece görünmüyordu). Her açılışta taze veri çek.
+  // ─── KENDİ PROGRAMIN ───
+  const fetchCustomPlan = async () => {
+    if (!token) return;
+    try {
+      const { data } = await axios.get(`${API_URL}/custom-plan`, { headers: { Authorization: `Bearer ${token}` } });
+      setCustomPlan(data?.workoutPlan || []);
+    } catch {}
+  };
+  const saveCustomPlan = async (plan: any[]) => {
+    if (!token) return false;
+    setPlannerSaving(true);
+    try {
+      const { data } = await axios.post(`${API_URL}/custom-plan`, { workoutPlan: plan },
+        { headers: { Authorization: `Bearer ${token}` } });
+      setCustomPlan(data?.workoutPlan || []);
+      return true;
+    } catch (error: any) {
+      showToast(error.userMessage || error.response?.data?.error || t('Program kaydedilemedi.'), 'error');
+      return false;
+    } finally { setPlannerSaving(false); }
+  };
+  // Programı aç: hiç gün yoksa boş bir 1. günle başlat ki kullanıcı boş ekrana bakmasın
+  const openPlanner = () => {
+    const start = customPlan.length ? customPlan : [{ dayNumber: 1, focus: '', exercises: [] }];
+    if (!customPlan.length) setCustomPlan(start);
+    plannerSnapshotRef.current = JSON.stringify(start);
+    setPlannerDay(0);
+    setPlannerVisible(true);
+    if (!Object.keys(libData).length) loadLibraryData();
+  };
+  // Kaydedilmemiş değişiklikle kapatma — kullanıcı emeğini sessizce kaybetmesin
+  const closePlanner = () => {
+    if (JSON.stringify(customPlan) === plannerSnapshotRef.current) { setPlannerVisible(false); return; }
+    Alert.alert(
+      t('Kaydedilmemiş değişiklikler'),
+      t('Programındaki değişiklikleri kaydetmek ister misin?'),
+      [
+        { text: t('Vazgeç'), style: 'destructive', onPress: () => { fetchCustomPlan(); setPlannerVisible(false); } },
+        { text: t('Kaydet'), onPress: async () => {
+          const ok = await saveCustomPlan(customPlan);
+          if (ok) { showToast(t('Programın kaydedildi ✓'), 'success'); setPlannerVisible(false); }
+        } },
+      ]
+    );
+  };
+
+  // Kütüphane verisini çek (modal açmadan da kullanılıyor)
+  const loadLibraryData = async () => {
     setLibLoading(true);
     try {
       const res = await axios.get(`${API_URL}/exercises`, { headers: { Authorization: `Bearer ${token}` } });
@@ -501,6 +553,19 @@ export default function App() {
     } catch { showToast(t('Kütüphane yüklenemedi.'), 'error'); }
     finally { setLibLoading(false); }
   };
+
+  const openLibrary = async () => {
+    setLibVisible(true);
+    // NOT: eskiden "zaten yüklendiyse tekrar çekme" vardı — bu, kütüphaneyi oturum
+    // boyunca kalıcı olarak eskitiyordu (yeni eklenen egzersizler DB'de olsa da
+    // uygulama açık kaldığı sürece görünmüyordu). Her açılışta taze veri çek.
+    await loadLibraryData();
+  };
+  // Kendi programındaki toplam hareket sayısı — kart altyazısı ve "program var mı" kontrolü
+  const customPlanTotalEx = useMemo(
+    () => customPlan.reduce((n: number, d: any) => n + ((d?.exercises || []).length), 0),
+    [customPlan]
+  );
   const gifByLiftName = useMemo(() => {
     const m: Record<string, string> = {};
     Object.values(libData).forEach((arr) => (arr as any[]).forEach((e) => {
@@ -552,7 +617,7 @@ export default function App() {
   const restIntervalRef = useRef<any>(null);
   // Antrenman modu hangi programdan açıldı — GymBody'nin kendi "günü tamamladım" akışı
   // (weeklyPlan.currentDay ilerletme, /complete-day) sadece 'gymbody' kaynağında tetiklenir.
-  const [workoutSource, setWorkoutSource] = useState<'gymbody' | 'pt'>('gymbody');
+  const [workoutSource, setWorkoutSource] = useState<'gymbody' | 'pt' | 'custom'>('gymbody');
   // PT sekmesinde seçili gün — hocanın planında GymBody'deki gibi "bugün" kavramı yok,
   // kullanıcı gün sekmelerinden birini seçiyor.
   const [ptSelectedDay, setPtSelectedDay] = useState(1);
@@ -999,6 +1064,7 @@ useEffect(() => {
 useEffect(() => {
   if (token) fetchWeeklyPlan(true); // silent=true, hata alert'i gösterme
 }, [userStats.isVip, token]);
+useEffect(() => { if (token) fetchCustomPlan(); }, [token]);
 useEffect(() => {
   if (userStats.isVip && user?.lifts) fetchMyLiftRanks();
 }, [userStats.isVip, user?.lifts]);
@@ -2442,7 +2508,7 @@ const pickAndUploadProfilePhoto = async () => {
         )}
 
         {/* HAREKET KÜTÜPHANESİ girişi */}
-        <TouchableOpacity onPress={openLibrary} activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 12 }}>
+        <TouchableOpacity onPress={openLibrary} activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 10 }}>
           <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="albums-outline" size={20} color={C.lime} />
           </View>
@@ -2452,6 +2518,64 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
           <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
         </TouchableOpacity>
+
+        {/* KENDİ PROGRAMIN — kütüphanenin hemen yanında; VIP gerekmez */}
+        <TouchableOpacity onPress={openPlanner} activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: customPlanTotalEx > 0 ? 'rgba(163,230,53,0.35)' : C.border }}>
+          <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="construct-outline" size={20} color={C.lime} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>{t('Kendi Programın')}</Text>
+            <Text style={{ color: C.textMuted, fontSize: 12 }}>
+              {customPlanTotalEx > 0
+                ? t('{{days}} gün · {{count}} hareket', { days: customPlan.length, count: customPlanTotalEx })
+                : t('Kütüphaneden seç, kendi programını kur')}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
+        </TouchableOpacity>
+
+        {/* KENDİ PROGRAMIN — gün kartları ve "Antrenmana başla" */}
+        {customPlanTotalEx > 0 && (() => {
+          const days = customPlan.filter((d: any) => (d.exercises || []).length > 0);
+          return (
+            <View style={{ marginBottom: 12 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 10 }}>
+                {days.map((d: any, i: number) => {
+                  const on = d.dayNumber === customSelectedDay;
+                  return (
+                    <TouchableOpacity key={i} activeOpacity={0.85} onPress={() => setCustomSelectedDay(d.dayNumber)}
+                      style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: on ? C.lime : C.surface, borderWidth: 1, borderColor: on ? C.lime : C.border }}>
+                      <Text style={{ color: on ? '#0B1207' : C.text, fontWeight: '800', fontSize: 13 }}>{t('{{day}}. Gün', { day: d.dayNumber })}</Text>
+                      {!!d.focus && <Text style={{ color: on ? '#0B1207' : C.textMuted, fontSize: 11, marginTop: 1 }} numberOfLines={1}>{d.focus}</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              {(() => {
+                const day = days.find((d: any) => d.dayNumber === customSelectedDay) || days[0];
+                if (!day) return null;
+                const exs = day.exercises || [];
+                return (
+                  <View style={styles.gymDayCard}>
+                    <Text style={{ color: C.lime, fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>{t('{{day}}. GÜN', { day: day.dayNumber })}</Text>
+                    <Text style={{ color: C.text, fontSize: 22, fontWeight: '800', marginTop: 3 }}>{day.focus || t('Antrenman')}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+                      <Ionicons name="barbell-outline" size={15} color={C.textMuted} />
+                      <Text style={{ color: C.textSec, fontSize: 12 }}>{t('{{count}} hareket', { count: exs.length })}</Text>
+                    </View>
+                    <TouchableOpacity activeOpacity={0.88}
+                      onPress={() => { setWorkoutSource('custom'); setCustomSelectedDay(day.dayNumber); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); ptLogIdRef.current = null; }}
+                      style={{ marginTop: 14, backgroundColor: C.lime, borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      <Ionicons name="play" size={18} color="#0B1207" />
+                      <Text style={{ color: '#0B1207', fontWeight: '800', fontSize: 15 }}>{t('Antrenmana başla')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })()}
+            </View>
+          );
+        })()}
 
         {/* PLAN GÖSTERİMİ */}
         {weeklyPlan && !weeklyPlan.completedFully && !isRestDay && !showRestPrompt && !(!weeklyPlan.started && weeklyPlan.currentDay === 1 && !weeklyPlan.lastDayCompletedAt) && (() => {
@@ -4511,6 +4635,8 @@ const pickAndUploadProfilePhoto = async () => {
       {(() => {
         const exercises: any[] = workoutSource === 'pt'
           ? (coachData.workoutPlan?.find((d: any) => d.dayNumber === ptSelectedDay)?.exercises || [])
+          : workoutSource === 'custom'
+          ? (customPlan.find((d: any) => d.dayNumber === customSelectedDay)?.exercises || [])
           : (weeklyPlan?.workoutPlan?.find((d: any) => d.dayNumber === weeklyPlan?.currentDay)?.exercises || []);
         const ex = exercises[workoutExIdx];
         if (!ex) return null;
@@ -4564,6 +4690,9 @@ const pickAndUploadProfilePhoto = async () => {
               // kayıt 'completed' olarak kapatılır.
               if (workoutSource === 'pt') {
                 ptWorkoutFinish('completed', exercises.length);
+                showToast(t('Antrenmanı bitirdin, tebrikler! 💪'), 'success');
+              } else if (workoutSource === 'custom') {
+                // Kendi programı GymBody'nin gün ilerletme akışına bağlı değil
                 showToast(t('Antrenmanı bitirdin, tebrikler! 💪'), 'success');
               } else {
                 setDayFeedbackVisible(true);
@@ -4746,14 +4875,164 @@ const pickAndUploadProfilePhoto = async () => {
       {!workoutActive && renderGifViewerModal()}
 
       {/* EGZERSİZ KÜTÜPHANESİ MODAL */}
-      <Modal visible={libVisible} animationType="slide" onRequestClose={() => { if (libDetail) setLibDetail(null); else setLibVisible(false); }}>
+      {/* KENDİ PROGRAMIN — kurma ekranı. Hareket seçimi kütüphane modalını
+          "seçim modu"nda açar (libPickForDay), böylece liste kodu tek yerde kalır. */}
+      <Modal visible={plannerVisible} animationType="slide" onRequestClose={closePlanner}>
         <View style={{ flex: 1, backgroundColor: C.bg }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, gap: 12 }}>
-            <TouchableOpacity onPress={() => { if (libDetail) setLibDetail(null); else setLibVisible(false); }}>
+            <TouchableOpacity onPress={closePlanner}>
+              <Ionicons name="close" size={26} color={C.text} />
+            </TouchableOpacity>
+            <Text style={{ color: C.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{t('Kendi Programın')}</Text>
+            <TouchableOpacity
+              disabled={plannerSaving}
+              onPress={async () => {
+                const ok = await saveCustomPlan(customPlan);
+                if (ok) { plannerSnapshotRef.current = JSON.stringify(customPlan); showToast(t('Programın kaydedildi ✓'), 'success'); setPlannerVisible(false); }
+              }}
+              style={{ backgroundColor: C.lime, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, opacity: plannerSaving ? 0.6 : 1 }}>
+              <Text style={{ color: '#0B1207', fontWeight: '900', fontSize: 13 }}>{plannerSaving ? t('Kaydediliyor...') : t('Kaydet')}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* GÜN SEKMELERİ */}
+          <View style={{ paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+              {customPlan.map((d: any, i: number) => {
+                const on = i === plannerDay;
+                return (
+                  <TouchableOpacity key={i} onPress={() => setPlannerDay(i)}
+                    style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, backgroundColor: on ? C.lime : C.surface, borderWidth: 1, borderColor: on ? C.lime : C.border }}>
+                    <Text style={{ color: on ? '#0B1207' : C.text, fontWeight: '800', fontSize: 13 }}>{t('{{day}}. Gün', { day: i + 1 })}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {customPlan.length < 7 && (
+                <TouchableOpacity
+                  onPress={() => {
+                    const next = [...customPlan, { dayNumber: customPlan.length + 1, focus: '', exercises: [] }];
+                    setCustomPlan(next);
+                    setPlannerDay(next.length - 1);
+                  }}
+                  style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Ionicons name="add" size={16} color={C.lime} />
+                  <Text style={{ color: C.lime, fontWeight: '800', fontSize: 13 }}>{t('Gün Ekle')}</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
+
+          {(() => {
+            const day = customPlan[plannerDay];
+            if (!day) return null;
+            const exs = day.exercises || [];
+            const patchDay = (patch: any) => {
+              const next = customPlan.map((d: any, i: number) => (i === plannerDay ? { ...d, ...patch } : d));
+              setCustomPlan(next);
+            };
+            return (
+              <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+                {/* GÜN BAŞLIĞI */}
+                <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>{t('BU GÜN NE ÇALIŞIYORSUN?')}</Text>
+                <TextInput
+                  value={day.focus}
+                  onChangeText={(v) => patchDay({ focus: v })}
+                  placeholder={t('örn. Göğüs & Triceps')}
+                  placeholderTextColor={C.textMuted}
+                  maxLength={60}
+                  style={{ backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 14, height: 46, color: C.text, fontSize: 15, borderWidth: 1, borderColor: C.border }}
+                />
+
+                {/* HAREKETLER */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18, marginBottom: 8 }}>
+                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{t('Hareketler')}</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 12 }}>{exs.length}/12</Text>
+                </View>
+
+                {exs.map((ex: any, j: number) => (
+                  <View key={j} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface, borderRadius: 12, padding: 9, marginBottom: 8, borderWidth: 1, borderColor: C.border }}>
+                    <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: C.surface2, overflow: 'hidden' }}>
+                      {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={1} style={{ color: C.text, fontSize: 14, fontWeight: '600' }}>{ex.name}</Text>
+                      <TextInput
+                        value={ex.sets}
+                        onChangeText={(v) => {
+                          const nextEx = exs.map((e: any, k: number) => (k === j ? { ...e, sets: v } : e));
+                          patchDay({ exercises: nextEx });
+                        }}
+                        placeholder="3x10"
+                        placeholderTextColor={C.textMuted}
+                        maxLength={20}
+                        style={{ color: C.textMuted, fontSize: 12, padding: 0, marginTop: 2 }}
+                      />
+                    </View>
+                    {/* Sıra değiştir */}
+                    <TouchableOpacity disabled={j === 0} onPress={() => {
+                      const nextEx = [...exs];
+                      [nextEx[j - 1], nextEx[j]] = [nextEx[j], nextEx[j - 1]];
+                      patchDay({ exercises: nextEx });
+                    }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ opacity: j === 0 ? 0.25 : 1, padding: 4 }}>
+                      <Ionicons name="chevron-up" size={18} color={C.textSec} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => patchDay({ exercises: exs.filter((_: any, k: number) => k !== j) })}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ padding: 4 }}>
+                      <Ionicons name="trash-outline" size={18} color="#E8654F" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {!exs.length && (
+                  <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginVertical: 18 }}>
+                    {t('Bu güne henüz hareket eklemedin.')}
+                  </Text>
+                )}
+
+                {exs.length < 12 && (
+                  <TouchableOpacity activeOpacity={0.85}
+                    onPress={() => { setLibPickForDay(plannerDay); setLibSearch(''); setLibDetail(null); setLibVisible(true); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.surface2, borderRadius: 12, paddingVertical: 13, borderWidth: 1, borderColor: C.border, marginTop: 4 }}>
+                    <Ionicons name="add-circle-outline" size={19} color={C.lime} />
+                    <Text style={{ color: C.lime, fontWeight: '800', fontSize: 14 }}>{t('Kütüphaneden Hareket Ekle')}</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* GÜNÜ SİL */}
+                {customPlan.length > 1 && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      const next = customPlan
+                        .filter((_: any, i: number) => i !== plannerDay)
+                        .map((d: any, i: number) => ({ ...d, dayNumber: i + 1 }));
+                      setCustomPlan(next);
+                      setPlannerDay(Math.max(0, plannerDay - 1));
+                    }}
+                    style={{ alignItems: 'center', marginTop: 22 }}>
+                    <Text style={{ color: '#E8654F', fontSize: 13, fontWeight: '700' }}>{t('{{day}}. günü sil', { day: plannerDay + 1 })}</Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            );
+          })()}
+        </View>
+      </Modal>
+
+      <Modal visible={libVisible} animationType="slide" onRequestClose={() => { if (libDetail) setLibDetail(null); else { setLibVisible(false); setLibPickForDay(null); } }}>
+        <View style={{ flex: 1, backgroundColor: C.bg }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, gap: 12 }}>
+            <TouchableOpacity onPress={() => { if (libDetail) setLibDetail(null); else { setLibVisible(false); setLibPickForDay(null); } }}>
               <Ionicons name={libDetail ? 'arrow-back' : 'close'} size={26} color={C.text} />
             </TouchableOpacity>
-            <Text numberOfLines={1} style={{ color: C.text, fontSize: 18, fontWeight: '800', flex: 1 }}>{libDetail ? libDetail.name : t('Hareket Kütüphanesi')}</Text>
+            <Text numberOfLines={1} style={{ color: C.text, fontSize: 18, fontWeight: '800', flex: 1 }}>
+              {libDetail ? libDetail.name : (libPickForDay !== null ? t('Hareket Seç') : t('Hareket Kütüphanesi'))}
+            </Text>
           </View>
+          {libPickForDay !== null && !libDetail && (
+            <Text style={{ color: C.textMuted, fontSize: 12.5, paddingHorizontal: 16, marginBottom: 10 }}>
+              {t('Eklemek istediğin harekete dokun · {{day}}. gün', { day: libPickForDay + 1 })}
+            </Text>
+          )}
 
           {libDetail ? (
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
@@ -4804,8 +5083,22 @@ const pickAndUploadProfilePhoto = async () => {
                 const q = libSearch.toLowerCase().trim();
                 const filtered = allExercises.filter((x) => (libGroup === 'Tümü' || x._group === libGroup) && (!q || x.name.toLowerCase().includes(q)));
                 const favExercises = allExercises.filter((x) => favSet.has(x.name));
+                // Seçim modunda karta dokunmak hareketi güne ekler; normal modda detayı açar.
+                const pickExercise = (item: any) => {
+                  const di = libPickForDay;
+                  if (di === null) return;
+                  const day = customPlan[di];
+                  if (!day) return;
+                  const exs = day.exercises || [];
+                  if (exs.length >= 12) { showToast(t('Bir güne en fazla 12 hareket ekleyebilirsin.'), 'error'); return; }
+                  if (exs.some((e: any) => e.name === item.name)) { showToast(t('Bu hareket zaten ekli.'), 'error'); return; }
+                  setCustomPlan(customPlan.map((d: any, i: number) =>
+                    i === di ? { ...d, exercises: [...exs, { name: item.name, gifUrl: item.gifUrl || null, sets: '3x10' }] } : d
+                  ));
+                  showToast(t('{{name}} eklendi', { name: item.name }), 'success');
+                };
                 const renderCard = (item: any, extraStyle?: any) => (
-                  <TouchableOpacity key={item.name} onPress={() => setLibDetail(item)} activeOpacity={0.85} style={[{ flex: 1, maxWidth: '48%', backgroundColor: C.surface, borderRadius: 12, marginBottom: 10, overflow: 'hidden' }, extraStyle]}>
+                  <TouchableOpacity key={item.name} onPress={() => (libPickForDay !== null ? pickExercise(item) : setLibDetail(item))} activeOpacity={0.85} style={[{ flex: 1, maxWidth: '48%', backgroundColor: C.surface, borderRadius: 12, marginBottom: 10, overflow: 'hidden' }, extraStyle]}>
                     <View>
                       <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(item.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: 110, backgroundColor: C.surface2 }} contentFit="cover" />
                       <TouchableOpacity
