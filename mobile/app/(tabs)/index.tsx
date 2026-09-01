@@ -491,6 +491,8 @@ export default function App() {
   // Kütüphane "seçim modu": null → normal gezinme, sayı → o gün indeksine hareket ekleniyor
   const [libPickForDay, setLibPickForDay] = useState<number | null>(null);
   const [customSelectedDay, setCustomSelectedDay] = useState(1);
+  // Kendi programı olan kullanıcıda AI formu daraltılmış durur — ekranı işgal etmesin
+  const [aiFormExpanded, setAiFormExpanded] = useState(false);
   const plannerSnapshotRef = useRef<string>('');
   // Ücretsiz üyelikte kurulabilecek gün sayısı — sunucudan gelir (VIP: 7, ücretsiz: 2)
   const [customDayLimit, setCustomDayLimit] = useState(2);
@@ -2458,10 +2460,37 @@ const pickAndUploadProfilePhoto = async () => {
           );
         })()}
 
-        {/* FORM */}
-        {!weeklyPlan && (
+        {/* FORM — kendi programı olan kullanıcıda tek satıra iner, dokununca açılır */}
+        {!weeklyPlan && customPlanTotalEx > 0 && !aiFormExpanded && (
+          <TouchableOpacity activeOpacity={0.85} onPress={() => setAiFormExpanded(true)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(255,159,28,0.3)' }}>
+            <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,159,28,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="sparkles" size={19} color="#FF9F1C" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>{t('AI Programı')}</Text>
+                {!userStats.isVip && (
+                  <View style={{ backgroundColor: 'rgba(255,159,28,0.18)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
+                    <Text style={{ color: '#FF9F1C', fontSize: 9, fontWeight: '900' }}>VIP</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 1 }}>{t('Antrenman + beslenme planını AI hazırlasın')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
+          </TouchableOpacity>
+        )}
+        {!weeklyPlan && !(customPlanTotalEx > 0 && !aiFormExpanded) && (
           <View style={styles.statsCard}>
-            <Text style={styles.statsTitle}>{t('Programını Oluştur')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={styles.statsTitle}>{t('Programını Oluştur')}</Text>
+              {customPlanTotalEx > 0 && (
+                <TouchableOpacity onPress={() => setAiFormExpanded(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="chevron-up" size={20} color={C.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
 
             {/* BESLENME HEDEFİ */}
             <Text style={[styles.statsSubtitle, { marginBottom: 10 }]}>{t('Beslenme hedefin nedir?')}</Text>
