@@ -994,12 +994,11 @@ useEffect(() => {
   }
 }, [currentTab]);
 
-// VIP durumu netleşince planı çek
+// Planı çek — VIP olmayan kullanıcı da devam eden programını görebilsin.
+// Programı yoksa backend 403 döner, silent modda sessizce yutulur.
 useEffect(() => {
-  if (userStats.isVip) {
-    fetchWeeklyPlan(true); // silent=true, hata alert'i gösterme
-  }
-}, [userStats.isVip]);
+  if (token) fetchWeeklyPlan(true); // silent=true, hata alert'i gösterme
+}, [userStats.isVip, token]);
 useEffect(() => {
   if (userStats.isVip && user?.lifts) fetchMyLiftRanks();
 }, [userStats.isVip, user?.lifts]);
@@ -1036,7 +1035,16 @@ useEffect(() => {
     } catch (error) { console.log("Fotoğraflar çekilemedi"); }
   };
 const fetchWeeklyPlan = async (silent = false) => {
-  if (!userStats.isVip) return;
+  // VIP duvarı burada: GymBody sekmesi ve devam eden program herkese açık,
+  // AI ile YENİ program üretmek VIP'e özel. (Backend de aynı kuralı uyguluyor.)
+  if (!userStats.isVip) {
+    if (!silent) {
+      showToast(t('AI ile program oluşturmak VIP üyelere özel.'), 'error');
+      setCurrentTab('profile');
+      return;
+    }
+    // silent: devam eden bir program varsa backend döndürür, yoksa 403 → sessizce yut
+  }
   if (!silent) setGymLoading(true);
   try {
     const res = await axios.post(`${API_URL}/get-weekly-plan`, {
@@ -2267,31 +2275,9 @@ const pickAndUploadProfilePhoto = async () => {
       {currentTab === 'gymBody' && (
   <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-    {!userStats.isVip ? (
-      /* KİLİTLİ EKRAN */
-      <TouchableOpacity activeOpacity={0.9} onPress={() => setCurrentTab('profile')} style={{ flex: 1, alignItems: 'center', paddingTop: 40 }}>
-        <LinearGradient colors={['#2A1F60', '#1A1235']} style={styles.gymLockCard}>
-          <Ionicons name="barbell" size={48} color="#FF9F1C" style={{ marginBottom: 16 }} />
-          <Text style={styles.gymLockTitle}>GymBody VIP</Text>
-          <Text style={styles.gymLockSubtitle}>
-            {t('Kişisel AI antrenörünle her hafta sana özel antrenman ve beslenme programı, Max Güç kayıt ve güç sıralaması, sınırsız yağ oranı analizi, gelişim fotoğrafı karşılaştırması ve kalori hedefi.')}
-          </Text>
-
-          <View style={styles.gymLockStats}>
-            <View style={styles.gymLockStatItem}>
-              <Ionicons name="flame" size={16} color={C.orange} />
-              <Text style={styles.gymLockStatText}>{t('{{count}} Günlük Seri', { count: userStats.streak })}</Text>
-            </View>
-          </View>
-
-          <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={{ borderRadius: 14, paddingVertical: 13, paddingHorizontal: 32, marginTop: 16, alignItems: 'center' }}>
-            <Text style={{ color: '#1A1530', fontWeight: '900', fontSize: 15 }}>{t("VIP'e Geç")}</Text>
-          </LinearGradient>
-        </LinearGradient>
-      </TouchableOpacity>
-    ) : (
-      /* VIP EKRANI */
+    {(
+      /* GYMBODY EKRANI — sekme herkese açık; VIP duvarı sadece AI program
+         üretiminde (fetchWeeklyPlan). Kütüphane, plan görüntüleme, PT sekmesi serbest. */
       <View>
 
 
@@ -2421,6 +2407,12 @@ const pickAndUploadProfilePhoto = async () => {
                 <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.primaryBtn, { shadowColor: C.orange, shadowOpacity: 0.45 }]}>
                   <Ionicons name="sparkles" size={18} color="#1A1235" />
                   <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{t('PROGRAMIMI OLUŞTUR')}</Text>
+                  {/* VIP olmayan kullanıcı butona basmadan önce görsün */}
+                  {!userStats.isVip && (
+                    <View style={{ backgroundColor: 'rgba(26,18,53,0.22)', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 }}>
+                      <Text style={{ color: '#1A1235', fontSize: 10, fontWeight: '900' }}>👑 VIP</Text>
+                    </View>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             )}
