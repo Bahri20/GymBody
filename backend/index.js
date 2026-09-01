@@ -2617,12 +2617,17 @@ app.post('/my-coach/messages', authMiddleware, async (req, res) => {
 
 const CUSTOM_PLAN_MAX_DAYS = 7;
 const CUSTOM_PLAN_MAX_EX_PER_DAY = 12;
+// VIP olmayan kullanıcı 2 güne kadar kurabilir; 3. gün VIP'e özel.
+// Amaç: özelliği gerçekten deneyip değerini görsün, tam program için VIP'e geçsin.
+const CUSTOM_PLAN_FREE_DAYS = 2;
 
 // Gelen planı temizle: sadece bilinen alanlar, sınırlar içinde, gifUrl DB'den doğrulanmış.
-async function sanitizeCustomPlan(workoutPlan) {
+async function sanitizeCustomPlan(workoutPlan, dayLimit = CUSTOM_PLAN_MAX_DAYS) {
   if (!Array.isArray(workoutPlan)) return { error: "Geçersiz program." };
-  if (workoutPlan.length > CUSTOM_PLAN_MAX_DAYS)
-    return { error: `En fazla ${CUSTOM_PLAN_MAX_DAYS} gün ekleyebilirsin.` };
+  if (workoutPlan.length > dayLimit)
+    return { error: dayLimit < CUSTOM_PLAN_MAX_DAYS
+      ? `Ücretsiz üyelikte en fazla ${dayLimit} gün kurabilirsin. Daha fazlası için VIP ol!`
+      : `En fazla ${CUSTOM_PLAN_MAX_DAYS} gün ekleyebilirsin.` };
 
   // Hareket adları kütüphanede var mı — uydurma isim/gifUrl enjeksiyonunu engeller
   const known = await ExerciseGif.find({}, 'name gifUrl').lean();
@@ -2657,11 +2662,14 @@ async function sanitizeCustomPlan(workoutPlan) {
 // Kendi programını getir
 app.get('/custom-plan', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.userId, 'customPlan');
+    const user = await User.findById(req.userId, 'customPlan isVip vipExpiresAt');
     if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
     res.json({
       workoutPlan: user.customPlan?.workoutPlan || [],
       updatedAt: user.customPlan?.updatedAt || null,
+      dayLimit: isVipActive ? CUSTOM_PLAN_MAX_DAYS : CUSTOM_PLAN_FREE_DAYS,
+      maxDays: CUSTOM_PLAN_MAX_DAYS,
     });
   } catch (err) { console.error("custom-plan getirme hatası:", err); res.status(500).json({ error: "Program yüklenemedi." }); }
 });
@@ -2669,10 +2677,12 @@ app.get('/custom-plan', authMiddleware, async (req, res) => {
 // Kendi programını kaydet (tamamını değiştirir)
 app.post('/custom-plan', authMiddleware, async (req, res) => {
   try {
-    const { plan, error } = await sanitizeCustomPlan(req.body.workoutPlan);
-    if (error) return res.status(400).json({ error });
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
+    const dayLimit = isVipActive ? CUSTOM_PLAN_MAX_DAYS : CUSTOM_PLAN_FREE_DAYS;
+    const { plan, error } = await sanitizeCustomPlan(req.body.workoutPlan, dayLimit);
+    if (error) return res.status(400).json({ error });
     user.customPlan = { workoutPlan: plan, updatedAt: new Date() };
     user.markModified('customPlan');
     await user.save();
