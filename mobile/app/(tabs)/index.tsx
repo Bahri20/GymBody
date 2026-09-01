@@ -2745,7 +2745,7 @@ const pickAndUploadProfilePhoto = async () => {
                     </View>
                     <TouchableOpacity activeOpacity={0.88}
                       onPress={() => { setWorkoutSource('custom'); setCustomSelectedDay(day.dayNumber); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); ptLogIdRef.current = null; }}
-                      style={[lkStyles.primaryPill, { backgroundColor: LK.accent, shadowColor: LK.accent }]}>
+                      style={[lkStyles.primaryPill, { backgroundColor: LK.accent }]}>
                       <Ionicons name="play" size={18} color={LK.onAccent} />
                       <Text style={[lkStyles.primaryPillText, { color: LK.onAccent }]}>{t('Antrenmana başla')}</Text>
                     </TouchableOpacity>
@@ -6730,7 +6730,7 @@ const lkStyles = StyleSheet.create({
   primaryPill: {
     marginTop: 24, backgroundColor: LK.primaryContainer, borderRadius: 999, paddingVertical: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    shadowColor: '#b6f05d', shadowOpacity: 0.2, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 6,
+    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 6,
   },
   primaryPillText: { color: LK.onPrimaryContainer, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.5 },
   ghostPill: {
@@ -6791,7 +6791,7 @@ const lkStyles = StyleSheet.create({
   },
   dayChipOn: {
     backgroundColor: LK.primaryContainer, borderColor: LK.primaryContainer,
-    shadowColor: '#b6f05d', shadowOpacity: 0.15, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4,
+    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4,
   },
   dayChipText: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4 },
   dayChipTextOn: { color: LK.onPrimaryContainer },
