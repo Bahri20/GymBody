@@ -6697,12 +6697,13 @@ const makeChartConfig = (C: Palette) => ({
 // Lumina Kinetic bileşen stilleri (GymBody ana sayfası + Kendi Programın).
 // Palete bağlı değil — bu ekranlar tek koyu temada tasarlandı.
 const lkStyles = StyleSheet.create({
+  // Kütüphane / Kendi Programın: ne çerçeve ne gölge — sadece zemin tonu farkıyla ayrılıyorlar
   quickCard: {
-    flex: 1, backgroundColor: LK.surfaceContainerLow, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: LK.glassBorder, gap: 10,
+    flex: 1, backgroundColor: LK.surfaceContainer, borderRadius: 18,
+    paddingHorizontal: 14, paddingVertical: 12, gap: 6,
   },
   quickIcon: {
-    width: 40, height: 40, borderRadius: 12, backgroundColor: LK.surfaceContainerHigh,
+    width: 34, height: 34, borderRadius: 10, backgroundColor: LK.surfaceContainerHigh,
     alignItems: 'center', justifyContent: 'center',
   },
   quickTitle: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.5 },
