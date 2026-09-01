@@ -72,6 +72,15 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.715798761426-vpka1e4obfhgut4uo1d9ibf1h8qe51qk"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
       ]
     ],
     "experiments": {
