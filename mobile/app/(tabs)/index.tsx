@@ -6710,9 +6710,10 @@ const lkStyles = StyleSheet.create({
   quickSub: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12 },
 
   // Hero — bugünkü antrenman
+  // Hero de düz: çerçeve/gölge yok, hızlı erişim kartlarıyla aynı zemin tonu
   heroCard: {
-    backgroundColor: LK.surfaceContainerLow, borderRadius: 24, padding: 24,
-    borderWidth: 1, borderColor: 'rgba(186,244,97,0.1)', marginBottom: 4,
+    backgroundColor: LK.surfaceContainer, borderRadius: 28,
+    paddingHorizontal: 24, paddingVertical: 20, marginBottom: 4,
   },
   heroEyebrow: {
     color: LK.primaryFixed, fontFamily: LK.fontLabel, fontSize: 14,
