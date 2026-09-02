@@ -3477,6 +3477,37 @@ const LEGAL_PAGE = (title, bodyHtml) => `<!DOCTYPE html>
 <div class="foot">İletişim: <a href="mailto:ilhanbahri4@gmail.com">ilhanbahri4@gmail.com</a><br>GymBodyAI © 2026</div>
 </div></body></html>`;
 
+// Akıllı indirme linki — Instagram bio'suna tek link koyup buraya yönlendirmek için.
+// iPhone'dan tıklayan App Store'a, Android'den tıklayan Play Store'a düşer.
+// User-Agent sniffing kırılgan olabilir (bazı in-app tarayıcılar UA'yı değiştirir) —
+// bu yüzden algılanamayan durumda 404'e düşürmek yerine seçim sayfası gösteriyoruz.
+const APP_STORE_URL = 'https://apps.apple.com/app/id6783917124';
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.gymbodyai.app';
+app.get(['/indir', '/download', '/get-app'], (req, res) => {
+  const ua = req.headers['user-agent'] || '';
+  if (/iPhone|iPad|iPod/i.test(ua)) return res.redirect(302, APP_STORE_URL);
+  if (/Android/i.test(ua)) return res.redirect(302, PLAY_STORE_URL);
+  res.send(`<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GymBodyAI'ı İndir</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+    background:#0B0D12;font-family:-apple-system,Segoe UI,Roboto,sans-serif;padding:24px;text-align:center}
+  img{width:88px;height:88px;border-radius:22px;margin-bottom:8px}
+  h1{color:#fff;font-size:22px;margin:0}
+  p{color:#A3ABBA;font-size:14px;margin:0 0 12px}
+  a{display:flex;align-items:center;justify-content:center;gap:8px;width:280px;padding:14px;border-radius:14px;
+    text-decoration:none;font-weight:700;font-size:15px}
+  .ios{background:#fff;color:#0B0D12}
+  .android{background:#83C93C;color:#0B1207}
+</style></head><body>
+  <h1>GymBodyAI</h1>
+  <p>Cihazını seç, indirmeye başla</p>
+  <a class="ios" href="${APP_STORE_URL}"> App Store'dan İndir</a>
+  <a class="android" href="${PLAY_STORE_URL}">▶ Play Store'dan İndir</a>
+</body></html>`);
+});
+
 // Ana sayfa — basit tanıtım (mağaza web sitesi alanı için)
 // ─── HOCA WEB PANELİ (PT) — login + öğrenci yönetimi + komisyon/para çekme ───
 app.get('/coach', (req, res) => {
