@@ -352,37 +352,17 @@
    <!-- PROFİL -->
    <div id="profileMenu" class="hidden view">
      <div class="bento">
-       <div class="glass bento-card"><div class="bento-ico">💰</div>
-         <div class="bento-label">Bakiye</div><div class="big-num neon" style="color:var(--primary)" id="pBal">—</div>
-         <p class="muted" style="margin-top:16px">Çekime hazır tutar</p></div>
-       <div class="glass bento-card"><div class="bento-ico">💳</div>
-         <div class="bento-label">Toplam Kazanç</div><div class="big-num" style="color:#fff" id="pEarn">—</div>
-         <p class="muted" style="margin-top:16px">Komisyon Oranı: <b id="pComm" style="color:var(--primary)">—</b></p></div>
        <div class="glass bento-card">
          <div class="bento-label">Referans Kodun</div>
          <div class="refbox"><code id="cRef">—</code><button class="icon-btn" onclick="copyRef()" title="Kopyala" style="color:var(--muted)">📋</button></div>
-         <p id="refCopied" class="hidden" style="color:var(--primary);font-size:12px;margin-top:8px">Kopyalandı ✓</p></div>
+         <p id="refCopied" class="hidden" style="color:var(--primary);font-size:12px;margin-top:8px">Kopyalandı ✓</p>
+         <p class="muted" style="margin-top:16px;font-size:13px">Bu kodla kaydolan öğrenciler otomatik olarak senin öğrenci listende görünür — programlarını yazabilir, antrenmanlarını takip edebilirsin.</p></div>
      </div>
 
-     <div class="wgrid">
-       <div class="glass" style="display:flex;flex-direction:column">
-         <div class="panel-head"><h4 style="font-size:18px;font-weight:700">Para Çek</h4><p class="muted" style="margin-top:4px">Banka hesabına hızlı çekim.</p></div>
-         <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
-           <div><label class="lbl">Tutar (TL)</label>
-             <div style="position:relative"><span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted)">₺</span>
-               <input id="wAmount" class="inp" type="number" placeholder="0" style="padding-left:30px"></div>
-             <p class="muted" style="font-size:12px;margin-top:5px">Min. çekim: ₺50</p></div>
-           <div><label class="lbl">IBAN</label><input id="wIban" class="inp" placeholder="TR00 0000 0000..." style="text-transform:uppercase;letter-spacing:.05em"></div>
-           <button class="btn" onclick="withdraw()">Çekim Talebi Oluştur</button>
-           <div id="wMsg" style="text-align:center;font-size:13px"></div>
-         </div>
-       </div>
-       <div class="glass" style="display:flex;flex-direction:column">
-         <div class="panel-head"><h4 style="font-size:18px;font-weight:700">Geçmiş Çekimler</h4><p class="muted" style="margin-top:4px">Son işlem kaydı.</p></div>
-         <div style="overflow-x:auto"><table class="wt">
-           <thead><tr><th>Tarih</th><th>Tutar</th><th>IBAN</th><th>Durum</th></tr></thead>
-           <tbody id="wList"></tbody></table></div>
-       </div>
+     <!-- Komisyon / para çekme sistemi geçici olarak kapalı (2 Eyl 2026) — bkz. backend notu -->
+     <div class="glass" style="padding:20px;margin-top:20px">
+       <div style="font-size:14px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px;margin-bottom:8px">💰 Komisyon</div>
+       <p class="muted">Komisyon ve para çekme sistemi şu an kapalı, yakında açılacak. Bu süreçte referans kodunla getirdiğin öğrencileri panelinden yönetmeye devam edebilirsin.</p>
      </div>
 
      <div class="wgrid" style="grid-template-columns:1fr 1fr;margin-top:20px">
@@ -938,7 +918,6 @@
   }
 
   // ---- Dashboard ----
-  function wStatus(s){var m={pending:['Beklemede','pending'],paid:['Ödendi','paid'],rejected:['Reddedildi','rejected']};return m[s]||[s||'—','pending'];}
   async function load(){
     const r=await fetch('/coach/dashboard',{headers:H()});
     if(!r.ok){logout();return;}
@@ -949,20 +928,8 @@
     document.getElementById('cName').textContent=d.name;
     document.getElementById('cGym').textContent=d.gymCode||'—';
     document.getElementById('cRef').textContent=d.referralCode;
-    document.getElementById('pBal').textContent=(d.balance||0)+' TL';
-    document.getElementById('pEarn').textContent=(d.totalEarned||0)+' TL';
-    document.getElementById('pComm').textContent='%'+d.commissionRate;
     _students=(d.gymStudents&&d.gymStudents.length)?d.gymStudents:(d.students||[]);
     renderStudents();
-    var wl=document.getElementById('wList');
-    if(d.withdrawals&&d.withdrawals.length){
-      wl.innerHTML=d.withdrawals.map(function(w){
-        var st=wStatus(w.status), dt=w.requestedAt?new Date(w.requestedAt).toLocaleDateString('tr-TR'):'—';
-        var iban=w.iban?('•••• '+String(w.iban).replace(/\s/g,'').slice(-4)):'—';
-        return '<tr><td>'+dt+'</td><td style="font-weight:700;color:var(--primary)">'+w.amount+' TL</td>'+
-          '<td class="wmono">'+iban+'</td><td><span class="wpill '+st[1]+'">'+st[0]+'</span></td></tr>';
-      }).join('');
-    } else { wl.innerHTML='<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--muted)">Henüz çekim yok.</td></tr>'; }
   }
   async function addStudent(){
     const email=document.getElementById('newStudent').value.trim();
@@ -976,13 +943,6 @@
   async function rmStudent(userId){
     if(!confirm('Öğrenciyi listenden çıkar?'))return;
     await fetch('/coach/students/remove',{method:'POST',headers:H(),body:JSON.stringify({userId})});load();
-  }
-  async function withdraw(){
-    const amount=+document.getElementById('wAmount').value, iban=document.getElementById('wIban').value.trim();
-    const m=document.getElementById('wMsg'); m.textContent='';m.style.color='';
-    const r=await fetch('/coach/withdraw',{method:'POST',headers:H(),body:JSON.stringify({amount,iban})});
-    const d=await r.json();
-    m.textContent=d.message||d.error;m.style.color=r.ok?'var(--primary)':'var(--error)';if(r.ok)load();
   }
   async function changePass(){
     const currentPassword=document.getElementById('curPass').value, newPassword=document.getElementById('newPass').value;

@@ -1249,25 +1249,27 @@ app.post('/redeem-vip', authMiddleware, async (req, res) => {
 
     await user.save();
 
-    // Referral komisyon hesapla
-    const VIP_PRICE_TL = 149; // VIP'in TL fiyatı
-    if (user.referredBy) {
-      const coach = await Coach.findById(user.referredBy);
-      if (coach && coach.isActive) {
-        const commissionAmount = Math.round(VIP_PRICE_TL * (coach.commissionRate / 100) * 100) / 100;
-        coach.balance += commissionAmount;
-        coach.totalEarned += commissionAmount;
-        coach.commissions.push({
-          userId: user._id,
-          userName: user.name,
-          amount: commissionAmount,
-          saleAmount: VIP_PRICE_TL,
-          rate: coach.commissionRate
-        });
-        await coach.save();
-        console.log(`💰 Komisyon: ${coach.name} → +${commissionAmount} TL (${user.name}'ın VIP alımı)`);
-      }
-    }
+    // Hoca komisyon sistemi DURAKLATILDI (2 Eyl 2026) — şirket/ödeme altyapısı kurulana kadar.
+    // Gerekçe: coach.balance uygulama içi bir sayıdan ibaret, gerçek parayı sistem hiç
+    // görmüyor — hoca "para çek" dediğinde Bahri kendi IBAN'ından elden havale atıyor.
+    // Şirket olmadan bu, şahsi alacak-verecek ilişkisi doğuruyor (hukuki risk). Şirket
+    // kurulunca gerçek otomatik ödeme (üye kaydettiği andan itibaren otomatik kesinti)
+    // eklenecek. O zamana kadar hocalar öğrenci takibi panelinden değer görüyor.
+    //
+    // const VIP_PRICE_TL = 149;
+    // if (user.referredBy) {
+    //   const coach = await Coach.findById(user.referredBy);
+    //   if (coach && coach.isActive) {
+    //     const commissionAmount = Math.round(VIP_PRICE_TL * (coach.commissionRate / 100) * 100) / 100;
+    //     coach.balance += commissionAmount;
+    //     coach.totalEarned += commissionAmount;
+    //     coach.commissions.push({
+    //       userId: user._id, userName: user.name, amount: commissionAmount,
+    //       saleAmount: VIP_PRICE_TL, rate: coach.commissionRate
+    //     });
+    //     await coach.save();
+    //   }
+    // }
 
     console.log(`👑 VIP açıldı: ${user.email}, bitiş: ${newExpiry}`);
     res.json({
@@ -2265,8 +2267,9 @@ app.get('/coach/dashboard', coachMiddleware, async (req, res) => {
   }
 });
 
-// Para Çekme Talebi
+// Para Çekme Talebi — DURAKLATILDI (2 Eyl 2026), bkz. /redeem-vip'teki komisyon notu.
 app.post('/coach/withdraw', coachMiddleware, async (req, res) => {
+  return res.status(403).json({ error: "Para çekme sistemi şu an kapalı. Detaylar için bizimle iletişime geç." });
   try {
     const { amount, iban } = req.body;
     const coach = await Coach.findById(req.coachId);
