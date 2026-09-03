@@ -5673,7 +5673,9 @@ const pickAndUploadProfilePhoto = async () => {
           style={{ position: 'absolute', bottom: 90, right: 20, width: 56, height: 56, borderRadius: 28, overflow: 'hidden', zIndex: 100 }}
         >
           <LinearGradient colors={[C.lime, C.limeDark]} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <MaterialCommunityIcons name="robot-happy" size={26} color="#0B0D12" />
+            {/* Gymbo — maskot, jenerik robot ikonunun yerine */}
+            <Image source={require('@/assets/images/gymbo-avatar.png')}
+              style={{ width: 42, height: 42 }} resizeMode="contain" />
           </LinearGradient>
         </TouchableOpacity>
       )}
@@ -5684,9 +5686,15 @@ const pickAndUploadProfilePhoto = async () => {
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} />
           <View style={{ backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1, borderColor: C.border, maxHeight: '80%', minHeight: '60%', flexDirection: 'column' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: C.border }}>
-              <View>
-                <Text style={{ color: C.text, fontWeight: '800', fontSize: 17 }}>{t('🤖 AI Koçun')}</Text>
-                <Text style={{ color: C.textMuted, fontSize: 12 }}>{userStats.isVip ? t('Sınırsız sohbet') : t('Günde 3 ücretsiz mesaj')}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  <Image source={require('@/assets/images/gymbo-avatar.png')}
+                    style={{ width: 32, height: 32 }} resizeMode="contain" />
+                </View>
+                <View>
+                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 17 }}>Gymbo</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 12 }}>{userStats.isVip ? t('Sınırsız sohbet') : t('Günde 3 ücretsiz mesaj')}</Text>
+                </View>
               </View>
               <TouchableOpacity onPress={() => { Keyboard.dismiss(); setChatVisible(false); }}>
                 <Ionicons name="close" size={24} color={C.textMuted} />
@@ -5695,8 +5703,9 @@ const pickAndUploadProfilePhoto = async () => {
             <ScrollView ref={chatScrollRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
               {chatMessages.length === 0 && (
                 <View style={{ alignItems: 'center', paddingTop: 20, gap: 8 }}>
-                  <Text style={{ fontSize: 40 }}>🏋️</Text>
-                  <Text style={{ color: C.textSec, textAlign: 'center', lineHeight: 20 }}>{t('Merhaba! Antrenman, beslenme veya hedeflerin hakkında her şeyi sorabilirsin.')}</Text>
+                  <Image source={require('@/assets/images/gymbo-wave.png')}
+                    style={{ width: 130, height: 97 }} resizeMode="contain" />
+                  <Text style={{ color: C.textSec, textAlign: 'center', lineHeight: 20 }}>{t('Selam, ben Gymbo! Antrenman, beslenme veya hedeflerin hakkında her şeyi sorabilirsin.')}</Text>
                   <View style={{ gap: 8, width: '100%', marginTop: 12 }}>
                     {[t('Bugün için antrenman öner'), t('Protein ihtiyacım ne kadar?'), t('Motivasyon düştü, ne yapayım?')].map(q => (
                       <TouchableOpacity key={q} onPress={() => { setChatInput(q); }}
