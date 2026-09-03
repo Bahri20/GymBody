@@ -5876,64 +5876,182 @@ const pickAndUploadProfilePhoto = async () => {
       </Modal>
 
       {/* GÜÇ — PR GİRİŞİ MODALI */}
-      <Modal visible={!!liftModal} transparent animationType="fade" onRequestClose={() => setLiftModal(null)}>
-        <TouchableOpacity activeOpacity={1} onPress={() => setLiftModal(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 28 }}>
-          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: C.bgAlt, borderRadius: 24, padding: 22, borderWidth: 1, borderColor: C.border }}>
-            {(() => {
-              const lift = LIFTS.find(l => l.key === liftModal);
-              if (!lift) return null;
-              const isRepBased = lift.unit === 'tekrar';
-              const unitLabel = isRepBased ? t('tekrar') : 'kg';
-              const best = user?.lifts?.[liftModal!]?.best || 0;
-              return (
-                <>
-                  <Text style={{ fontSize: 34, textAlign: 'center', marginBottom: 6 }}>{lift.icon}</Text>
-                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 19, textAlign: 'center' }}>{lift.label}</Text>
-                  <Text style={{ color: C.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: lift.hint ? 8 : 18 }}>
-                    {t(lift.muscle)} • {t('Şu anki rekor:')} {best ? `${best} ${unitLabel}` : '—'}
-                  </Text>
-                  {lift.hint && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 16 }}>
-                      <Ionicons name="information-circle-outline" size={14} color={C.orange} />
-                      <Text style={{ color: C.orange, fontSize: 12 }}>{t(lift.hint)}</Text>
-                    </View>
-                  )}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <TextInput
-                      value={liftInput}
-                      onChangeText={setLiftInput}
-                      keyboardType="numeric"
-                      placeholder={isRepBased ? t('Kaç tekrar?') : t('Kaç kg?')}
-                      placeholderTextColor={C.textMuted}
-                      style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, color: C.text, fontSize: 18, fontWeight: '700' }}
-                    />
-                    <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>{unitLabel}</Text>
-                  </View>
-                  {!isRepBased && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
-                      <TextInput
-                        value={liftRepsInput}
-                        onChangeText={setLiftRepsInput}
-                        keyboardType="numeric"
-                        placeholder={t('Kaç tekrar?')}
-                        placeholderTextColor={C.textMuted}
-                        style={{ flex: 1, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 16, color: C.text, fontSize: 18, fontWeight: '700' }}
-                      />
-                      <Text style={{ color: C.textSec, fontSize: 16, fontWeight: '700' }}>{t('tekrar')}</Text>
-                    </View>
-                  )}
-                  <Text style={{ color: C.textMuted, fontSize: 11, textAlign: 'center', marginTop: 8 }}>
-                    {isRepBased ? t('Tek seferde (dinlenmeden) yapabildiğin en yüksek tekrar sayısını gir.') : t('Tek seferde kaldırdıysan "1" bırak. Birden fazla tekrar yaptıysan gerçek 1RM\'in daha doğru hesaplanır.')}
-                  </Text>
-                  <TouchableOpacity onPress={saveLift} disabled={liftSaving} activeOpacity={0.85}
-                    style={{ marginTop: 16, backgroundColor: C.orange, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}>
-                    {liftSaving ? <ActivityIndicator color="#0B0D12" /> : <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>{t('Kaydet')}</Text>}
+      <Modal visible={!!liftModal} transparent animationType="slide" onRequestClose={() => setLiftModal(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => setLiftModal(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'flex-end' }}>
+            <TouchableOpacity activeOpacity={1} style={{ backgroundColor: LK.surfaceContainerLow, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 16 }}>
+              {(() => {
+                const lift = LIFTS.find(l => l.key === liftModal);
+                if (!lift) return null;
+                const isRepBased = lift.unit === 'tekrar';
+                const unitLabel = isRepBased ? t('tekrar') : 'kg';
+                const best = user?.lifts?.[liftModal!]?.best || 0;
+                // Ana alanın adımı: ağırlıkta 0,5 kg — tekrar bazlı harekette 1 tekrar
+                const step = isRepBased ? 1 : 0.5;
+                const modalGifUrl = lift.libraryName ? gifByLiftName[lift.libraryName.toLowerCase().trim()] : null;
+                // Türkçede ondalık ayracı virgül — hızlı ekleme çipleriyle aynı yazım (kaydederken ikisi de parse ediliyor)
+                const fmt = (n: number) => {
+                  if (isRepBased) return String(Math.round(n));
+                  const v = (Math.round(n * 10) / 10).toString();
+                  return currentLang() === 'tr' ? v.replace('.', ',') : v;
+                };
+                const bump = (delta: number) => {
+                  const cur = parseFloat((liftInput || '0').replace(',', '.')) || 0;
+                  const next = Math.max(0, Math.min(isRepBased ? 50 : 1000, cur + delta));
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setLiftInput(fmt(next));
+                };
+                const bumpReps = (delta: number) => {
+                  const cur = parseInt(liftRepsInput, 10) || 1;
+                  const next = Math.max(1, Math.min(30, cur + delta));
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setLiftRepsInput(String(next));
+                };
+                // Epley: 1RM = ağırlık × (1 + tekrar/30) — tek tekrarda ağırlığın kendisi
+                const wNum = parseFloat((liftInput || '').replace(',', '.')) || 0;
+                const rNum = Math.max(1, Math.min(30, parseInt(liftRepsInput, 10) || 1));
+                const oneRm = wNum > 0 ? (rNum > 1 ? wNum * (1 + rNum / 30) : wNum) : 0;
+
+                const stepperBtn = (icon: 'remove' | 'add', onPress: () => void) => (
+                  <TouchableOpacity onPress={onPress} activeOpacity={0.7} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name={icon} size={19} color={LK.onSurface} />
                   </TouchableOpacity>
-                </>
-              );
-            })()}
+                );
+
+                return (
+                  <>
+                    {/* Tutamak */}
+                    <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: LK.surfaceContainerHighest, alignSelf: 'center', marginBottom: 14 }} />
+
+                    {/* Başlık — hareket ikonu, adı, kas ve mevcut rekor */}
+                    <View style={{ alignItems: 'center' }}>
+                      <View style={{ width: 50, height: 50, borderRadius: 16, backgroundColor: LK.surfaceContainerHigh, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+                        shadowColor: LK.accent, shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 6 }}>
+                        {modalGifUrl ? (
+                          <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(modalGifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                        ) : (
+                          <Ionicons name="barbell" size={24} color={LK.accentFixed} />
+                        )}
+                      </View>
+                      <Text style={{ color: LK.onSurface, fontFamily: LK.fontHeadlineXl, fontSize: 20, marginTop: 10 }}>{lift.label}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 7 }}>
+                        <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 }}>
+                          <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 11 }}>{t(lift.muscle)}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: LK.accentSoft, borderWidth: 1, borderColor: LK.accentBorder, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}>
+                          <Ionicons name="trophy" size={11} color={LK.accentFixed} />
+                          <Text style={{ color: LK.accentFixed, fontFamily: LK.fontLabelSm, fontSize: 11 }}>
+                            {t('Şu anki rekor:')} <Text style={{ color: LK.onSurface, fontFamily: LK.fontLabel }}>{best ? `${best} ${unitLabel}` : '—'}</Text>
+                          </Text>
+                        </View>
+                      </View>
+                      {lift.hint && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8, backgroundColor: LK.accentSoft, borderWidth: 1, borderColor: LK.accentBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                          <Ionicons name="information-circle" size={12} color={LK.accentFixed} />
+                          <Text style={{ color: LK.accentFixed, fontFamily: LK.fontLabelSm, fontSize: 11 }}>{t(lift.hint)}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* ANA DEĞER — ağırlık (tekrar bazlı harekette tekrar sayısı) */}
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 18, padding: 12, marginTop: 14 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 4 }}>
+                        <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 11, letterSpacing: 0.8 }}>{isRepBased ? t('TEKRAR SAYISI') : t('AĞIRLIK')}</Text>
+                        <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 10, opacity: 0.7 }}>
+                          {isRepBased ? t('Maksimum efor') : t('Adım: {{step}} kg', { step: '0,5' })}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        {stepperBtn('remove', () => bump(-step))}
+                        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                          <TextInput
+                            value={liftInput}
+                            onChangeText={setLiftInput}
+                            keyboardType="numeric"
+                            selectTextOnFocus
+                            placeholder="0"
+                            placeholderTextColor={LK.surfaceContainerHighest}
+                            style={{ minWidth: 74, padding: 0, color: LK.onSurface, fontFamily: LK.fontHeadlineXl, fontSize: 26, textAlign: 'center' }}
+                          />
+                          <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 14 }}>{unitLabel}</Text>
+                        </View>
+                        {stepperBtn('add', () => bump(step))}
+                      </View>
+                      {/* Hızlı ekleme */}
+                      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 7, marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' }}>
+                        {(isRepBased ? [1, 2, 5] : [1, 2.5, 5]).map((inc) => (
+                          <TouchableOpacity key={inc} onPress={() => bump(inc)} activeOpacity={0.7}
+                            style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4 }}>
+                            <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 10.5 }}>
+                              +{String(inc).replace('.', ',')} {isRepBased ? '' : 'kg'}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    {/* TEKRAR SAYISI — sadece ağırlıklı hareketlerde */}
+                    {!isRepBased && (
+                      <View style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 18, padding: 12, marginTop: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginBottom: 4 }}>
+                          <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 11, letterSpacing: 0.8 }}>{t('TEKRAR SAYISI')}</Text>
+                          <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 10, opacity: 0.7 }}>{t('Maksimum efor')}</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          {stepperBtn('remove', () => bumpReps(-1))}
+                          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                            <TextInput
+                              value={liftRepsInput}
+                              onChangeText={setLiftRepsInput}
+                              keyboardType="numeric"
+                              selectTextOnFocus
+                              placeholder="1"
+                              placeholderTextColor={LK.surfaceContainerHighest}
+                              style={{ minWidth: 56, padding: 0, color: LK.onSurface, fontFamily: LK.fontHeadlineXl, fontSize: 26, textAlign: 'center' }}
+                            />
+                            <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 14 }}>{t('tekrar')}</Text>
+                          </View>
+                          {stepperBtn('add', () => bumpReps(1))}
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Canlı 1RM tahmini — birden fazla tekrarda anlam kazanıyor */}
+                    {!isRepBased && wNum > 0 && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: LK.accentSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: LK.accent }} />
+                          <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 11.5 }}>{t('Tahmini 1RM gücü:')}</Text>
+                        </View>
+                        <Text style={{ color: LK.accentFixed, fontFamily: LK.fontHeadlineSemi, fontSize: 13 }}>
+                          {rNum > 1 ? '~' : ''}{(Math.round(oneRm * 10) / 10).toString().replace('.', ',')} kg
+                        </Text>
+                      </View>
+                    )}
+
+                    <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 10.5, textAlign: 'center', marginTop: 10, opacity: 0.75, lineHeight: 15 }}>
+                      {isRepBased ? t('Tek seferde (dinlenmeden) yapabildiğin en yüksek tekrar sayısını gir.') : t('Tek seferde kaldırdıysan "1" bırak. Birden fazla tekrar yaptıysan gerçek 1RM\'in daha doğru hesaplanır.')}
+                    </Text>
+
+                    <TouchableOpacity onPress={saveLift} disabled={liftSaving} activeOpacity={0.85} style={{ marginTop: 12, borderRadius: 14, overflow: 'hidden',
+                      shadowColor: LK.accent, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, elevation: 6 }}>
+                      <LinearGradient colors={[LK.accentFixed, LK.accent, '#F97316']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 14 }}>
+                        {liftSaving ? <ActivityIndicator color={LK.onAccent} /> : (
+                          <>
+                            <Text style={{ color: LK.onAccent, fontFamily: LK.fontHeadlineXl, fontSize: 14, letterSpacing: 1 }}>{t('Kaydet').toUpperCase()}</Text>
+                            <Ionicons name="checkmark" size={17} color={LK.onAccent} />
+                          </>
+                        )}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </>
+                );
+              })()}
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* SİKLET LİDERLİK TABLOSU MODALI */}
