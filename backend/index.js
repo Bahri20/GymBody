@@ -1450,7 +1450,7 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı kanka!" });
 
     const od = user.onboardingData || {};
-    const programDays = od.daysPerWeek && [2,3,4,5].includes(od.daysPerWeek) ? od.daysPerWeek : 3;
+    const programDays = od.daysPerWeek && [2,3,4,5,6].includes(od.daysPerWeek) ? od.daysPerWeek : 3;
     const experienceText = { beginner: 'Yeni başlayan (0-1 yıl)', intermediate: 'Orta seviye (1-3 yıl)', advanced: 'İleri seviye (3+ yıl)' }[od.experience] || 'Orta seviye';
     const locationText = { gym: 'Spor salonu (tam ekipman)', home_equipped: 'Ev (dambıl, bant vs.)', home_bare: 'Ev (ekipmansız, sadece vücut ağırlığı)' }[od.location] || 'Spor salonu';
     const restrictionsText = od.restrictions && od.restrictions !== 'none' ? `Kısıtlama: ${od.restrictions} sorunu var — o bölgeyi zorlayan egzersizlerden kaçın` : 'Fiziksel kısıtlama yok';

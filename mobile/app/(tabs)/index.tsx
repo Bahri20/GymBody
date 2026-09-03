@@ -1171,6 +1171,12 @@ const completeOnboarding = async () => {
     }, { headers: { Authorization: `Bearer ${token}` } });
   } catch {}
   setUser((prev: any) => prev ? { ...prev, onboarded: true } : prev);
+
+  // Buton "Programımı Oluştur" diyor — sözü burada tutuyoruz.
+  // Önceden kullanıcı 5 soruyu cevaplayıp boş Analiz sekmesine düşüyor, programı
+  // kendisi üretmek zorunda kalıyordu. Artık GymBody'ye alıp programı hemen kuruyoruz.
+  setCurrentTab('gymBody');
+  fetchWeeklyPlan();
 };
 
 // GymBody sekmesine her geçişte mola durumunu sıfırla (yeni gün = antrenman zamanı)
@@ -5507,44 +5513,44 @@ const pickAndUploadProfilePhoto = async () => {
             {
               key: 'goal', title: t('Hedefin ne?'), subtitle: t('Sana en uygun programı hazırlayalım'),
               options: [
-                { id: 'fat_loss', icon: '🔥', label: t('Yağ Yak'), desc: t('Kilo ver, form al') },
-                { id: 'muscle', icon: '💪', label: t('Kas Kazan'), desc: t('Hacim ve güç artır') },
-                { id: 'maintain', icon: '⚖️', label: t('Form Koru'), desc: t('Mevcut formu koru') },
-                { id: 'strength', icon: '🏋️', label: t('Güçlen'), desc: t('Max kaldırmayı artır') },
+                { id: 'fat_loss', icon: 'flame' as const, label: t('Yağ Yak'), desc: t('Kilo ver, form al') },
+                { id: 'muscle', icon: 'barbell' as const, label: t('Kas Kazan'), desc: t('Hacim ve güç artır') },
+                { id: 'maintain', icon: 'shield-checkmark' as const, label: t('Form Koru'), desc: t('Mevcut formu koru') },
+                { id: 'strength', icon: 'trending-up' as const, label: t('Güçlen'), desc: t('Max kaldırmayı artır') },
               ],
             },
             {
               key: 'experience', title: t('Deneyim seviyeni seç'), subtitle: t('Programın zorluğu buna göre ayarlanır'),
               options: [
-                { id: 'beginner', icon: '🌱', label: t('Yeni Başlayan'), desc: t('0-1 yıl') },
-                { id: 'intermediate', icon: '⚡', label: t('Orta Seviye'), desc: t('1-3 yıl') },
-                { id: 'advanced', icon: '🔱', label: t('İleri Seviye'), desc: t('3+ yıl') },
+                { id: 'beginner', icon: 'leaf' as const, label: t('Yeni Başlayan'), desc: t('0-1 yıl') },
+                { id: 'intermediate', icon: 'flash' as const, label: t('Orta Seviye'), desc: t('1-3 yıl') },
+                { id: 'advanced', icon: 'flame' as const, label: t('İleri Seviye'), desc: t('3+ yıl') },
               ],
             },
             {
               key: 'daysPerWeek', title: t('Haftada kaç gün?'), subtitle: t('Program bu gün sayısına göre oluşturulur'),
               options: [
-                { id: '3', icon: '3️⃣', label: t('3 Gün'), desc: t('Haftada 3') },
-                { id: '4', icon: '4️⃣', label: t('4 Gün'), desc: t('Haftada 4') },
-                { id: '5', icon: '5️⃣', label: t('5 Gün'), desc: t('Haftada 5') },
-                { id: '6', icon: '6️⃣', label: t('6 Gün'), desc: t('Haftada 6') },
+                { id: '3', icon: 'calendar-outline' as const, label: t('3 Gün'), desc: t('Haftada 3') },
+                { id: '4', icon: 'calendar-outline' as const, label: t('4 Gün'), desc: t('Haftada 4') },
+                { id: '5', icon: 'calendar-outline' as const, label: t('5 Gün'), desc: t('Haftada 5') },
+                { id: '6', icon: 'calendar-outline' as const, label: t('6 Gün'), desc: t('Haftada 6') },
               ],
             },
             {
               key: 'location', title: t('Nerede antrenman yapıyorsun?'), subtitle: t('Ekipman durumuna göre egzersizler seçilir'),
               options: [
-                { id: 'gym', icon: '🏋️', label: t('Spor Salonu'), desc: t('Tam ekipman') },
-                { id: 'home_equipped', icon: '🏠', label: t('Evde (Ekipmanlı)'), desc: t('Dambıl, bant vs.') },
-                { id: 'home_bare', icon: '🤸', label: t('Evde (Ekipmansız)'), desc: t('Sadece vücut ağırlığı') },
+                { id: 'gym', icon: 'barbell' as const, label: t('Spor Salonu'), desc: t('Tam ekipman') },
+                { id: 'home_equipped', icon: 'home' as const, label: t('Evde (Ekipmanlı)'), desc: t('Dambıl, bant vs.') },
+                { id: 'home_bare', icon: 'body' as const, label: t('Evde (Ekipmansız)'), desc: t('Sadece vücut ağırlığı') },
               ],
             },
             {
               key: 'restrictions', title: t('Fiziksel kısıtlaman var mı?'), subtitle: t('Sakatlık veya ağrı bölgelerini atlayalım'),
               options: [
-                { id: 'none', icon: '✅', label: t('Hayır, yok'), desc: t('Her şey yolunda') },
-                { id: 'back', icon: '🔴', label: t('Bel'), desc: t('Bel fıtığı / ağrısı') },
-                { id: 'knee', icon: '🔴', label: t('Diz'), desc: t('Diz sorunu') },
-                { id: 'shoulder', icon: '🔴', label: t('Omuz'), desc: t('Omuz ağrısı') },
+                { id: 'none', icon: 'checkmark-circle' as const, label: t('Hayır, yok'), desc: t('Her şey yolunda') },
+                { id: 'back', icon: 'medkit' as const, label: t('Bel'), desc: t('Bel fıtığı / ağrısı') },
+                { id: 'knee', icon: 'medkit' as const, label: t('Diz'), desc: t('Diz sorunu') },
+                { id: 'shoulder', icon: 'medkit' as const, label: t('Omuz'), desc: t('Omuz ağrısı') },
               ],
             },
           ];
@@ -5565,30 +5571,39 @@ const pickAndUploadProfilePhoto = async () => {
           };
 
           return (
-            <View style={{ flex: 1, backgroundColor: '#080B14' }}>
-              {/* Progress bar */}
+            <View style={{ flex: 1, backgroundColor: LK.bg }}>
+              {/* İlerleme */}
               <View style={{ paddingTop: insets.top + 20, paddingHorizontal: 24, paddingBottom: 8 }}>
-                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 20 }}>
+                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 18 }}>
                   {QUESTIONS.map((_, i) => (
                     <View key={i} style={{ flex: 1, height: 3, borderRadius: 2,
-                      backgroundColor: i <= onboardingStep ? '#FF9F1C' : '#1E2335' }} />
+                      backgroundColor: i <= onboardingStep ? LK.accent : LK.surfaceContainerHigh }} />
                   ))}
                 </View>
 
-                {/* Logo */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 32 }}>
-                  <LinearGradient colors={['#FF9F1C', '#E8890A']} style={{ width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="barbell" size={18} color="#1A1235" />
-                  </LinearGradient>
-                  <Text style={{ color: '#FF9F1C', fontWeight: '900', fontSize: 15, letterSpacing: 0.5 }}>GymBody AI</Text>
-                  <Text style={{ color: '#1E2335', fontWeight: '700', fontSize: 13, marginLeft: 'auto' }}>{onboardingStep + 1} / {QUESTIONS.length}</Text>
+                {/* Marka + adım sayacı */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Image source={require('@/assets/images/icon.png')}
+                    style={{ width: 30, height: 30, borderRadius: 9 }} />
+                  <Text style={{ color: LK.onSurface, fontFamily: LK.fontHeadline, fontSize: 15 }}>
+                    GymBody<Text style={{ color: LK.primaryFixed }}>AI</Text>
+                  </Text>
+                  <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 13, marginLeft: 'auto' }}>
+                    {onboardingStep + 1} / {QUESTIONS.length}
+                  </Text>
                 </View>
               </View>
 
               <RNAnimated.View style={{ flex: 1, opacity: onboardingAnim, paddingHorizontal: 24 }}>
-                {/* Soru */}
-                <Text style={{ color: '#fff', fontWeight: '900', fontSize: 26, lineHeight: 32, marginBottom: 8 }}>{q.title}</Text>
-                <Text style={{ color: '#4A5280', fontSize: 14, marginBottom: 28 }}>{q.subtitle}</Text>
+                {/* Gymbo soruyu soruyor — konuşma balonuyla */}
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 18, marginBottom: 22 }}>
+                  <Image source={require('@/assets/images/gymbo-avatar.png')}
+                    style={{ width: 58, height: 58 }} resizeMode="contain" />
+                  <View style={{ flex: 1, backgroundColor: LK.surfaceContainer, borderRadius: 18, borderBottomLeftRadius: 5, padding: 14 }}>
+                    <Text style={{ color: LK.onSurface, fontFamily: LK.fontHeadlineSemi, fontSize: 19, lineHeight: 25, marginBottom: 4 }}>{q.title}</Text>
+                    <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontBody, fontSize: 13, lineHeight: 18 }}>{q.subtitle}</Text>
+                  </View>
+                </View>
 
                 {/* Seçenekler */}
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
@@ -5600,21 +5615,22 @@ const pickAndUploadProfilePhoto = async () => {
                         activeOpacity={0.8}
                         onPress={() => handleSelect(opt.id)}
                         style={{
-                          width: q.options.length === 3 ? '47%' : '47%',
+                          width: '47%',
                           borderRadius: 18,
-                          padding: 18,
-                          borderWidth: 2,
-                          borderColor: isSelected ? '#FF9F1C' : '#1A1F35',
-                          backgroundColor: isSelected ? 'rgba(255,159,28,0.12)' : '#0F1322',
+                          padding: 16,
+                          backgroundColor: isSelected ? 'rgba(255,159,28,0.14)' : LK.surfaceContainer,
+                          shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12,
+                          shadowOffset: { width: 0, height: 4 }, elevation: 4,
                         }}
                       >
-                        <Text style={{ fontSize: 28, marginBottom: 10 }}>{opt.icon}</Text>
-                        <Text style={{ color: isSelected ? '#FF9F1C' : '#fff', fontWeight: '800', fontSize: 15, marginBottom: 4 }}>{opt.label}</Text>
-                        <Text style={{ color: '#4A5280', fontSize: 12 }}>{opt.desc}</Text>
+                        <Ionicons name={opt.icon} size={26} style={{ marginBottom: 9 }}
+                          color={isSelected ? LK.accentFixed : LK.onSurfaceVariant} />
+                        <Text style={{ color: isSelected ? LK.accentFixed : LK.onSurface, fontFamily: LK.fontLabel, fontSize: 14.5, marginBottom: 3 }}>{opt.label}</Text>
+                        <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 11.5 }}>{opt.desc}</Text>
                         {isSelected && (
                           <View style={{ position: 'absolute', top: 12, right: 12, width: 20, height: 20, borderRadius: 10,
-                            backgroundColor: '#FF9F1C', alignItems: 'center', justifyContent: 'center' }}>
-                            <Ionicons name="checkmark" size={13} color="#1A1235" />
+                            backgroundColor: LK.accent, alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name="checkmark" size={13} color={LK.onAccent} />
                           </View>
                         )}
                       </TouchableOpacity>
@@ -5627,13 +5643,13 @@ const pickAndUploadProfilePhoto = async () => {
               <View style={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 24 }}>
                 <TouchableOpacity activeOpacity={selected ? 0.88 : 1} onPress={handleNext}>
                   <LinearGradient
-                    colors={selected ? ['#FF9F1C', '#E8890A'] : ['#1A1F35', '#1A1F35']}
+                    colors={selected ? ['#FF9F1C', '#E8890A'] : [LK.surfaceContainerHigh, LK.surfaceContainerHigh]}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    style={{ borderRadius: 18, paddingVertical: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                    <Text style={{ color: selected ? '#1A1235' : '#2A3050', fontWeight: '900', fontSize: 16 }}>
+                    style={{ borderRadius: 999, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                    <Text style={{ color: selected ? LK.onAccent : LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 15, letterSpacing: 0.4 }}>
                       {isLast ? t('Programımı Oluştur') : t('Devam Et')}
                     </Text>
-                    <Ionicons name={isLast ? 'rocket' : 'arrow-forward'} size={18} color={selected ? '#1A1235' : '#2A3050'} />
+                    <Ionicons name={isLast ? 'rocket' : 'arrow-forward'} size={18} color={selected ? LK.onAccent : LK.onSurfaceVariant} />
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
