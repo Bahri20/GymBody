@@ -3943,8 +3943,9 @@ const pickAndUploadProfilePhoto = async () => {
             return (
               <TouchableOpacity key={lift.key} activeOpacity={0.75}
                 onPress={() => openLiftEntry(lift.key, best)}
-                style={{ width: Dimensions.get('window').width * 0.82, marginRight: 12, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: best > 0 ? accentColor + '40' : C.border }}>
-                <LinearGradient colors={best > 0 ? [accentColor + '1F', C.surface] : [C.surface, C.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
+                style={{ width: Dimensions.get('window').width * 0.82, marginRight: 12, borderRadius: 22, overflow: 'hidden',
+                  shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 7 }}>
+                <LinearGradient colors={best > 0 ? [accentColor + '1A', LK.surfaceContainer] : [LK.glassTop, LK.glassBottom]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ padding: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <TouchableOpacity
                     disabled={!gifUrl}
@@ -3963,11 +3964,18 @@ const pickAndUploadProfilePhoto = async () => {
                   <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
                     {best > 0 ? (
                       <>
-                        <Text style={{ color: C.text, fontWeight: '900', fontSize: 26 }}>{best} <Text style={{ fontSize: 13, color: C.textMuted }}>{unitLabel}</Text></Text>
-                        {!isRepBased && <Text style={{ color: C.textMuted, fontSize: 11 }}>{t('{{count}} tekrar', { count: reps })}</Text>}
+                        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+                          <Text style={{ color: LK.onSurface, fontFamily: LK.fontHeadlineXl, fontSize: 26, letterSpacing: -0.5 }}>{best}</Text>
+                          <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 12 }}>{unitLabel}</Text>
+                        </View>
+                        {!isRepBased && (
+                          <View style={{ backgroundColor: accentColor + '20', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2, marginTop: 3 }}>
+                            <Text style={{ color: accentColor, fontFamily: LK.fontLabelSm, fontSize: 10 }}>{t('{{count}} tekrar', { count: reps })}</Text>
+                          </View>
+                        )}
                       </>
                     ) : (
-                      <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>{t('+ Gir')}</Text>
+                      <Text style={{ color: LK.primaryFixed, fontFamily: LK.fontLabel, fontSize: 12 }}>{t('+ Gir')}</Text>
                     )}
                   </View>
                   {rank ? (
@@ -3986,9 +3994,12 @@ const pickAndUploadProfilePhoto = async () => {
                 </View>
 
                 {best > 0 && !isRepBased && (
-                  <View style={{ marginTop: 12, backgroundColor: accentColor + '14', borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
-                    <Text style={{ color: C.textMuted, fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 }}>{t('TAHMİNİ 1RM')}</Text>
-                    <Text style={{ color: accentColor, fontWeight: '800', fontSize: 15, marginTop: 2 }}>{estimated1RM} kg</Text>
+                  <View style={{ marginTop: 12, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center' }}>
+                    <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 9.5, letterSpacing: 1 }}>{t('TAHMİNİ 1RM')}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, marginTop: 3 }}>
+                      <Text style={{ color: accentColor, fontFamily: LK.fontHeadlineXl, fontSize: 20, letterSpacing: -0.4 }}>{estimated1RM}</Text>
+                      <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 11 }}>kg</Text>
+                    </View>
                     {reps > 1 && (
                       <Text style={{ color: C.textMuted, fontSize: 9, marginTop: 3, textAlign: 'center', paddingHorizontal: 10 }}>
                         {t('Bunu direkt denemeye kalkma, kademeli çık ⚠️')}
@@ -4056,37 +4067,72 @@ const pickAndUploadProfilePhoto = async () => {
             }).map((lift) => {
               const liftData = user?.lifts?.[lift.key];
               const best = liftData?.best || 0;
+              const repsL = liftData?.reps || 1;
               const isRepBased = lift.unit === 'tekrar';
               const unitLabel = isRepBased ? t('tekrar') : 'kg';
               const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
               const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
               const accentColor = rank ? rank.color : C.lime;
               const gifUrl = lift.libraryName ? gifByLiftName[lift.libraryName.toLowerCase().trim()] : null;
+              // Son kayıtlardan mini ilerleme çizgisi (46x22 kutuya normalize)
+              const spark = (() => {
+                const h = (liftData?.history || []).slice(-6).map((x: any) => x.weight).filter((w: any) => w > 0);
+                if (h.length < 2) return null;
+                const min = Math.min(...h), max = Math.max(...h), span = max - min || 1;
+                return h.map((w: number, i: number) => {
+                  const x = (i / (h.length - 1)) * 44 + 1;
+                  const y = 19 - ((w - min) / span) * 16;
+                  return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
+                }).join(' ');
+              })();
               return (
-                <TouchableOpacity key={lift.key} activeOpacity={0.75} onPress={() => openLiftEntry(lift.key, best)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 14, marginBottom: 7, backgroundColor: C.surface, borderWidth: 1, borderColor: best > 0 ? accentColor + '30' : C.border }}>
-                  <TouchableOpacity disabled={!gifUrl} onPress={(e) => { e.stopPropagation(); if (gifUrl) setGifModalUrl(gifUrl); }}
-                    style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: accentColor + '1F', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {gifUrl ? (
-                      <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-                    ) : (
-                      <Ionicons name="barbell" size={17} color={accentColor} />
+                <TouchableOpacity key={lift.key} activeOpacity={0.85} onPress={() => openLiftEntry(lift.key, best)}
+                  style={{ marginBottom: 10, borderRadius: 18, overflow: 'hidden',
+                    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 5 }}>
+                  <LinearGradient colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13 }}>
+                    {/* Hareket görseli / ikon */}
+                    <TouchableOpacity disabled={!gifUrl} onPress={(e) => { e.stopPropagation(); if (gifUrl) setGifModalUrl(gifUrl); }}
+                      style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: accentColor + '1A', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      {gifUrl ? (
+                        <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                      ) : (
+                        <Ionicons name="barbell" size={21} color={accentColor} />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Ad + "kas • ağırlık × tekrar" */}
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={{ color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 13.5, letterSpacing: 0.2 }} numberOfLines={1}>{lift.label}</Text>
+                      <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 11.5, marginTop: 2 }} numberOfLines={1}>
+                        {t(lift.muscle)}
+                        {best > 0 && (
+                          <Text> · <Text style={{ color: LK.onSurface, fontFamily: LK.fontLabel }}>{best} {unitLabel}</Text>
+                            {!isRepBased && repsL > 1 ? ` × ${repsL}` : ''}
+                          </Text>
+                        )}
+                      </Text>
+                    </View>
+
+                    {/* Mini ilerleme grafiği — kayıt geçmişi varsa */}
+                    {spark && (
+                      <Svg width={46} height={22} viewBox="0 0 46 22">
+                        <Path d={spark} fill="none" stroke={accentColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.85} />
+                      </Svg>
                     )}
-                  </TouchableOpacity>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: C.text, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{lift.label}</Text>
-                    <Text style={{ color: C.textMuted, fontSize: 10.5, marginTop: 1 }}>{t(lift.muscle)}</Text>
-                  </View>
-                  {best > 0 ? (
-                    <Text style={{ color: C.textSec, fontWeight: '800', fontSize: 13 }}>{best} <Text style={{ fontSize: 10, color: C.textMuted }}>{unitLabel}</Text></Text>
-                  ) : (
-                    <Text style={{ color: C.lime, fontSize: 11, fontWeight: '700' }}>{t('+ Gir')}</Text>
-                  )}
-                  {rank ? (
-                    <RankBadgeSvg rankKey={rank.key} color={rank.color} size={26} />
-                  ) : (
-                    <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border }} />
-                  )}
+
+                    {/* Rütbe rozeti ya da "gir" çağrısı */}
+                    {rank ? (
+                      <View style={{ backgroundColor: accentColor + '22', borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 }}>
+                        <Text style={{ color: accentColor, fontFamily: LK.fontLabel, fontSize: 9.5, letterSpacing: 0.6 }}>{t(rank.label).toUpperCase()}</Text>
+                      </View>
+                    ) : (
+                      <View style={{ backgroundColor: LK.surfaceContainerHigh, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 }}>
+                        <Text style={{ color: LK.primaryFixed, fontFamily: LK.fontLabel, fontSize: 9.5, letterSpacing: 0.6 }}>+ GİR</Text>
+                      </View>
+                    )}
+                    <Ionicons name="chevron-forward" size={14} color={LK.onSurfaceVariant} />
+                  </LinearGradient>
                 </TouchableOpacity>
               );
             })}
