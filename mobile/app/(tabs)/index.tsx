@@ -3755,7 +3755,6 @@ const pickAndUploadProfilePhoto = async () => {
 
       {currentTab === 'stats' && (
         <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-          <Text style={[styles.statsTitle, { marginBottom: 4 }]}>{t('Max Ağırlıklar')}</Text>
           <Text style={[styles.statsSubtitle, { marginBottom: 16 }]}>{t("GymBody'ye kaydettiğin en yüksek ağırlıklar ve rankların.")}</Text>
 
           {!userStats.isVip && (
@@ -3777,8 +3776,8 @@ const pickAndUploadProfilePhoto = async () => {
             const displayIdx = selectedMuscle ? computeMuscleRank(selectedMuscle, liftsData, bw, user?.gender) : bodyAvgIdx;
             const displayRank = displayIdx >= 0 ? RANKS[displayIdx] : null;
             return (
-              <View style={{ borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: displayRank ? displayRank.color + '55' : C.border }}>
-                <LinearGradient colors={displayRank ? [displayRank.color + '26', C.surface] : [C.surface2, C.surface]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 16 }}>
+              <View style={{ marginBottom: 12 }}>
+                <View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>{t('KAS HARİTASI')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -3819,12 +3818,14 @@ const pickAndUploadProfilePhoto = async () => {
                     const mapWidth = Math.min(160, Dimensions.get('window').width * 0.38);
                     const mapHeight = mapWidth * 514 / 230;
                     // rank yükseldikçe arkadaki bloom büyür ve belirginleşir (bronz en soluk, efsane en parlak)
-                    const glowSize = displayRank ? mapWidth * (1.3 + displayIdx * 0.16) : 0;
-                    const glowCoreOpacity = displayRank ? 0.16 + displayIdx * 0.065 : 0;
+                    const screenW = Dimensions.get('window').width;
+                    // Bloom artık kartla sınırlı değil — sayfa payının dışına taşıp kenarlarda sönümleniyor
+                    const glowSize = displayRank ? Math.min(screenW * 1.1, mapWidth * (1.9 + displayIdx * 0.18)) : 0;
+                    const glowCoreOpacity = displayRank ? 0.18 + displayIdx * 0.07 : 0;
                     return (
-                      <View style={{ width: mapWidth, height: mapHeight, alignSelf: 'center' }} {...muscleMapPanResponder.panHandlers}>
+                      <View style={{ marginHorizontal: -16, alignItems: 'center', justifyContent: 'center' }}>
                         {displayRank && (
-                          <Svg width={glowSize} height={glowSize} style={{ position: 'absolute', top: mapHeight / 2 - glowSize / 2, left: mapWidth / 2 - glowSize / 2 }} pointerEvents="none">
+                          <Svg width={glowSize} height={glowSize} style={{ position: 'absolute', top: mapHeight / 2 - glowSize / 2, alignSelf: 'center' }} pointerEvents="none">
                             <Defs>
                               <RadialGradient id={`muscleGlow-${displayRank.key}`} cx="50%" cy="50%" r="50%">
                                 <Stop offset="0%" stopColor={displayRank.color} stopOpacity={glowCoreOpacity} />
@@ -3835,6 +3836,7 @@ const pickAndUploadProfilePhoto = async () => {
                             <Circle cx={glowSize / 2} cy={glowSize / 2} r={glowSize / 2} fill={`url(#muscleGlow-${displayRank.key})`} />
                           </Svg>
                         )}
+                        <View style={{ width: mapWidth, height: mapHeight }} {...muscleMapPanResponder.panHandlers}>
                         <MuscleBodyMap
                           width={mapWidth}
                           view={bodyMapView}
@@ -3848,6 +3850,7 @@ const pickAndUploadProfilePhoto = async () => {
                           showLabels={false}
                           onMusclePress={(key) => setSelectedMuscle((prev) => (prev === key ? null : key))}
                         />
+                        </View>
                       </View>
                     );
                   })()}
@@ -3878,7 +3881,7 @@ const pickAndUploadProfilePhoto = async () => {
                     </TouchableOpacity>
                   )}
                   {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 8 }}>{t('Daha doğru rank için profilde kilonu gir')}</Text>}
-                </LinearGradient>
+                </View>
               </View>
             );
           })()}
