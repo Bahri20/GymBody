@@ -1567,6 +1567,30 @@ const ptWorkoutFinish = async (status: 'completed' | 'abandoned', doneExercises:
   } catch {}
 };
 
+// Hocadan ayrıl — geri alınamaz olduğu için onay isteniyor
+const leaveCoach = () => {
+  Alert.alert(
+    t('Hocandan ayrıl'),
+    t('{{name}} ile bağlantın kesilecek ve sana yazdığı program kaldırılacak. Emin misin?', { name: coachData.coachName || t('Hocan') }),
+    [
+      { text: t('Vazgeç'), style: 'cancel' },
+      {
+        text: t('Ayrıl'),
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await axios.post(`${API_URL}/leave-coach`, {}, { headers: { Authorization: `Bearer ${token}` } });
+            setCoachData({ hasCoach: false });
+            showToast(t('Hocandan ayrıldın.'));
+          } catch (error: any) {
+            showToast(error.userMessage || error.response?.data?.error || t('İşlem tamamlanamadı.'), 'error');
+          }
+        },
+      },
+    ]
+  );
+};
+
 const fetchCoach = async () => {
   if (!token) return;
   try {
@@ -2948,9 +2972,9 @@ const pickAndUploadProfilePhoto = async () => {
                   onChangeText={setJoinCode}
                 />
                 <TouchableOpacity activeOpacity={0.85} onPress={joinCoach} style={{ marginTop: 12 }}>
-                  <LinearGradient colors={['#2563EB', '#1E40AF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
-                    <Ionicons name="link" size={18} color="#fff" />
-                    <Text style={[styles.primaryBtnText, { color: '#fff' }]}>{t('BAĞLAN')}</Text>
+                  <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtn}>
+                    <Ionicons name="link" size={18} color="#1A1235" />
+                    <Text style={[styles.primaryBtnText, { color: '#1A1235' }]}>{t('BAĞLAN')}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -2967,15 +2991,23 @@ const pickAndUploadProfilePhoto = async () => {
                     <Text style={{ color: C.text, fontWeight: '900', fontSize: 18 }}>{coachData.coachName}</Text>
                   </View>
                 </View>
-                <TouchableOpacity activeOpacity={0.85} onPress={openCoachChat} style={{ backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>{t('Sohbet')}</Text>
-                  {coachData.unread > 0 && (
-                    <View style={{ backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
-                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>{coachData.unread}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {/* Simge yeterli — metin kaldırıldı, renk uygulamanın turuncu kimliğinde */}
+                  <TouchableOpacity activeOpacity={0.85} onPress={openCoachChat}
+                    style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="chatbubble-ellipses" size={21} color="#0B0D12" />
+                    {coachData.unread > 0 && (
+                      <View style={{ position: 'absolute', top: -3, right: -3, backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, borderWidth: 2, borderColor: C.surface }}>
+                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>{coachData.unread}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  {/* Hocadan ayrıl */}
+                  <TouchableOpacity activeOpacity={0.85} onPress={leaveCoach}
+                    style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="exit-outline" size={20} color={C.textMuted} />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {(coachData.workoutPlan || []).length === 0 && (coachData.nutritionPlan || []).length === 0 && (

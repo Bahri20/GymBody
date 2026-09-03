@@ -2155,6 +2155,34 @@ app.post('/apply-referral', authMiddleware, async (req, res) => {
   }
 });
 
+// Öğrenci hocasından ayrılır.
+// Hocanın yazdığı program (coachPlan) da temizlenir — ayrıldıktan sonra PT sekmesinde
+// eski hocanın programı durmasın. Mesaj geçmişi silinmiyor: hoca kendi panelinde
+// geçmişi görebilmeli ve öğrenci geri dönerse konuşma kaybolmasın.
+app.post('/leave-coach', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    if (!user.referredBy) return res.status(400).json({ error: "Zaten bir hocan yok." });
+
+    const coachId = user.referredBy;
+    user.referredBy = undefined;
+    user.discountRate = 0;
+    user.coachPlan = { workoutPlan: [], nutritionPlan: [], coachName: null, updatedAt: new Date() };
+    user.markModified('coachPlan');
+    await user.save();
+
+    // Hocanın öğrenci listesinden de çıkar
+    await Coach.findByIdAndUpdate(coachId, { $pull: { referredUsers: user._id } });
+
+    console.log(`👋 Öğrenci hocadan ayrıldı: ${user.name}`);
+    res.json({ message: "Hocandan ayrıldın." });
+  } catch (err) {
+    console.error("leave-coach hatası:", err);
+    res.status(500).json({ error: "İşlem tamamlanamadı." });
+  }
+});
+
 // PT Giriş
 app.post('/coach/login', async (req, res) => {
   try {
