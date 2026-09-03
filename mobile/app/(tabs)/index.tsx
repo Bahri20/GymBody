@@ -4076,14 +4076,18 @@ const pickAndUploadProfilePhoto = async () => {
               const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
               const accentColor = rank ? rank.color : C.lime;
               const gifUrl = lift.libraryName ? gifByLiftName[lift.libraryName.toLowerCase().trim()] : null;
-              // Son kayıtlardan mini ilerleme çizgisi (46x22 kutuya normalize)
+              // Son kayıtlardan mini ilerleme çizgisi (46x22 kutuya normalize).
+              // Tek kayıt ya da hepsi aynı değerse ortada düz çizgi — kaydı olan her satırda grafik var.
+              const hasHistory = ((liftData?.history || []).filter((x: any) => x?.weight > 0)).length > 0;
               const spark = (() => {
                 const h = (liftData?.history || []).slice(-6).map((x: any) => x.weight).filter((w: any) => w > 0);
-                if (h.length < 2) return null;
-                const min = Math.min(...h), max = Math.max(...h), span = max - min || 1;
+                if (h.length === 0 && best > 0) h.push(best);
+                if (h.length === 0) return null;
+                if (h.length === 1) h.push(h[0]);
+                const min = Math.min(...h), max = Math.max(...h), span = max - min;
                 return h.map((w: number, i: number) => {
                   const x = (i / (h.length - 1)) * 44 + 1;
-                  const y = 19 - ((w - min) / span) * 16;
+                  const y = span === 0 ? 11 : 19 - ((w - min) / span) * 16;
                   return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)},${y.toFixed(1)}`;
                 }).join(' ');
               })();
@@ -4118,7 +4122,7 @@ const pickAndUploadProfilePhoto = async () => {
 
                     {/* Mini ilerleme grafiği — dokununca o hareketin tam geçmişi açılır */}
                     {spark && (
-                      <TouchableOpacity activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                      <TouchableOpacity activeOpacity={0.7} disabled={!hasHistory} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
                         onPress={(e) => { e.stopPropagation(); setHistoryLiftKey(lift.key); }}>
                         <Svg width={46} height={22} viewBox="0 0 46 22">
                           <Path d={spark} fill="none" stroke={accentColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.85} />
@@ -4126,10 +4130,11 @@ const pickAndUploadProfilePhoto = async () => {
                       </TouchableOpacity>
                     )}
 
-                    {/* Rütbe rozeti ya da "gir" çağrısı */}
+                    {/* Lig rozeti + altında lig adı, ya da "gir" çağrısı */}
                     {rank ? (
-                      <View style={{ backgroundColor: accentColor + '22', borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 }}>
-                        <Text style={{ color: accentColor, fontFamily: LK.fontLabel, fontSize: 9.5, letterSpacing: 0.6 }}>{t(rank.label).toUpperCase()}</Text>
+                      <View style={{ alignItems: 'center', width: 54 }}>
+                        <RankBadgeSvg rankKey={rank.key} color={rank.color} size={30} />
+                        <Text numberOfLines={1} style={{ color: accentColor, fontFamily: LK.fontLabel, fontSize: 8.5, letterSpacing: 0.5, marginTop: 1 }}>{t(rank.label).toUpperCase()}</Text>
                       </View>
                     ) : (
                       <View style={{ backgroundColor: LK.surfaceContainerHigh, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 }}>
