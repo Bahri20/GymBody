@@ -504,7 +504,9 @@ export default function App() {
   const nestedCarouselActive = useRef(false);
   const [gymTab, setGymTab] = useState<'program' | 'max'>('program');
   const [bodyMapView, setBodyMapView] = useState<'front' | 'back'>('front');
-  const [liftViewMode, setLiftViewMode] = useState<'cards' | 'list'>('cards');
+  const [liftViewMode, setLiftViewMode] = useState<'cards' | 'list'>('list');
+  // Satırdaki mini grafiğe dokununca açılan geçmiş paneli
+  const [historyLiftKey, setHistoryLiftKey] = useState<string | null>(null);
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
   const [muscleTrendVisible, setMuscleTrendVisible] = useState(false);
   const [trendPeriod, setTrendPeriod] = useState<'1m' | 'first'>('1m');
@@ -4114,11 +4116,14 @@ const pickAndUploadProfilePhoto = async () => {
                       </Text>
                     </View>
 
-                    {/* Mini ilerleme grafiği — kayıt geçmişi varsa */}
+                    {/* Mini ilerleme grafiği — dokununca o hareketin tam geçmişi açılır */}
                     {spark && (
-                      <Svg width={46} height={22} viewBox="0 0 46 22">
-                        <Path d={spark} fill="none" stroke={accentColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.85} />
-                      </Svg>
+                      <TouchableOpacity activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                        onPress={(e) => { e.stopPropagation(); setHistoryLiftKey(lift.key); }}>
+                        <Svg width={46} height={22} viewBox="0 0 46 22">
+                          <Path d={spark} fill="none" stroke={accentColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" opacity={0.85} />
+                        </Svg>
+                      </TouchableOpacity>
                     )}
 
                     {/* Rütbe rozeti ya da "gir" çağrısı */}
@@ -4153,72 +4158,6 @@ const pickAndUploadProfilePhoto = async () => {
             </TouchableOpacity>
           </View>
 
-          {/* KAYDIRMALİ LİFT GEÇMİŞİ GRAFİKLERİ */}
-          {(() => {
-            const liftsWithHistory = LIFTS.filter(lift => {
-              const h = user?.lifts?.[lift.key]?.history;
-              return h && h.length >= 1;
-            });
-            if (liftsWithHistory.length === 0) return null;
-            const screenW = Dimensions.get('window').width;
-            return (
-              <View style={{ marginTop: 8, marginBottom: 4 }}>
-                <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, marginBottom: 12 }}>{t('Güç Geçmişi')}</Text>
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  style={{ marginHorizontal: -16 }}
-                  onTouchStart={() => { nestedCarouselActive.current = true; }}
-                  onTouchEnd={() => { nestedCarouselActive.current = false; }}
-                  onTouchCancel={() => { nestedCarouselActive.current = false; }}
-                >
-                  {liftsWithHistory.map((lift) => {
-                    const rawHistory: { weight: number; date: string }[] = user.lifts[lift.key].history;
-                    const history = rawHistory.length === 1 ? [rawHistory[0], rawHistory[0]] : rawHistory;
-                    const sparse = history.length > 8
-                      ? history.filter((_, i) => i % Math.ceil(history.length / 8) === 0 || i === history.length - 1)
-                      : history;
-                    const labels = sparse.map(h => new Date(h.date).toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' }));
-                    const data = sparse.map(h => h.weight);
-                    const rankColor = (() => {
-                      const { rankIndex } = computeRank(lift.key, user.lifts[lift.key].best, user?.weight, user?.gender);
-                      return rankIndex >= 0 ? RANKS[rankIndex].color : C.lime;
-                    })();
-                    return (
-                      <View key={lift.key} style={{ width: screenW, paddingHorizontal: 16 }}>
-                        <View style={[styles.statsCard, { paddingBottom: 8 }]}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                            <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{lift.label}</Text>
-                            <Text style={{ color: rankColor, fontWeight: '900', fontSize: 18 }}>
-                              {user.lifts[lift.key].best} kg
-                            </Text>
-                          </View>
-                          <LineChart
-                            data={{ labels, datasets: [{ data, color: () => rankColor }] }}
-                            width={screenW - 64}
-                            height={100}
-                            chartConfig={{
-                              ...chartConfig,
-                              color: (o = 1) => rankColor + Math.round(o * 255).toString(16).padStart(2, '0'),
-                              propsForDots: { r: '3', strokeWidth: '2', stroke: rankColor },
-                            }}
-                            bezier
-                            withInnerLines={false}
-                            withHorizontalLabels={false}
-                            style={{ borderRadius: 12, marginLeft: -8 }}
-                          />
-                          <Text style={{ color: C.textMuted, fontSize: 10, textAlign: 'center', marginTop: 4 }}>
-                            {t('{{total}} kayıt · son {{shown}} gösteriliyor', { total: rawHistory.length, shown: rawHistory.length > 8 ? 8 : rawHistory.length })}
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            );
-          })()}
         </ScrollView>
       )}
       {currentTab === 'profile' && (
@@ -5702,6 +5641,83 @@ const pickAndUploadProfilePhoto = async () => {
             </View>
           );
         })()}
+      </Modal>
+
+      {/* GÜÇ GEÇMİŞİ — listedeki mini grafiğe dokununca açılır */}
+      <Modal visible={!!historyLiftKey} transparent animationType="slide" onRequestClose={() => setHistoryLiftKey(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setHistoryLiftKey(null)} />
+          <View style={{ backgroundColor: LK.surfaceContainerLow, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: 38 }}>
+            {(() => {
+              const lift = LIFTS.find((l) => l.key === historyLiftKey);
+              const raw: { weight: number; date: string }[] = (user?.lifts?.[historyLiftKey as string]?.history) || [];
+              if (!lift || raw.length === 0) return null;
+
+              const best = user?.lifts?.[lift.key]?.best || 0;
+              const isRepBased = lift.unit === 'tekrar';
+              const unitLabel = isRepBased ? t('tekrar') : 'kg';
+              const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
+              const accent = rankIndex >= 0 ? RANKS[rankIndex].color : C.lime;
+
+              // Tek kayıtta çizgi oluşmaz — noktayı ikiye çoğaltıp düz çizgi gösteriyoruz
+              const history = raw.length === 1 ? [raw[0], raw[0]] : raw;
+              const sparse = history.length > 8
+                ? history.filter((_, i) => i % Math.ceil(history.length / 8) === 0 || i === history.length - 1)
+                : history;
+              const labels = sparse.map((h) => new Date(h.date).toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit' }));
+              const data = sparse.map((h) => h.weight);
+              const first = raw[0].weight, last = raw[raw.length - 1].weight;
+              const delta = last - first;
+
+              return (
+                <>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: LK.onSurface, fontFamily: LK.fontHeadlineSemi, fontSize: 20 }}>{lift.label}</Text>
+                      <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12, marginTop: 3 }}>
+                        {t(lift.muscle)} · {t('{{total}} kayıt', { total: raw.length })}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+                        <Text style={{ color: accent, fontFamily: LK.fontHeadlineXl, fontSize: 24 }}>{best}</Text>
+                        <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 12 }}>{unitLabel}</Text>
+                      </View>
+                      {raw.length > 1 && (
+                        <Text style={{ color: delta >= 0 ? LK.primaryFixed : LK.error, fontFamily: LK.fontLabel, fontSize: 11, marginTop: 2 }}>
+                          {delta >= 0 ? '+' : ''}{delta} {unitLabel}
+                        </Text>
+                      )}
+                    </View>
+                    <TouchableOpacity onPress={() => setHistoryLiftKey(null)} style={{ marginLeft: 12, marginTop: 2 }}>
+                      <Ionicons name="close" size={22} color={LK.onSurfaceVariant} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <LineChart
+                    data={{ labels, datasets: [{ data, color: () => accent }] }}
+                    width={Dimensions.get('window').width - 60}
+                    height={170}
+                    chartConfig={{
+                      ...chartConfig,
+                      color: (o = 1) => accent + Math.round(o * 255).toString(16).padStart(2, '0'),
+                      propsForDots: { r: '4', strokeWidth: '2', stroke: accent },
+                    }}
+                    bezier
+                    withInnerLines={false}
+                    style={{ borderRadius: 14, marginLeft: -14 }}
+                  />
+
+                  {raw.length > 8 && (
+                    <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
+                      {t('Son 8 kayıt gösteriliyor')}
+                    </Text>
+                  )}
+                </>
+              );
+            })()}
+          </View>
+        </View>
       </Modal>
 
       {/* HAFTALIK ÖZET MODAL */}
