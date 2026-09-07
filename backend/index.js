@@ -3584,6 +3584,8 @@ app.get(['/indir', '/download', '/get-app'], (req, res) => {
   if (/Android/i.test(ua)) return res.redirect(302, PLAY_STORE_URL);
   res.send(`<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>GymBodyAI'ı İndir</title>
 <style>
   body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
