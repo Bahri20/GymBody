@@ -1611,7 +1611,14 @@ const joinCoach = async () => {
   if (!code) return;
   try {
     const { data } = await axios.post(`${API_URL}/join-coach`, { code }, { headers: { Authorization: `Bearer ${token}` } });
-    showToast(data.message || t('Hocana bağlandın!'));
+    // Hoca hediye VIP tanımlıysa katılırken veriliyor — VIP'e bağlı ekranlar hemen açılsın diye
+    // istatistikleri tazeliyoruz (isVip buradan geliyor).
+    if (data.vipDays) {
+      showToast(t('{{coach}} hocana bağlandın — {{days}} gün VIP hediye!', { coach: data.coachName, days: data.vipDays }));
+      fetchUserStats();
+    } else {
+      showToast(data.message || t('Hocana bağlandın!'));
+    }
     setJoinCode('');
     fetchCoach();
   } catch (e: any) { showToast(e.response?.data?.error || t('Kod bulunamadı'), 'error'); }

@@ -22,6 +22,10 @@ const userSchema = new mongoose.Schema({
   isVip: { type: Boolean, default: false },
   vipExpiresAt: { type: Date },
   referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Coach' },
+  // Hocaya katılma hediyesi olarak VIP verildiyse damgalanır — hesap başına bir kez.
+  // Hocadan ayrılıp başka koda katılarak tekrar VIP alınmasını engelliyor.
+  coachVipGrantedAt: { type: Date },
+  coachVipGrantedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Coach' },
   discountRate: { type: Number, default: 0 },
   pushToken: { type: String },
   badges: [{ type: String }],

@@ -408,14 +408,23 @@ app.post('/register', async (req, res) => {
 
     // Tüm yeni kullanıcılara ücretsiz VIP (FREE_TRIAL_DAYS gün)
     const isVip = true;
-    const vipExpiresAt = trialVipExpiry();
+    let vipExpiresAt = trialVipExpiry();
+
+    // Hocanın hediye VIP'i deneme süresinin üstüne eklenir (admin tanımlar, hoca değiştiremez)
+    const coachVipDays = coach?.freeVipDays || 0;
+    if (coachVipDays) {
+      vipExpiresAt = new Date(vipExpiresAt);
+      vipExpiresAt.setDate(vipExpiresAt.getDate() + coachVipDays);
+    }
 
     const newUser = await User.create({
       email, password: hashedPassword, name, height, weight,
       referredBy: coach?._id || undefined,
       discountRate,
       isVip,
-      vipExpiresAt
+      vipExpiresAt,
+      coachVipGrantedAt: coachVipDays ? new Date() : undefined,
+      coachVipGrantedBy: coachVipDays ? coach._id : undefined
     });
 
     // Koçun referred listesine ekle
@@ -426,12 +435,12 @@ app.post('/register', async (req, res) => {
     }
 
     const { password: _, ...safeUser } = newUser.toObject();
-    const logMsg = coach ? `(${coach.name} referansıyla${isVip ? `, ${coach.freeVipDays} gün VIP verildi` : ''})` : '';
+    const logMsg = coach ? `(${coach.name} referansıyla${coachVipDays ? `, +${coachVipDays} gün hediye VIP` : ''})` : '';
     console.log("👤 Yeni kullanıcı kaydedildi:", newUser.name, logMsg);
     res.status(201).json({
       message: "Kayıt başarılı kanka!",
       user: safeUser,
-      referralBonus: coach ? { coachName: coach.name, discountRate, freeVipDays: coach.freeVipDays } : null
+      referralBonus: coach ? { coachName: coach.name, discountRate, freeVipDays: coachVipDays } : null
     });
   } catch (err) {
     console.error("🔥 Register Hatası:", err);
@@ -2066,6 +2075,32 @@ app.post('/revenuecat-webhook', authMiddleware, async (req, res) => {
 
 // ==================== PROMO KOD SİSTEMİ ====================
 
+// Hediye VIP günü yalnızca admin tarafından set edilir; 0-365 arasına sıkıştırılır
+function clampVipDays(v) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(n, 365);
+}
+
+// Hocaya katılan kullanıcıya, adminin O HOCA İÇİN tanımladığı ücretsiz VIP'i bir kez verir.
+// Gün sayısını yalnızca admin belirler (Coach.freeVipDays); hocanın kendi panelinde
+// değiştirebileceği bir uç yok. Kullanıcıyı kaydetmek çağıranın işi.
+async function grantCoachJoinVip(user, coach) {
+  const days = coach?.freeVipDays || 0;
+  if (!days) return 0;
+  if (user.coachVipGrantedAt) return 0;   // bu hesap hediyeyi zaten kullanmış
+  const now = new Date();
+  // Süresi devam eden VIP varsa üstüne eklenir, yoksa bugünden başlar (promo kodla aynı mantık)
+  const base = (user.vipExpiresAt && user.vipExpiresAt > now) ? user.vipExpiresAt : now;
+  const expiry = new Date(base);
+  expiry.setDate(expiry.getDate() + days);
+  user.isVip = true;
+  user.vipExpiresAt = expiry;
+  user.coachVipGrantedAt = now;
+  user.coachVipGrantedBy = coach._id;
+  return days;
+}
+
 app.post('/redeem-promo', authMiddleware, async (req, res) => {
   try {
     const { code } = req.body;
@@ -2282,6 +2317,9 @@ app.get('/coach/dashboard', coachMiddleware, async (req, res) => {
       gymCode: coach.gymCode || null,
       discountRate: coach.discountRate,
       commissionRate: coach.commissionRate,
+      // Salt okunur: kodunla katılana verilen hediye VIP günü. Hoca değiştiremez,
+      // yalnızca admin panelinden tanımlanır.
+      freeVipDays: coach.freeVipDays || 0,
       balance: coach.balance,
       totalEarned: coach.totalEarned,
       referredCount: students.length,
@@ -2570,10 +2608,18 @@ app.post('/join-coach', authMiddleware, async (req, res) => {
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
     user.referredBy = coach._id;
+    const vipDays = await grantCoachJoinVip(user, coach);
     await user.save();
     await Coach.findByIdAndUpdate(coach._id, { $addToSet: { referredUsers: user._id } });
-    console.log(`🔗 Öğrenci hocaya bağlandı: ${user.name} → ${coach.name}`);
-    res.json({ message: `${coach.name} hocana bağlandın!`, coachName: coach.name });
+    console.log(`🔗 Öğrenci hocaya bağlandı: ${user.name} → ${coach.name}${vipDays ? ` (+${vipDays} gün VIP)` : ''}`);
+    res.json({
+      message: vipDays
+        ? `${coach.name} hocana bağlandın — ${vipDays} gün VIP hediye!`
+        : `${coach.name} hocana bağlandın!`,
+      coachName: coach.name,
+      vipDays,
+      vipExpiresAt: user.vipExpiresAt,
+    });
   } catch (err) { console.error("join-coach hatası:", err); res.status(500).json({ error: "Bağlanılamadı." }); }
 });
 
@@ -2917,7 +2963,7 @@ async function generateReferralCode(name) {
 
 app.post('/admin/coach', adminMiddleware, async (req, res) => {
   try {
-    const { name, email, password, phone, referralCode, gymCode, discountRate, commissionRate, notes } = req.body;
+    const { name, email, password, phone, referralCode, gymCode, discountRate, commissionRate, freeVipDays, notes } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ error: "İsim, email ve şifre zorunlu." });
     }
@@ -2933,10 +2979,12 @@ app.post('/admin/coach', adminMiddleware, async (req, res) => {
       referralCode: code,
       gymCode: gymCode ? gymCode.toUpperCase().trim() : undefined, // salon kodu (ör. MLFT2)
       discountRate: discountRate || 10,
-      commissionRate: commissionRate || 15
+      commissionRate: commissionRate || 15,
+      // Bu hocanın koduyla katılan kullanıcıya verilecek hediye VIP günü (0 = kapalı)
+      freeVipDays: clampVipDays(freeVipDays)
     });
 
-    console.log(`✅ Yeni koç eklendi: ${coach.name} (${coach.referralCode})`);
+    console.log(`✅ Yeni koç eklendi: ${coach.name} (${coach.referralCode})${coach.freeVipDays ? ` — katılana ${coach.freeVipDays} gün VIP` : ''}`);
     res.status(201).json({ message: "Koç başarıyla oluşturuldu.", coachId: coach._id, referralCode: coach.referralCode });
   } catch (err) {
     console.error("Coach oluşturma hatası:", err);
@@ -2957,11 +3005,12 @@ app.get('/admin/coaches', adminMiddleware, async (req, res) => {
 // Komisyon oranını güncelle (admin)
 app.patch('/admin/coach/:id', adminMiddleware, async (req, res) => {
   try {
-    const { commissionRate, discountRate, isActive, notes } = req.body;
+    const { commissionRate, discountRate, isActive, freeVipDays, notes } = req.body;
     const update = {};
     if (commissionRate !== undefined) update.commissionRate = commissionRate;
     if (discountRate !== undefined) update.discountRate = discountRate;
     if (isActive !== undefined) update.isActive = isActive;
+    if (freeVipDays !== undefined) update.freeVipDays = clampVipDays(freeVipDays);
     if (notes !== undefined) update.notes = notes;
     const coach = await Coach.findByIdAndUpdate(req.params.id, update, { new: true, select: '-password' });
     if (!coach) return res.status(404).json({ error: "Koç bulunamadı." });
