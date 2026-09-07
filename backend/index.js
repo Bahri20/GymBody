@@ -90,11 +90,23 @@ const MUSCLE_LIFT_MAP = {
 };
 const MUSCLE_NAMES_TR = { trapez: 'Trapez', omuz: 'Omuz', gogus: 'Göğüs', biceps: 'Biceps', onkol: 'Ön Kol', karin: 'Karın', kuad: 'Quadriceps', triceps: 'Triceps', sirt: 'Sırt', bel: 'Bel', kalca: 'Kalça', arkabacak: 'Arka Bacak', kalf: 'Kalf' };
 
+// Cinsiyetin TEK normalizasyon noktası. Kayıtlarda tarihsel olarak üç yazım var:
+// 'male'/'female' (uygulama), 'Erkek'/'Kadın' (eski sürümler) ve boş. Rank eşikleri,
+// BMR ve yağ oranı analizi buna göre değiştiği için her okuma buradan geçmeli.
+// Bilinmiyorsa null döner — çağıran taraf "varsayılan erkek" ile "bilinmiyor"u ayırabilsin.
+function normGender(g) {
+  const s = String(g || '').trim().toLowerCase();
+  if (!s) return null;
+  if (s === 'female' || s === 'kadın' || s === 'kadin' || s === 'woman' || s === 'f') return 'female';
+  if (s === 'male' || s === 'erkek' || s === 'man' || s === 'm') return 'male';
+  return null;
+}
+const isFemaleGender = (g) => normGender(g) === 'female';
+
 function liftRankIndex(liftKey, best, bodyweight, gender) {
   const std = MUSCLE_STD[liftKey];
   if (!std || !(best > 0)) return -1;
-  const isFemale = String(gender || '').toLowerCase().indexOf('kad') === 0;
-  const th = std[isFemale ? 'kadin' : 'erkek'];
+  const th = std[isFemaleGender(gender) ? 'kadin' : 'erkek'];
   const bw = MUSCLE_REP_BASED.has(liftKey) ? 1 : (bodyweight > 0 ? bodyweight : 70);
   const ratio = best / bw;
   let idx = -1;
@@ -419,6 +431,7 @@ app.post('/register', async (req, res) => {
 
     const newUser = await User.create({
       email, password: hashedPassword, name, height, weight,
+      gender: normGender(req.body.gender) || undefined,
       referredBy: coach?._id || undefined,
       discountRate,
       isVip,
@@ -619,6 +632,12 @@ app.put('/update-profile', authMiddleware, async (req, res) => {
     const allowed = ['name', 'height', 'weight', 'age', 'gender', 'targetWeight'];
     const update = {};
     for (const f of allowed) if (req.body[f] !== undefined) update[f] = req.body[f];
+    // Cinsiyet her zaman kanonik yazılır ('male'/'female'); tanınmayan değer hiç yazılmaz,
+    // çünkü rank eşikleri ve yağ oranı analizi bu alana bakıyor.
+    if (update.gender !== undefined) {
+      const g = normGender(update.gender);
+      if (g) update.gender = g; else delete update.gender;
+    }
 
     const updatedUser = await User.findByIdAndUpdate(
       req.userId,
@@ -735,8 +754,20 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
           }
         };
 
+      // Yağ oranı eşikleri cinsiyete göre ciddi biçimde farklı (kadınlarda temel yağ daha
+      // yüksek). Cinsiyet bilinmiyorsa modele tahmin ettirmiyoruz — aralık vermeden,
+      // ölçülere dayanarak konuşuyor.
+      const g = normGender(user?.gender);
+      const genderBlock = g === 'female'
+        ? `Kişi kadın. Kadınlarda referans aralıkları: sporcu %14-20, fit %21-24, ortalama %25-31, yüksek %32+.
+    Erkek aralıklarını UYGULAMA — kadınlarda temel yağ oranı doğal olarak daha yüksektir, aynı görünüm daha yüksek yüzdeye karşılık gelir.`
+        : g === 'male'
+        ? `Kişi erkek. Erkeklerde referans aralıkları: sporcu %6-13, fit %14-17, ortalama %18-24, yüksek %25+.`
+        : `Kişinin cinsiyeti bilinmiyor. Yüzdeyi verirken bunu dikkate al ve açıklamada "daha doğru sonuç için profilinden cinsiyetini seç" diye kısaca hatırlat.`;
+
       const prompt = `
     Bu fotoğraftaki kişinin vücut yağ oranını tahmin et.
+    ${genderBlock}
     Kişinin bilinen ölçüleri: Boy: ${userMeasurements.height || 'bilinmiyor'} cm, 
     Kilo: ${userMeasurements.weight || 'bilinmiyor'} kg
     ${userMeasurements.waist ? `, Bel çevresi: ${userMeasurements.waist} cm` : ''}
@@ -745,9 +776,20 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
     
     Bu sayısal verileri VKİ (vücut kitle indeksi) hesaplamak ve görsel tahminle birleştirmek için kullan. 
     Tahminini sadece görsele değil, verilen boy/kilo bilgisine dayanarak da oluştur.
+
+    SINIRLAR — bunlara harfiyen uy:
+    - Yalnızca vücut kompozisyonu (yağ/kas dağılımı) hakkında konuş. Klinik ve saygılı bir dil kullan.
+    - Kişinin çekiciliği, fiziksel güzelliği, giyimi, vücut hatları ya da özel bölgeleri hakkında
+      HİÇBİR yorum yapma; bunları betimleme.
+    - Kişiyi tanımlamaya, yaşını/etnik kökenini tahmin etmeye ya da fotoğraftaki ortam hakkında
+      yorum yapmaya çalışma.
+    - Utandıran, küçümseyen veya kilo üzerinden ahlak dersi veren bir ton kullanma; ölçülü ve
+      yapıcı ol.
+    - Fotoğrafta yüz dışında vücut görünmüyorsa ya da değerlendirme için uygun değilse yüzde verme.
     
     Eğer fotoğrafta vücut net görünmüyorsa (kıyafet, açı, ışık sorunu vb.) bunu açıklamada belirt 
-    ve bodyFatPercentage alanını null yap.
+    ve bodyFatPercentage alanını null yap. Bol kıyafet gayet normaldir — kişiden daha az giyinmesini
+    ASLA isteme; bunun yerine duruş, mesafe veya ışık için nazik bir öneri ver.
     ${langDirective(req)}
     Yalnızca aşağıdaki saf JSON formatında cevap ver, kod bloğu veya açıklama ekleme:
     {"bodyFatPercentage": 18.5, "analysis": "Kısa değerlendirme ve öneri mesajı"}
@@ -980,11 +1022,7 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
     if (!me.weight) return res.status(400).json({ error: "Önce profilden kilonu gir." });
 
     // Cinsiyet normalize: 'female'/'Kadın' → female, diğer her şey male
-    const normGender = (g) => {
-      const s = String(g || '').toLowerCase();
-      return (s === 'female' || s === 'kadın' || s === 'kadin') ? 'female' : 'male';
-    };
-    const myGender = normGender(me.gender);
+    const myGender = normGender(me.gender) || 'male';
 
     // 5 kg siklet: 97 → 95-100
     const bracketMin = Math.floor(me.weight / 5) * 5;
@@ -996,7 +1034,7 @@ app.get('/lift-leaderboard', authMiddleware, async (req, res) => {
     }).select('name lifts weight isVip vipExpiresAt gender profilePhoto googlePhoto');
 
     const ranked = users
-      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && normGender(u.gender) === myGender)
+      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && (normGender(u.gender) || 'male') === myGender)
       .map(u => ({ id: String(u._id), name: u.name || 'Anonim', best: u.lifts?.[lift]?.best || 0, reps: u.lifts?.[lift]?.reps || 1, photo: u.profilePhoto || u.googlePhoto || null }))
       .filter(u => u.best > 0)
       // Önce kg (yüksek önde), kg eşitse fazla tekrar önde
@@ -1064,11 +1102,7 @@ app.get('/muscle-leaderboard', authMiddleware, async (req, res) => {
     if (!meVip) return res.status(403).json({ error: "Bu özellik VIP'e özel kanka." });
     if (!me.weight) return res.status(400).json({ error: "Önce profilden kilonu gir." });
 
-    const normGender = (g) => {
-      const s = String(g || '').toLowerCase();
-      return (s === 'female' || s === 'kadın' || s === 'kadin') ? 'female' : 'male';
-    };
-    const myGender = normGender(me.gender);
+    const myGender = normGender(me.gender) || 'male';
 
     const bracketMin = Math.floor(me.weight / 5) * 5;
     const bracketMax = bracketMin + 5;
@@ -1078,7 +1112,7 @@ app.get('/muscle-leaderboard', authMiddleware, async (req, res) => {
     }).select('name lifts weight isVip vipExpiresAt gender profilePhoto googlePhoto');
 
     const ranked = users
-      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && normGender(u.gender) === myGender)
+      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && (normGender(u.gender) || 'male') === myGender)
       .map(u => ({ id: String(u._id), name: u.name || 'Anonim', rankIdx: muscleRankIndex(muscle, u.lifts, u.weight, u.gender), photo: u.profilePhoto || u.googlePhoto || null }))
       .filter(u => u.rankIdx >= 0)
       .sort((a, b) => b.rankIdx - a.rankIdx);
@@ -1142,11 +1176,7 @@ app.get('/my-lift-ranks', authMiddleware, async (req, res) => {
     const meVip = me.isVip && (!me.vipExpiresAt || me.vipExpiresAt > now);
     if (!meVip || !me.weight) return res.json({ ranks: {}, bracket: null });
 
-    const normGender = (g) => {
-      const s = String(g || '').toLowerCase();
-      return (s === 'female' || s === 'kadın' || s === 'kadin') ? 'female' : 'male';
-    };
-    const myGender = normGender(me.gender);
+    const myGender = normGender(me.gender) || 'male';
 
     const bracketMin = Math.floor(me.weight / 5) * 5;
     const bracketMax = bracketMin + 5;
@@ -1154,7 +1184,7 @@ app.get('/my-lift-ranks', authMiddleware, async (req, res) => {
 
     const users = (await User.find({ weight: { $gte: bracketMin, $lt: bracketMax } })
       .select('lifts isVip vipExpiresAt gender'))
-      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && normGender(u.gender) === myGender);
+      .filter(u => u.isVip && (!u.vipExpiresAt || u.vipExpiresAt > now) && (normGender(u.gender) || 'male') === myGender);
 
     const lifts = ALLOWED_LIFTS;
     const myId = String(me._id);
@@ -1201,9 +1231,13 @@ app.post('/reward-ad-token', authMiddleware, async (req, res) => {
 // İlk giriş karşılama modalı gösterildi → bir daha gösterme
 app.post('/complete-onboarding', authMiddleware, async (req, res) => {
   try {
-    const { goal, experience, daysPerWeek, location, restrictions } = req.body;
+    const { goal, experience, daysPerWeek, location, restrictions, gender } = req.body;
     const update = { onboarded: true };
     if (goal) update.onboardingData = { goal, experience, daysPerWeek: parseInt(daysPerWeek) || 4, location, restrictions };
+    // Cinsiyet onboarding'de soruluyor: Max Güç rank eşikleri, BMR ve yağ oranı
+    // analizi bu alana göre değişiyor, sonradan doldurulmasını beklemek yanlış sonuç üretiyordu.
+    const g = normGender(gender);
+    if (g) update.gender = g;
     await User.findByIdAndUpdate(req.userId, update);
     res.json({ message: "ok" });
   } catch (err) {
@@ -1509,7 +1543,7 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     const uW = user.weight, uH = user.height;
     let dailyCalorieTarget = 2000;
     if (uW && uH && gAge) {
-      const bmr = 10 * uW + 6.25 * uH - 5 * gAge + (user.gender === 'female' ? -161 : 5);
+      const bmr = 10 * uW + 6.25 * uH - 5 * gAge + (isFemaleGender(user.gender) ? -161 : 5);
       const tdee = bmr * 1.375;
       if (user.targetWeight && user.targetWeight < uW) dailyCalorieTarget = Math.round(tdee - 500);
       else if (user.targetWeight && user.targetWeight > uW) dailyCalorieTarget = Math.round(tdee + 300);
@@ -1604,7 +1638,7 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
 Sen bir kişisel antrenör ve diyetisyensin. Aşağıdaki bilgilere göre ${programDays} günlük döngü antrenman ve beslenme programı hazırla:
 
 - Boy: ${uH || 'bilinmiyor'} cm, Kilo: ${uW || 'bilinmiyor'} kg
-- Yaş: ${gAge || 'bilinmiyor'}, Cinsiyet: ${user.gender || 'bilinmiyor'}
+- Yaş: ${gAge || 'bilinmiyor'}, Cinsiyet: ${normGender(user.gender) === 'female' ? 'Kadın' : normGender(user.gender) === 'male' ? 'Erkek' : 'bilinmiyor'}
 - Vücut yağ oranı: ${bodyFat != null ? '%' + bodyFat : 'bilinmiyor'}
 - Hedef kilo: ${user.targetWeight || 'belirtilmemiş'}
 - Günlük kalori hedefi: ${dailyCalorieTarget} kcal

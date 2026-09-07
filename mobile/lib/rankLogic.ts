@@ -96,10 +96,21 @@ export const STD: Record<string, { erkek: number[]; kadin: number[] }> = {
 };
 
 // Bir hareketin rank durumunu hesapla. Döner: { rankIndex (-1=henüz bronz değil), ratio, nextWeight, progress }
+// Cinsiyetin TEK normalizasyon noktası (backend'deki normGender ile aynı kurallar).
+// Kayıtlarda 'male'/'female' ve eski 'Erkek'/'Kadın' yazımları bir arada olabiliyor;
+// rank eşikleri buna göre değiştiği için karşılaştırma hep buradan geçmeli.
+// Bilinmiyorsa null döner — "varsayılan erkek" ile "hiç seçilmemiş" ayrılabilsin.
+export function normGender(gender?: string): 'male' | 'female' | null {
+  const s = String(gender || '').trim().toLowerCase();
+  if (!s) return null;
+  if (s === 'female' || s === 'kadın' || s === 'kadin' || s === 'woman' || s === 'f') return 'female';
+  if (s === 'male' || s === 'erkek' || s === 'man' || s === 'm') return 'male';
+  return null;
+}
+export const genderKey = (gender?: string): 'erkek' | 'kadin' => (normGender(gender) === 'female' ? 'kadin' : 'erkek');
+
 export function computeRank(liftKey: string, best: number, bodyweight: number, gender?: string) {
-  const g = String(gender || '').toLowerCase();
-  const isFemale = g === 'female' || g === 'kadın' || g === 'kadin';
-  const thresholds = STD[liftKey][isFemale ? 'kadin' : 'erkek'];
+  const thresholds = STD[liftKey][genderKey(gender)];
   const bw = REP_BASED_LIFTS.has(liftKey) ? 1 : (bodyweight && bodyweight > 0 ? bodyweight : 70);
   const ratio = best / bw;
   let rankIndex = -1;

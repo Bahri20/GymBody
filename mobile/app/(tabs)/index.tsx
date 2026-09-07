@@ -23,7 +23,7 @@ import Animated, { FadeIn, useSharedValue, useAnimatedStyle, withRepeat, withTim
 import Svg, { Path, Ellipse, G, Circle, Defs, LinearGradient as SvgLinearGradient, RadialGradient, Stop, ClipPath, Rect } from 'react-native-svg';
 import MuscleBodyMap, { MUSCLE_NAMES } from '../../components/MuscleBodyMap';
 import {
-  LIFTS, REP_BASED_LIFTS, RANKS, STD, computeRank,
+  LIFTS, REP_BASED_LIFTS, RANKS, STD, computeRank, normGender, genderKey,
   MUSCLE_KEYS, MUSCLE_LIFT_MAP, estRankIndex, computeMuscleRank, computeBodyAverageRank, buildMuscleRanksMap,
   bestForPeriod, computeMuscleRankForPeriod, buildMuscleRanksMapForPeriod,
 } from '../../lib/rankLogic';
@@ -1143,7 +1143,7 @@ export default function App() {
     fetchMealLogs();
     fetchUserStats();
     setGoalAge(user.age ? String(user.age) : '');
-    setGoalGender(user.gender === 'female' ? 'female' : 'male');
+    setGoalGender(normGender(user.gender) === 'female' ? 'female' : 'male');
     setGoalTarget(user.targetWeight ? String(user.targetWeight) : '');
     setFoodChips(user.favoriteFoods || []);
     // İlk giriş → karşılama modalını göster
@@ -1165,6 +1165,7 @@ const completeOnboarding = async () => {
   setWelcomeVisible(false);
   try {
     await axios.post(`${API_URL}/complete-onboarding`, {
+      gender: onboardingAnswers.gender,
       goal: onboardingAnswers.goal,
       experience: onboardingAnswers.experience,
       daysPerWeek: onboardingAnswers.daysPerWeek,
@@ -1172,7 +1173,9 @@ const completeOnboarding = async () => {
       restrictions: onboardingAnswers.restrictions,
     }, { headers: { Authorization: `Bearer ${token}` } });
   } catch {}
-  setUser((prev: any) => prev ? { ...prev, onboarded: true } : prev);
+  // Cinsiyet yerel kullanıcıya da işleniyor: rank ve analiz ekranları sunucuyu
+  // tekrar beklemeden doğru eşiklerle çizilsin.
+  setUser((prev: any) => prev ? { ...prev, onboarded: true, gender: onboardingAnswers.gender || prev.gender } : prev);
 
   // Buton "Programımı Oluştur" diyor — sözü burada tutuyoruz.
   // Önceden kullanıcı 5 soruyu cevaplayıp boş Analiz sekmesine düşüyor, programı
@@ -1376,6 +1379,19 @@ const fetchWeeklySummary = async () => {
     setWeeklySummary(res.data);
     setWeeklySummaryVisible(true);
   } catch { showToast(t('Özet alınamadı.'), 'error'); }
+};
+
+// Cinsiyeti kaydet — Max Güç'teki uyarıdan geliyor. Rank eşikleri, kalori hesabı ve
+// yağ oranı analizi bu alana bakıyor; boş kaldığında hepsi erkek varsayımıyla çalışıyordu.
+const saveGender = async (g: 'male' | 'female') => {
+  try {
+    const { data } = await axios.put(`${API_URL}/update-profile`, { gender: g }, { headers: { Authorization: `Bearer ${token}` } });
+    setUser((prev: any) => (prev ? { ...prev, gender: data?.user?.gender || g } : prev));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showToast(t('Kaydedildi — rankların buna göre hesaplanacak.'));
+  } catch (e: any) {
+    showToast(e.response?.data?.error || t('Kaydedilemedi.'), 'error');
+  }
 };
 
 // AI Chat
@@ -3270,7 +3286,7 @@ const pickAndUploadProfilePhoto = async () => {
                   : null;
 
                 // Hedef yağ oranı tahmini (kullanıcının hedef kilosundan tahmini)
-                const targetFat = user.gender === 'Erkek' ? 12 : 18; // varsayılan hedef
+                const targetFat = normGender(user?.gender) === 'female' ? 22 : 12; // varsayılan hedef
                 const fatToGo = parseFloat((last.bodyFatPercentage - targetFat).toFixed(1));
                 const weeklyRate = diff / (daysPassed / 7); // haftada kaç % düşüyor
                 const weeksToGoal = (improved && weeklyRate > 0 && fatToGo > 0)
@@ -3773,6 +3789,28 @@ const pickAndUploadProfilePhoto = async () => {
             </TouchableOpacity>
           )}
 
+          {/* CİNSİYET EKSİK — rank eşikleri erkek/kadın için farklı, boşken herkes erkek
+              standardıyla değerlendiriliyor. Onboarding'den önce kaydolanlar için tek dokunuşluk tamamlama. */}
+          {!normGender(user?.gender) && (
+            <View style={{ backgroundColor: 'rgba(255,159,28,0.1)', borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,159,28,0.3)' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="information-circle" size={18} color={C.orange} />
+                <Text style={{ flex: 1, color: C.text, fontSize: 12.5, fontWeight: '600' }}>
+                  {t('Güç rankları kadın ve erkek için ayrı hesaplanıyor. Doğru sonuç için cinsiyetini seç:')}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                {([['male', 'Erkek', 'male'], ['female', 'Kadın', 'female']] as const).map(([id, label, icon]) => (
+                  <TouchableOpacity key={id} activeOpacity={0.85} onPress={() => saveGender(id)}
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border }}>
+                    <Ionicons name={icon} size={15} color={C.orange} />
+                    <Text style={{ color: C.text, fontWeight: '700', fontSize: 13.5 }}>{t(label)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
           {/* KAS HARİTASI — kas bazlı ortalama renklendirir; bir kas seçiliyse rozet+arkaplan o kasa göre değişir */}
           {(() => {
             const liftsData = user?.lifts || {};
@@ -3943,8 +3981,7 @@ const pickAndUploadProfilePhoto = async () => {
             const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
             const nextRank = rankIndex < RANKS.length - 1 ? RANKS[rankIndex + 1] : null;
             const bw = user?.weight || 80;
-            const gender = user?.gender === 'Kadın' ? 'kadin' : 'erkek';
-            const nextThreshold = nextRank ? (STD[lift.key]?.[gender]?.[rankIndex + 1] ?? 0) * (isRepBased ? 1 : bw) : null;
+            const nextThreshold = nextRank ? (STD[lift.key]?.[genderKey(user?.gender)]?.[rankIndex + 1] ?? 0) * (isRepBased ? 1 : bw) : null;
             const progress = (nextThreshold && best > 0) ? Math.min(1, best / nextThreshold) : (best > 0 ? 1 : 0);
             // Epley formülü ile tahmini 1RM (tek tekrar max) — sıkleti tekrar sayısından bağımsız kıyaslar
             // Epley (÷30) yüksek tekrarlarda çok iyimser tahmin veriyor — daha muhafazakar ÷55 kullanıyoruz
@@ -5510,6 +5547,16 @@ const pickAndUploadProfilePhoto = async () => {
       <Modal visible={welcomeVisible} transparent={false} animationType="fade" onRequestClose={() => {}}>
         {(() => {
           const QUESTIONS = [
+            {
+              // İlk soru bilinçli olarak cinsiyet: Max Güç rank eşikleri, kalori (BMR)
+              // hesabı ve yağ oranı analizi buna göre değişiyor. Sonradan doldurulmasını
+              // beklemek herkesi erkek varsayımıyla değerlendirmek demekti.
+              key: 'gender', title: t('Cinsiyetin?'), subtitle: t('Güç rankların, kalori hesabın ve vücut analizin buna göre hesaplanıyor'),
+              options: [
+                { id: 'male', icon: 'male' as const, label: t('Erkek'), desc: t('Erkek standartları') },
+                { id: 'female', icon: 'female' as const, label: t('Kadın'), desc: t('Kadın standartları') },
+              ],
+            },
             {
               key: 'goal', title: t('Hedefin ne?'), subtitle: t('Sana en uygun programı hazırlayalım'),
               options: [
