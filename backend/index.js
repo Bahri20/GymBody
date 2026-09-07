@@ -2592,6 +2592,23 @@ app.post('/coach/students/:userId/messages', coachMiddleware, async (req, res) =
       coach: req.coachId, user: req.params.userId,
       from: 'coach', text, readByCoach: true,
     });
+
+    // Öğrenciye anlık bildirim — pushToken yalnızca bildirim izni verildiğinde kaydediliyor,
+    // yani token yoksa kullanıcı bildirimleri kapalı demektir, sessizce geçiyoruz.
+    const [student, coachDoc] = await Promise.all([
+      User.findById(req.params.userId, 'pushToken'),
+      Coach.findById(req.coachId, 'name'),
+    ]);
+    if (student?.pushToken) {
+      const preview = text.length > 120 ? `${text.slice(0, 117)}...` : text;
+      await sendPushNotification(
+        student.pushToken,
+        `💬 ${coachDoc?.name || 'Hocan'}`,
+        preview,
+        { type: 'coach_message', coachId: String(req.coachId) }
+      );
+    }
+
     res.json({ from: 'coach', text: msg.text, at: msg.createdAt });
   } catch (err) { console.error("Mesaj gönderme hatası:", err); res.status(500).json({ error: "Mesaj gönderilemedi." }); }
 });
@@ -3093,11 +3110,12 @@ app.use((err, req, res, next) => {
   next();
 });
 // ==================== PUSH BİLDİRİM YARDIMCISI ====================
-async function sendPushNotification(pushToken, title, body) {
+async function sendPushNotification(pushToken, title, body, data) {
   if (!pushToken || !pushToken.startsWith('ExponentPushToken')) return;
   try {
     await axios.post('https://exp.host/--/api/v2/push/send', {
-      to: pushToken, title, body, sound: 'default', priority: 'high'
+      to: pushToken, title, body, sound: 'default', priority: 'high',
+      ...(data ? { data } : {})
     }, { headers: { 'Content-Type': 'application/json' } });
   } catch (err) {
     console.error('Push bildirim hatası:', err.message);
