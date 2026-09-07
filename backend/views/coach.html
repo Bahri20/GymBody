@@ -351,15 +351,14 @@
 
    <!-- PROFİL -->
    <div id="profileMenu" class="hidden view">
-     <div class="bento">
-       <div class="glass bento-card">
+     <!-- Referans kodu ve şifre yan yana; kartlar içeriği kadar yer kaplasın diye align-items:start -->
+     <div class="wgrid" style="grid-template-columns:1fr 1fr;align-items:start">
+       <div class="glass" style="padding:20px">
          <div class="bento-label">Referans Kodun</div>
          <div class="refbox"><code id="cRef">—</code><button class="icon-btn" onclick="copyRef()" title="Kopyala" style="color:var(--muted)">📋</button></div>
          <p id="refCopied" class="hidden" style="color:var(--primary);font-size:12px;margin-top:8px">Kopyalandı ✓</p>
-         <p class="muted" style="margin-top:16px;font-size:13px">Bu kodla kaydolan öğrenciler otomatik olarak senin öğrenci listende görünür — programlarını yazabilir, antrenmanlarını takip edebilirsin.</p></div>
-     </div>
-
-     <div class="wgrid" style="grid-template-columns:1fr 1fr;margin-top:20px">
+         <p class="muted" style="margin-top:14px;font-size:13px">Bu kodla kaydolan öğrenciler otomatik olarak senin öğrenci listende görünür — programlarını yazabilir, antrenmanlarını takip edebilirsin.</p>
+       </div>
        <div class="glass" style="padding:20px">
          <div style="font-size:14px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px;margin-bottom:14px">🔒 Şifre Değiştir</div>
          <label class="lbl">Mevcut şifre</label><input id="curPass" class="inp" type="password">
@@ -367,11 +366,15 @@
          <button class="btn" style="width:100%;margin-top:14px" onclick="changePass()">Şifreyi Güncelle</button>
          <div id="passMsg" style="text-align:center;font-size:13px;margin-top:8px"></div>
        </div>
-       <div class="glass" style="padding:20px;display:flex;flex-direction:column;justify-content:space-between">
-         <div><div style="font-size:14px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px">🚪 Oturum</div>
-           <p class="muted" style="margin-top:6px">Hesabından güvenli çıkış yap.</p></div>
-         <button class="btn btn-danger" style="width:100%;margin-top:14px" onclick="logout()">Çıkış Yap</button>
+     </div>
+
+     <!-- Oturum: kare kart yerine tek satırlık şerit — metin solda, buton sağda -->
+     <div class="glass" style="margin-top:20px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+       <div>
+         <div style="font-size:14px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px">🚪 Oturum</div>
+         <p class="muted" style="margin-top:4px;font-size:13px">Hesabından güvenli çıkış yap.</p>
        </div>
+       <button class="btn btn-danger" style="min-width:170px" onclick="logout()">Çıkış Yap</button>
      </div>
    </div>
   </main>
