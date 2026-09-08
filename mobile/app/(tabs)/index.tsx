@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ViewShot from 'react-native-view-shot';
-import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated, Share } from 'react-native';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated, Easing, AccessibilityInfo, Share } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Image as ExpoImage } from 'expo-image';
@@ -162,6 +162,35 @@ const LK = {
   fontLabel: 'HankenGrotesk_600SemiBold',
   fontLabelSm: 'HankenGrotesk_500Medium',
 };
+
+// ======================= MASKOTLAR =======================
+// Kullanıcının cinsiyetine göre eşlik eden karakter: erkekte Gymbo (lime),
+// kadında Momo (turuncu). Görsel, isim ve renk tek yerden geliyor ki sohbet,
+// onboarding ve geçiş animasyonu birbirinden ayrı düşmesin.
+const MASCOTS = {
+  male: {
+    key: 'male' as const,
+    name: 'Gymbo',
+    color: '#C6FF3D',
+    colorDark: '#9FE000',
+    onColor: '#0B0D12',
+    avatar: require('@/assets/images/mascots/gymbo-avatar.png'),
+    wave: require('@/assets/images/mascots/gymbo-wave.png'),
+    cheer: require('@/assets/images/mascots/gymbo-cheer.png'),
+  },
+  female: {
+    key: 'female' as const,
+    name: 'Momo',
+    color: '#FF9F1C',
+    colorDark: '#E8890A',
+    onColor: '#2A1500',
+    avatar: require('@/assets/images/mascots/momo-avatar.png'),
+    wave: require('@/assets/images/mascots/momo-wave.png'),
+    cheer: require('@/assets/images/mascots/momo-cheer.png'),
+  },
+};
+const MASCOT_DUO = require('@/assets/images/mascots/gymbo-momo-duo.png');
+const mascotFor = (gender?: string) => (normGender(gender) === 'female' ? MASCOTS.female : MASCOTS.male);
 
 // GEÇİCİ: GymBody'nin kendi (AI) haftalık planındaki "Günün Beslenme Planı" kartı
 // bir süreliğine gizli — sadece haftalık antrenman programı + hareket kütüphanesi kalsın.
@@ -913,6 +942,8 @@ export default function App() {
   const rankShareRef = useRef<ViewShot>(null);
   const bodyShareRef = useRef<ViewShot>(null);
   const [shareBodyRank, setShareBodyRank] = useState(false); // vücut ortalaması rozeti paylaşım kartı
+  const [badgesExpanded, setBadgesExpanded] = useState(false); // profilde rozet listesi açık mı
+  const [vipExtendOpen, setVipExtendOpen] = useState(false);   // VIP kartında uzatma planları açık mı
   // Siklet sırası paylaşımı
   const [rankShareData, setRankShareData] = useState<any>(null);
   const [rankSharePhoto, setRankSharePhoto] = useState<string | null>(null);
@@ -956,9 +987,22 @@ export default function App() {
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [welcomeVisible, setWelcomeVisible] = useState(false); // ilk giriş karşılama modalı
   const onboardingDoneRef = useRef(false);
+  // Sistemde "Hareketi Azalt" açıksa tam ekran geçişi hiç oynatmıyoruz — bu ayarı
+  // açanlar tam da böyle hareketlerden rahatsız oldukları için açıyor.
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => sub?.remove?.();
+  }, []);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingAnswers, setOnboardingAnswers] = useState<Record<string, string>>({});
   const onboardingAnim = useRef(new RNAnimated.Value(1)).current;
+  // Cinsiyet seçilince oynayan devir teslim sahnesi: seçilmeyen maskot el sallayıp
+  // çıkar, seçilen ortaya gelir ve ekran onun rengiyle yıkanır.
+  const [mascotTakeover, setMascotTakeover] = useState<'male' | 'female' | null>(null);
+  const takeoverAnim = useRef(new RNAnimated.Value(0)).current;
+  const takeoverSwappedRef = useRef(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
 
   // Uygulama içi Genel State'ler
@@ -1177,11 +1221,11 @@ const completeOnboarding = async () => {
   // tekrar beklemeden doğru eşiklerle çizilsin.
   setUser((prev: any) => prev ? { ...prev, onboarded: true, gender: onboardingAnswers.gender || prev.gender } : prev);
 
-  // Buton "Programımı Oluştur" diyor — sözü burada tutuyoruz.
-  // Önceden kullanıcı 5 soruyu cevaplayıp boş Analiz sekmesine düşüyor, programı
-  // kendisi üretmek zorunda kalıyordu. Artık GymBody'ye alıp programı hemen kuruyoruz.
+  // Onboarding bitince kullanıcı GymBody sekmesine bırakılıyor; programı orada
+  // kendisi "PROGRAMIMI OLUŞTUR" ile başlatıyor. Otomatik üretmiyoruz: hedef/alerji
+  // gibi alanları görmeden AI'ı çalıştırmak hem seçim şansını alıyor hem de ilk
+  // açılışta uzun bir beklemeye sokuyordu. VIP zaten kayıtta veriliyor.
   setCurrentTab('gymBody');
-  fetchWeeklyPlan();
 };
 
 // GymBody sekmesine her geçişte mola durumunu sıfırla (yeni gün = antrenman zamanı)
@@ -2044,6 +2088,39 @@ const handleCompleteDay = async (feedback?: string) => {
     ]
   );
 };
+// VIP plan seçici — hem ilk üyelikte hem "süreyi uzat" kartında aynı liste kullanılıyor
+const VIP_PLANS = [
+  { id: '$rc_monthly', label: t('Aylık'), price: '₺149', period: t('/ay'), badge: null as string | null },
+  { id: '$rc_six_month', label: t('6 Aylık'), price: '₺599', period: t('/6ay'), badge: '%33' },
+  { id: '$rc_annual', label: t('Yıllık'), price: '₺899', period: t('/yıl'), badge: '%50' },
+];
+const renderVipPlanPicker = () => (
+  <View style={{ flexDirection: 'row', gap: 8, marginTop: 18, marginBottom: 14 }}>
+    {VIP_PLANS.map(plan => {
+      const selected = selectedVipPlan === plan.id;
+      return (
+        <TouchableOpacity key={plan.id} activeOpacity={0.8} onPress={() => setSelectedVipPlan(plan.id)} style={{ flex: 1 }}>
+          <View style={{
+            borderRadius: 16, padding: 12, alignItems: 'center',
+            borderWidth: selected ? 2 : 1,
+            borderColor: selected ? '#FF9F1C' : C.border,
+            backgroundColor: selected ? '#FF9F1C18' : C.surface2,
+          }}>
+            {plan.badge && (
+              <View style={{ backgroundColor: '#FF9F1C', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 6 }}>
+                <Text style={{ color: '#1A1530', fontSize: 9, fontWeight: '900' }}>-{plan.badge}</Text>
+              </View>
+            )}
+            <Text style={{ color: selected ? '#FF9F1C' : C.textMuted, fontWeight: '700', fontSize: 12, marginBottom: 4 }}>{plan.label}</Text>
+            <Text style={{ color: selected ? '#fff' : C.text, fontWeight: '900', fontSize: 17 }}>{plan.price}</Text>
+            <Text style={{ color: C.textMuted, fontSize: 10, marginTop: 2 }}>{plan.period}</Text>
+          </View>
+        </TouchableOpacity>
+      );
+    })}
+  </View>
+);
+
 const purchaseVip = async (packageId: string) => {
   try {
     setLoading(true);
@@ -4267,16 +4344,45 @@ const pickAndUploadProfilePhoto = async () => {
 
 {/* VIP KARTI */}
 {userStats.isVip ? (
-  <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66', flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 }]}>
-    <Ionicons name="star" size={22} color="#FF9F1C" />
-    <View style={{ flex: 1 }}>
-      <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{t('VIP Üyesin! 👑')}</Text>
-      {userStats.vipExpiresAt && (
-        <Text style={{ color: C.textSec, fontSize: 12, marginTop: 2 }}>
-          {t('Bitiş:')} {new Date(userStats.vipExpiresAt).toLocaleDateString(dateLocale())}
+  /* VIP kartı artık kapalı bir bilgi şeridi değil: dokununca planlar açılıyor,
+     üyeliği bitmeden uzatmak isteyen için satın alma buradan yapılabiliyor. */
+  <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66', paddingVertical: 14 }]}>
+    <TouchableOpacity activeOpacity={0.85} onPress={() => setVipExtendOpen(v => !v)}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <Ionicons name="star" size={22} color="#FF9F1C" />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{t('VIP Üyesin! 👑')}</Text>
+        {userStats.vipExpiresAt && (() => {
+          const left = Math.max(0, Math.ceil((new Date(userStats.vipExpiresAt).getTime() - Date.now()) / 86400000));
+          return (
+            <Text style={{ color: C.textSec, fontSize: 12, marginTop: 2 }}>
+              {t('Bitiş:')} {new Date(userStats.vipExpiresAt).toLocaleDateString(dateLocale())} · {t('{{days}} gün kaldı', { days: left })}
+            </Text>
+          );
+        })()}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <Text style={{ color: '#FF9F1C', fontWeight: '800', fontSize: 12.5 }}>{t('Uzat')}</Text>
+        <Ionicons name={vipExtendOpen ? 'chevron-up' : 'chevron-down'} size={15} color="#FF9F1C" />
+      </View>
+    </TouchableOpacity>
+
+    {vipExtendOpen && (
+      <>
+        {renderVipPlanPicker()}
+        <Text style={{ color: C.textMuted, fontSize: 11.5, textAlign: 'center', marginBottom: 10, lineHeight: 16 }}>
+          {t('Yeni süre mevcut üyeliğinin bitiş tarihine eklenir.')}
         </Text>
-      )}
-    </View>
+        {loading ? <ActivityIndicator size="large" color="#FF9F1C" style={{ marginVertical: 8 }} /> : (
+          <TouchableOpacity activeOpacity={0.88} onPress={() => purchaseVip(selectedVipPlan)}>
+            <LinearGradient colors={['#FF9F1C', '#E8890A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ borderRadius: 14, paddingVertical: 15, alignItems: 'center' }}>
+              <Text style={{ color: '#1A1530', fontWeight: '900', fontSize: 15 }}>{t('Süreyi Uzat')}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+      </>
+    )}
   </LinearGradient>
 ) : (
   <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66', paddingBottom: 20 }]}>
@@ -4298,34 +4404,7 @@ const pickAndUploadProfilePhoto = async () => {
     ))}
 
     {/* Plan seçici kartlar */}
-    <View style={{ flexDirection: 'row', gap: 8, marginTop: 18, marginBottom: 14 }}>
-      {[
-        { id: '$rc_monthly', label: t('Aylık'), price: '₺149', period: t('/ay'), badge: null },
-        { id: '$rc_six_month', label: t('6 Aylık'), price: '₺599', period: t('/6ay'), badge: '%33' },
-        { id: '$rc_annual', label: t('Yıllık'), price: '₺899', period: t('/yıl'), badge: '%50' },
-      ].map(plan => {
-        const selected = selectedVipPlan === plan.id;
-        return (
-          <TouchableOpacity key={plan.id} activeOpacity={0.8} onPress={() => setSelectedVipPlan(plan.id)} style={{ flex: 1 }}>
-            <View style={{
-              borderRadius: 16, padding: 12, alignItems: 'center',
-              borderWidth: selected ? 2 : 1,
-              borderColor: selected ? '#FF9F1C' : C.border,
-              backgroundColor: selected ? '#FF9F1C18' : C.surface2,
-            }}>
-              {plan.badge && (
-                <View style={{ backgroundColor: '#FF9F1C', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 6 }}>
-                  <Text style={{ color: '#1A1530', fontSize: 9, fontWeight: '900' }}>-{plan.badge}</Text>
-                </View>
-              )}
-              <Text style={{ color: selected ? '#FF9F1C' : C.textMuted, fontWeight: '700', fontSize: 12, marginBottom: 4 }}>{plan.label}</Text>
-              <Text style={{ color: selected ? '#fff' : C.text, fontWeight: '900', fontSize: 17 }}>{plan.price}</Text>
-              <Text style={{ color: C.textMuted, fontSize: 10, marginTop: 2 }}>{plan.period}</Text>
-            </View>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
+    {renderVipPlanPicker()}
 
     {/* Ana satın alma butonu */}
     {loading ? <ActivityIndicator size="large" color="#FF9F1C" style={{ marginVertical: 8 }} /> : (
@@ -4418,12 +4497,31 @@ const pickAndUploadProfilePhoto = async () => {
             </View>
           )}
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+          {/* Rozetler kapalıyken sadece en iyi 4'ü duruyor — 13 rozet profilin yarısını
+              kaplıyordu. Sıralama: önce kazanılanlar, nadirliği yüksek olan üstte;
+              kazanılan 4'ten azsa kalan yerler en yakın hedeflerle doluyor. */}
+          {(() => {
+            const RARITY_ORDER: Record<string, number> = { legendary: 3, epic: 2, rare: 1, common: 0 };
+            const ranked = [...ALL_BADGES].sort((a, b) => {
+              const ea = earned.has(a.id) ? 1 : 0, eb = earned.has(b.id) ? 1 : 0;
+              if (ea !== eb) return eb - ea;
+              const ra = RARITY_ORDER[a.rarity], rb = RARITY_ORDER[b.rarity];
+              // Kazanılanlarda en nadir üstte; kilitlilerde en kolay hedef üstte
+              return ea ? rb - ra : ra - rb;
+            });
+            const shown = badgesExpanded ? ALL_BADGES : ranked.slice(0, 4);
+            return (
+          <>
+          <TouchableOpacity activeOpacity={0.8} onPress={() => setBadgesExpanded(v => !v)}
+            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
             <Text style={[styles.statsTitle, { flex: 1, marginBottom: 0 }]}>{t('Rozetler')}</Text>
-            <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700' }}>{earnedCount} / {ALL_BADGES.length}</Text>
-          </View>
+            <Text style={{ color: C.textMuted, fontSize: 12, fontWeight: '700', marginRight: 6 }}>{earnedCount} / {ALL_BADGES.length}</Text>
+            <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={badgesExpanded ? 'chevron-up' : 'chevron-down'} size={15} color={C.textSec} />
+            </View>
+          </TouchableOpacity>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-            {ALL_BADGES.map(b => {
+            {shown.map(b => {
               const isEarned = earned.has(b.id);
               return (
                 <View key={b.id} style={{ alignItems: 'center', width: 68 }}>
@@ -4444,6 +4542,9 @@ const pickAndUploadProfilePhoto = async () => {
               );
             })}
           </View>
+          </>
+            );
+          })()}
         </View>
       );
     })()}
@@ -5553,8 +5654,8 @@ const pickAndUploadProfilePhoto = async () => {
               // beklemek herkesi erkek varsayımıyla değerlendirmek demekti.
               key: 'gender', title: t('Cinsiyetin?'), subtitle: t('Güç rankların, kalori hesabın ve vücut analizin buna göre hesaplanıyor'),
               options: [
-                { id: 'male', icon: 'male' as const, label: t('Erkek'), desc: t('Erkek standartları') },
-                { id: 'female', icon: 'female' as const, label: t('Kadın'), desc: t('Kadın standartları') },
+                { id: 'male', icon: 'male' as const, label: t('Erkek'), desc: t('{{mascot}} eşlik eder', { mascot: MASCOTS.male.name }) },
+                { id: 'female', icon: 'female' as const, label: t('Kadın'), desc: t('{{mascot}} eşlik eder', { mascot: MASCOTS.female.name }) },
               ],
             },
             {
@@ -5611,11 +5712,56 @@ const pickAndUploadProfilePhoto = async () => {
             setOnboardingAnswers(prev => ({ ...prev, [q.key]: id }));
           };
 
+          // Devir teslim sahnesi — tek bir 0→1 değeri tüm zaman çizgisini sürüyor:
+          // 0.00-0.30 iki maskot belirir · 0.30-0.55 seçilmeyen el sallayıp çıkar
+          // 0.55-0.75 seçilen ortaya gelir + söz alır · 0.80-1.00 perde açılır.
+          // İki aşamada oynuyor. Kritik nokta: perde AÇILMADAN önce alttaki soru
+          // değişiyor — tek parça animasyonda perde sönerken bir an eski soru sızıyordu.
+          const advanceOnce = () => {
+            if (takeoverSwappedRef.current) return;
+            takeoverSwappedRef.current = true;
+            setOnboardingStep(st => st + 1);
+          };
+          const playTakeover = (g: 'male' | 'female') => {
+            takeoverSwappedRef.current = false;
+            setMascotTakeover(g);
+            takeoverAnim.setValue(0);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            RNAnimated.sequence([
+              // 1) Dalga açılır, giden el sallayıp çıkar, kazanan ortaya gelir
+              RNAnimated.timing(takeoverAnim, {
+                toValue: 0.72, duration: 830, easing: Easing.out(Easing.quad), useNativeDriver: true,
+              }),
+              // 2) Kazanan ekranda durur — sahne görülmeden kapanmasın
+              RNAnimated.delay(420),
+            ]).start(({ finished }) => {
+              if (!finished) return;
+              advanceOnce();                       // perde hâlâ kapalıyken sıradaki soru hazırlanıyor
+              RNAnimated.timing(takeoverAnim, {
+                toValue: 1, duration: 320, easing: Easing.in(Easing.quad), useNativeDriver: true,
+              }).start(() => setMascotTakeover(null));
+            });
+          };
+          // Dokununca sahne atlanıp doğrudan sonraki soruya geçilir
+          const skipTakeover = () => {
+            takeoverAnim.stopAnimation(() => {
+              advanceOnce();
+              setMascotTakeover(null);
+            });
+          };
+
           const handleNext = () => {
             if (!selected) return;
             if (isLast) { completeOnboarding(); return; }
+            if (q.key === 'gender' && !reduceMotion) { playTakeover(selected as 'male' | 'female'); return; }
             animateStep(() => setOnboardingStep(s => s + 1));
           };
+
+          const takeover = mascotTakeover ? MASCOTS[mascotTakeover] : null;
+          const leaving = mascotTakeover ? MASCOTS[mascotTakeover === 'male' ? 'female' : 'male'] : null;
+          const scrW = Dimensions.get('window').width;
+          const scrH = Dimensions.get('window').height;
+          const washSize = Math.hypot(scrW, scrH) * 1.15;
 
           return (
             <View style={{ flex: 1, backgroundColor: LK.bg }}>
@@ -5642,9 +5788,67 @@ const pickAndUploadProfilePhoto = async () => {
               </View>
 
               <RNAnimated.View style={{ flex: 1, opacity: onboardingAnim, paddingHorizontal: 24 }}>
-                {/* Gymbo soruyu soruyor — konuşma balonuyla */}
+                {q.key === 'gender' ? (
+                  /* CİNSİYET — soru bir form alanı değil, karakter seçimi gibi duruyor:
+                     ikili görsel ekranın büyük kısmını kaplıyor, karaktere ya da altındaki
+                     renkli etikete dokunmak aynı seçimi yapıyor. */
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: LK.onSurface, fontFamily: LK.fontHeadlineXl, fontSize: 24, textAlign: 'center', marginTop: 14 }}>{q.title}</Text>
+                    <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontBody, fontSize: 13, lineHeight: 18, textAlign: 'center', marginTop: 6 }}>{q.subtitle}</Text>
+
+                    <View style={{ width: '100%', height: scrH * 0.34, marginTop: 10 }}>
+                      {/* Seçilen tarafın arkasında kendi renginde yumuşak ışık */}
+                      {!!selected && (
+                        <View pointerEvents="none" style={{
+                          position: 'absolute', top: '12%', bottom: '12%', width: '50%',
+                          left: selected === 'male' ? 0 : undefined, right: selected === 'female' ? 0 : undefined,
+                          backgroundColor: MASCOTS[selected as 'male' | 'female'].color + '30', borderRadius: 999,
+                        }} />
+                      )}
+                      <Image source={MASCOT_DUO} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                      {/* Seçim yapıldıysa diğer karakter geri çekilir */}
+                      {!!selected && (
+                        <View pointerEvents="none" style={{
+                          position: 'absolute', top: 0, bottom: 0, width: '50%',
+                          right: selected === 'male' ? 0 : undefined, left: selected === 'female' ? 0 : undefined,
+                          backgroundColor: LK.bg + '66',
+                        }} />
+                      )}
+                      {/* Karakterlerin kendisi dokunulabilir */}
+                      <TouchableOpacity activeOpacity={0.9} onPress={() => handleSelect('male')}
+                        style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '50%' }} />
+                      <TouchableOpacity activeOpacity={0.9} onPress={() => handleSelect('female')}
+                        style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '50%' }} />
+                    </View>
+
+                    {/* Etiketler karakterlerin tam altında, kendi renkleriyle */}
+                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+                      {(['male', 'female'] as const).map((g) => {
+                        const m = MASCOTS[g];
+                        const on = selected === g;
+                        return (
+                          <TouchableOpacity key={g} activeOpacity={0.85} onPress={() => handleSelect(g)}
+                            style={{
+                              flex: 1, borderRadius: 16, paddingVertical: 13, alignItems: 'center',
+                              backgroundColor: on ? m.color : m.color + '14',
+                              borderWidth: 1.5, borderColor: on ? m.color : m.color + '55',
+                            }}>
+                            <Text style={{ color: on ? m.onColor : m.color, fontFamily: LK.fontHeadlineSemi, fontSize: 16 }}>
+                              {g === 'male' ? t('Erkek') : t('Kadın')}
+                            </Text>
+                            <Text style={{ color: on ? m.onColor : LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 11.5, marginTop: 2, opacity: on ? 0.75 : 1 }}>
+                              {t('{{mascot}} eşlik eder', { mascot: m.name })}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ) : (
+                <>
+                {/* Maskot soruyu soruyor — konuşma balonuyla */}
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 18, marginBottom: 22 }}>
-                  <Image source={require('@/assets/images/gymbo-avatar.png')}
+                  <Image source={mascotFor(onboardingAnswers.gender || user?.gender).avatar}
                     style={{ width: 58, height: 58 }} resizeMode="contain" />
                   <View style={{ flex: 1, backgroundColor: LK.surfaceContainer, borderRadius: 18, borderBottomLeftRadius: 5, padding: 14 }}>
                     <Text style={{ color: LK.onSurface, fontFamily: LK.fontHeadlineSemi, fontSize: 19, lineHeight: 25, marginBottom: 4 }}>{q.title}</Text>
@@ -5684,7 +5888,59 @@ const pickAndUploadProfilePhoto = async () => {
                     );
                   })}
                 </View>
+                </>
+                )}
               </RNAnimated.View>
+
+              {/* DEVİR TESLİM SAHNESİ */}
+              {takeover && leaving && (
+                <TouchableOpacity activeOpacity={1} onPress={skipTakeover}
+                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+                  {/* Seçilen kartın bulunduğu yönden açılan renk dalgası */}
+                  <RNAnimated.View style={{
+                    position: 'absolute', width: washSize, height: washSize, borderRadius: washSize / 2,
+                    backgroundColor: takeover.color,
+                    transform: [
+                      { translateX: takeoverAnim.interpolate({ inputRange: [0, 0.55], outputRange: [mascotTakeover === 'male' ? -scrW * 0.24 : scrW * 0.24, 0], extrapolate: 'clamp' }) },
+                      { translateY: takeoverAnim.interpolate({ inputRange: [0, 0.55], outputRange: [scrH * 0.18, 0], extrapolate: 'clamp' }) },
+                      { scale: takeoverAnim.interpolate({ inputRange: [0, 0.45], outputRange: [0.02, 1], extrapolate: 'clamp' }) },
+                    ],
+                    opacity: takeoverAnim.interpolate({ inputRange: [0, 0.05, 0.72, 1], outputRange: [0, 1, 1, 0] }),
+                  }} />
+
+                  {/* Seçilmeyen maskot: el sallar (hafif salınım), sonra kendi tarafından çıkar */}
+                  <RNAnimated.View style={{
+                    position: 'absolute',
+                    opacity: takeoverAnim.interpolate({ inputRange: [0.12, 0.28, 0.5, 0.6], outputRange: [0, 1, 1, 0] }),
+                    transform: [
+                      { translateX: takeoverAnim.interpolate({ inputRange: [0.28, 0.6], outputRange: [mascotTakeover === 'male' ? scrW * 0.22 : -scrW * 0.22, mascotTakeover === 'male' ? scrW * 0.9 : -scrW * 0.9], extrapolate: 'clamp' }) },
+                      { translateY: -30 },
+                      { rotate: takeoverAnim.interpolate({ inputRange: [0.28, 0.34, 0.4, 0.46, 0.52], outputRange: ['0deg', '-13deg', '11deg', '-9deg', '0deg'], extrapolate: 'clamp' }) },
+                    ],
+                  }}>
+                    <Image source={leaving.wave} style={{ width: 150, height: 113 }} resizeMode="contain" />
+                  </RNAnimated.View>
+
+                  {/* Seçilen maskot ortaya gelip devralır */}
+                  <RNAnimated.View style={{
+                    alignItems: 'center',
+                    opacity: takeoverAnim.interpolate({ inputRange: [0.12, 0.3, 0.74, 0.94], outputRange: [0, 1, 1, 0] }),
+                    transform: [
+                      { translateX: takeoverAnim.interpolate({ inputRange: [0.3, 0.62], outputRange: [mascotTakeover === 'male' ? -scrW * 0.2 : scrW * 0.2, 0], extrapolate: 'clamp' }) },
+                      { scale: takeoverAnim.interpolate({ inputRange: [0.3, 0.62], outputRange: [0.78, 1], extrapolate: 'clamp' }) },
+                    ],
+                  }}>
+                    <Image source={takeover.cheer} style={{ width: 180, height: 187 }} resizeMode="contain" />
+                    <RNAnimated.Text style={{
+                      color: takeover.onColor, fontFamily: LK.fontHeadlineSemi, fontSize: 18, textAlign: 'center',
+                      marginTop: 10, paddingHorizontal: 32,
+                      opacity: takeoverAnim.interpolate({ inputRange: [0.46, 0.62], outputRange: [0, 1], extrapolate: 'clamp' }),
+                    }}>
+                      {t('Ben {{mascot}}, buradan sonrasını devralıyorum!', { mascot: takeover.name })}
+                    </RNAnimated.Text>
+                  </RNAnimated.View>
+                </TouchableOpacity>
+              )}
 
               {/* Alt buton */}
               <View style={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 24 }}>
@@ -5694,7 +5950,7 @@ const pickAndUploadProfilePhoto = async () => {
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={{ borderRadius: 999, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                     <Text style={{ color: selected ? LK.onAccent : LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 15, letterSpacing: 0.4 }}>
-                      {isLast ? t('Programımı Oluştur') : t('Devam Et')}
+                      {isLast ? t('Hadi Başlayalım') : t('Devam Et')}
                     </Text>
                     <Ionicons name={isLast ? 'rocket' : 'arrow-forward'} size={18} color={selected ? LK.onAccent : LK.onSurfaceVariant} />
                   </LinearGradient>
@@ -5844,9 +6100,9 @@ const pickAndUploadProfilePhoto = async () => {
           onPress={() => setChatVisible(true)}
           style={{ position: 'absolute', bottom: 90, right: 20, width: 56, height: 56, borderRadius: 28, overflow: 'hidden', zIndex: 100 }}
         >
-          <LinearGradient colors={[C.lime, C.limeDark]} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            {/* Gymbo — maskot, jenerik robot ikonunun yerine */}
-            <Image source={require('@/assets/images/gymbo-avatar.png')}
+          <LinearGradient colors={[mascotFor(user?.gender).color, mascotFor(user?.gender).colorDark]} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            {/* Maskot — cinsiyete göre Gymbo ya da Momo, jenerik robot ikonunun yerine */}
+            <Image source={mascotFor(user?.gender).avatar}
               style={{ width: 42, height: 42 }} resizeMode="contain" />
           </LinearGradient>
         </TouchableOpacity>
@@ -5860,11 +6116,11 @@ const pickAndUploadProfilePhoto = async () => {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: C.border }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  <Image source={require('@/assets/images/gymbo-avatar.png')}
+                  <Image source={mascotFor(user?.gender).avatar}
                     style={{ width: 32, height: 32 }} resizeMode="contain" />
                 </View>
                 <View>
-                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 17 }}>Gymbo</Text>
+                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 17 }}>{mascotFor(user?.gender).name}</Text>
                   <Text style={{ color: C.textMuted, fontSize: 12 }}>{userStats.isVip ? t('Sınırsız sohbet') : t('Günde 3 ücretsiz mesaj')}</Text>
                 </View>
               </View>
@@ -5875,9 +6131,11 @@ const pickAndUploadProfilePhoto = async () => {
             <ScrollView ref={chatScrollRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
               {chatMessages.length === 0 && (
                 <View style={{ alignItems: 'center', paddingTop: 20, gap: 8 }}>
-                  <Image source={require('@/assets/images/gymbo-wave.png')}
+                  <Image source={mascotFor(user?.gender).wave}
                     style={{ width: 130, height: 97 }} resizeMode="contain" />
-                  <Text style={{ color: C.textSec, textAlign: 'center', lineHeight: 20 }}>{t('Selam, ben Gymbo! Antrenman, beslenme veya hedeflerin hakkında her şeyi sorabilirsin.')}</Text>
+                  <Text style={{ color: C.textSec, textAlign: 'center', lineHeight: 20 }}>
+                    {t('Selam, ben {{mascot}}! Antrenman, beslenme veya hedeflerin hakkında her şeyi sorabilirsin.', { mascot: mascotFor(user?.gender).name })}
+                  </Text>
                   <View style={{ gap: 8, width: '100%', marginTop: 12 }}>
                     {[t('Bugün için antrenman öner'), t('Protein ihtiyacım ne kadar?'), t('Motivasyon düştü, ne yapayım?')].map(q => (
                       <TouchableOpacity key={q} onPress={() => { setChatInput(q); }}
