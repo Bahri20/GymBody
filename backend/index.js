@@ -2406,11 +2406,14 @@ app.post('/coach/students/add', coachMiddleware, async (req, res) => {
     if (coach.referredUsers.some(id => id.equals(user._id))) {
       return res.status(400).json({ error: "Bu öğrenci zaten listende." });
     }
-    coach.referredUsers.push(user._id);
-    await coach.save();
-    user.referredBy = coach._id;
+    const { changed } = await attachStudentToCoach(user, coach);
     await user.save();
-    res.json({ message: `${user.name} öğrenci listene eklendi.`, student: { _id: user._id, name: user.name, email: user.email } });
+    res.json({
+      message: changed
+        ? `${user.name} listene eklendi — önceki hocasıyla bağı kaldırıldı.`
+        : `${user.name} öğrenci listene eklendi.`,
+      student: { _id: user._id, name: user.name, email: user.email },
+    });
   } catch (err) {
     console.error("Öğrenci ekleme hatası:", err);
     res.status(500).json({ error: "Öğrenci eklenemedi." });
@@ -2656,6 +2659,30 @@ app.post('/coach/students/:userId/messages', coachMiddleware, async (req, res) =
 // ============ ÖĞRENCİ (PT) TARAFI — mobil uygulama kullanır ============
 
 // Öğrenci hocanın koduyla bağlanır — İNDİRİM YOK, sadece bağlama (Apple 3.1.1 uyumlu)
+// Bir üye aynı anda YALNIZCA bir hocaya bağlıdır. Yeni hocaya geçerken eski hocanın
+// referredUsers listesinden de düşmesi gerekir: liste sadece panelde görünmeyi değil,
+// erişimi de belirliyor (studentInCoachGym öğrenciyi kendi listesinde görünce izin
+// veriyordu) — eski hoca öğrencinin programını ve mesajlarını görmeye devam ediyordu.
+// Hoca değiştiyse eski hocanın yazdığı plan da temizlenir; yeni hocanın adıyla eski
+// programın görünmesi kafa karıştırıyordu (ayrılma akışında zaten böyle yapılıyor).
+async function attachStudentToCoach(user, coach) {
+  const previous = user.referredBy ? String(user.referredBy) : null;
+  const changed = previous && previous !== String(coach._id);
+
+  await Coach.updateMany(
+    { _id: { $ne: coach._id }, referredUsers: user._id },
+    { $pull: { referredUsers: user._id } }
+  );
+
+  user.referredBy = coach._id;
+  if (changed) {
+    user.coachPlan = { workoutPlan: [], nutritionPlan: [], coachName: null, updatedAt: new Date() };
+    user.markModified('coachPlan');
+  }
+  await Coach.findByIdAndUpdate(coach._id, { $addToSet: { referredUsers: user._id } });
+  return { changed, previous };
+}
+
 app.post('/join-coach', authMiddleware, async (req, res) => {
   try {
     const code = (req.body.code || '').toLowerCase().trim();
@@ -2664,10 +2691,9 @@ app.post('/join-coach', authMiddleware, async (req, res) => {
     if (!coach) return res.status(404).json({ error: "Geçersiz hoca kodu." });
     const user = await User.findById(req.userId);
     if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
-    user.referredBy = coach._id;
+    await attachStudentToCoach(user, coach);
     const vipDays = await grantCoachJoinVip(user, coach);
     await user.save();
-    await Coach.findByIdAndUpdate(coach._id, { $addToSet: { referredUsers: user._id } });
     console.log(`🔗 Öğrenci hocaya bağlandı: ${user.name} → ${coach.name}${vipDays ? ` (+${vipDays} gün VIP)` : ''}`);
     res.json({
       message: vipDays
@@ -3069,13 +3095,33 @@ app.get('/admin/coaches', adminMiddleware, async (req, res) => {
 // Komisyon oranını güncelle (admin)
 app.patch('/admin/coach/:id', adminMiddleware, async (req, res) => {
   try {
-    const { commissionRate, discountRate, isActive, freeVipDays, notes } = req.body;
+    const { name, email, phone, gymCode, referralCode, commissionRate, discountRate, isActive, freeVipDays, notes } = req.body;
     const update = {};
+    if (name !== undefined && String(name).trim()) update.name = String(name).trim();
+    if (phone !== undefined) update.phone = String(phone).trim();
+    if (gymCode !== undefined) update.gymCode = String(gymCode).trim().toUpperCase() || undefined;
     if (commissionRate !== undefined) update.commissionRate = commissionRate;
     if (discountRate !== undefined) update.discountRate = discountRate;
     if (isActive !== undefined) update.isActive = isActive;
     if (freeVipDays !== undefined) update.freeVipDays = clampVipDays(freeVipDays);
     if (notes !== undefined) update.notes = notes;
+
+    // E-posta giriş bilgisi, referans kodu ise paylaşılan linkin parçası:
+    // ikisi de benzersiz olmak zorunda, başka hocada varsa isteği reddediyoruz.
+    if (email !== undefined && String(email).trim()) {
+      const mail = String(email).trim().toLowerCase();
+      const clash = await Coach.findOne({ email: mail, _id: { $ne: req.params.id } });
+      if (clash) return res.status(400).json({ error: `Bu e-posta zaten ${clash.name} hocada kayıtlı.` });
+      update.email = mail;
+    }
+    if (referralCode !== undefined) {
+      const code = String(referralCode).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+      if (!code) return res.status(400).json({ error: "Referans kodu harf/rakam içermeli." });
+      const clash = await Coach.findOne({ referralCode: code, _id: { $ne: req.params.id } });
+      if (clash) return res.status(400).json({ error: `"${code}" kodu zaten ${clash.name} hocada kullanılıyor.` });
+      update.referralCode = code;
+    }
+
     const coach = await Coach.findByIdAndUpdate(req.params.id, update, { new: true, select: '-password' });
     if (!coach) return res.status(404).json({ error: "Koç bulunamadı." });
     res.json(coach);
