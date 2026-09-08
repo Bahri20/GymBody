@@ -15,6 +15,7 @@ const PromoCode = require('./models/PromoCode');
 const ProgressPhoto = require('./models/ProgressPhoto');
 const MealLog = require('./models/MealLog');
 const CoachMessage = require('./models/CoachMessage');
+const SupportMessage = require('./models/SupportMessage');
 const CoachWorkoutLog = require('./models/CoachWorkoutLog');
 const sharp = require('sharp');
 const toDateString = (date) => date.toISOString().split('T')[0];
@@ -2978,6 +2979,67 @@ app.get('/coach/students/:userId/workouts', coachMiddleware, async (req, res) =>
 });
 
 // Hoca kendi şifresini değiştirir
+// ==================== DESTEK YAZIŞMASI (hoca ↔ yönetim) ====================
+// E-posta yerine site üzerinden: mesaj veritabanında kalıyor, iki taraf da geçmişi
+// ve okunmamışları görüyor. Kaybolan/spam'e düşen mesaj sorunu böylece yok.
+
+// Hoca kendi yazışmasını okur — yönetimden gelenler okundu işaretlenir
+app.get('/coach/support', coachMiddleware, async (req, res) => {
+  try {
+    const msgs = await SupportMessage.find({ coach: req.coachId }).sort({ createdAt: 1 }).limit(200).lean();
+    await SupportMessage.updateMany({ coach: req.coachId, from: 'admin', readByCoach: false }, { $set: { readByCoach: true } });
+    res.json(msgs.map(m => ({ from: m.from, text: m.text, at: m.createdAt })));
+  } catch (err) {
+    console.error('coach/support hatası:', err);
+    res.status(500).json({ error: "Mesajlar yüklenemedi." });
+  }
+});
+
+// Hoca yönetime mesaj yazar
+app.post('/coach/support', coachMiddleware, async (req, res) => {
+  try {
+    const text = (req.body.text || '').trim();
+    if (!text) return res.status(400).json({ error: "Mesaj boş olamaz." });
+    if (text.length > 4000) return res.status(400).json({ error: "Mesaj çok uzun." });
+    // Spam koruması: aynı hocadan son 1 dakikada en fazla 5 mesaj
+    const recent = await SupportMessage.countDocuments({
+      coach: req.coachId, from: 'coach', createdAt: { $gte: new Date(Date.now() - 60000) },
+    });
+    if (recent >= 5) return res.status(429).json({ error: "Çok hızlı mesaj gönderiyorsun, biraz bekle." });
+
+    const msg = await SupportMessage.create({ coach: req.coachId, from: 'coach', text, readByCoach: true });
+    const coach = await Coach.findById(req.coachId, 'name');
+    console.log(`✉️ Destek mesajı: ${coach?.name || req.coachId} → "${text.slice(0, 60)}"`);
+
+    // Yönetime anlık bildirim: e-posta kurmadan haberdar olmak için admin hesabının
+    // uygulamadaki push token'ına gönderiyoruz. Token yoksa (bildirim izni verilmemiş)
+    // sessizce geçiyor — mesaj zaten panelde duruyor.
+    if (process.env.ADMIN_EMAIL) {
+      const adminUser = await User.findOne({ email: process.env.ADMIN_EMAIL }, 'pushToken');
+      if (adminUser?.pushToken) {
+        await sendPushNotification(
+          adminUser.pushToken,
+          `✉️ ${coach?.name || 'Hoca'} yazdı`,
+          text.length > 120 ? `${text.slice(0, 117)}...` : text,
+          { type: 'coach_support', coachId: String(req.coachId) }
+        );
+      }
+    }
+    res.json({ from: 'coach', text: msg.text, at: msg.createdAt });
+  } catch (err) {
+    console.error('coach/support gönderme hatası:', err);
+    res.status(500).json({ error: "Mesaj gönderilemedi." });
+  }
+});
+
+// Hocanın okunmamış yönetim cevabı sayısı — panelde rozet için
+app.get('/coach/support/unread', coachMiddleware, async (req, res) => {
+  try {
+    const count = await SupportMessage.countDocuments({ coach: req.coachId, from: 'admin', readByCoach: false });
+    res.json({ count });
+  } catch (err) { res.status(500).json({ error: "Sayılamadı." }); }
+});
+
 app.post('/coach/change-password', coachMiddleware, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -3128,6 +3190,54 @@ app.patch('/admin/coach/:id', adminMiddleware, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Güncelleme başarısız." });
   }
+});
+
+// Destek kutusu — hoca başına son mesaj ve okunmamış sayısı (admin)
+app.get('/admin/support', adminMiddleware, async (req, res) => {
+  try {
+    const msgs = await SupportMessage.find({}).sort({ createdAt: 1 }).populate('coach', 'name email referralCode').lean();
+    const threads = {};
+    for (const m of msgs) {
+      if (!m.coach) continue;                       // hocası silinmiş mesajları atla
+      const id = String(m.coach._id);
+      if (!threads[id]) threads[id] = { coachId: id, name: m.coach.name, email: m.coach.email, unread: 0, messages: [] };
+      threads[id].messages.push({ from: m.from, text: m.text, at: m.createdAt });
+      if (m.from === 'coach' && !m.readByAdmin) threads[id].unread++;
+    }
+    // Okunmamışı olan üstte, sonra en son yazan
+    const list = Object.values(threads).sort((a, b) => {
+      if (!!b.unread !== !!a.unread) return b.unread - a.unread;
+      return new Date(b.messages[b.messages.length - 1].at) - new Date(a.messages[a.messages.length - 1].at);
+    });
+    res.json(list);
+  } catch (err) {
+    console.error('admin/support hatası:', err);
+    res.status(500).json({ error: "Mesajlar yüklenemedi." });
+  }
+});
+
+// Yönetim bir hocaya cevap yazar — o hocanın mesajları okundu sayılır (admin)
+app.post('/admin/support/:coachId', adminMiddleware, async (req, res) => {
+  try {
+    const text = (req.body.text || '').trim();
+    if (!text) return res.status(400).json({ error: "Mesaj boş olamaz." });
+    const coach = await Coach.findById(req.params.coachId, 'name');
+    if (!coach) return res.status(404).json({ error: "Koç bulunamadı." });
+    const msg = await SupportMessage.create({ coach: coach._id, from: 'admin', text, readByAdmin: true });
+    await SupportMessage.updateMany({ coach: coach._id, from: 'coach', readByAdmin: false }, { $set: { readByAdmin: true } });
+    res.json({ from: 'admin', text: msg.text, at: msg.createdAt });
+  } catch (err) {
+    console.error('admin/support cevap hatası:', err);
+    res.status(500).json({ error: "Cevap gönderilemedi." });
+  }
+});
+
+// Bir hocanın mesajlarını okundu işaretle (admin)
+app.post('/admin/support/:coachId/read', adminMiddleware, async (req, res) => {
+  try {
+    await SupportMessage.updateMany({ coach: req.params.coachId, from: 'coach', readByAdmin: false }, { $set: { readByAdmin: true } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: "İşaretlenemedi." }); }
 });
 
 // Promo kod oluştur (admin)

@@ -209,6 +209,13 @@
     </table>
     <div class="empty-state" id="promosEmpty" style="display:none">Henüz promo kod oluşturulmadı.</div>
   </div>
+
+  <!-- HOCA MESAJLARI -->
+  <div class="add-card" style="margin-top:32px">
+    <h3>💬 Hoca Mesajları <span id="supportUnread" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 8px;font-size:12px;margin-left:6px"></span></h3>
+    <div id="supportThreads" style="display:flex;flex-direction:column;gap:12px;margin-top:14px"></div>
+    <div class="empty-state" id="supportEmpty" style="display:none">Henüz mesaj yok.</div>
+  </div>
 </div>
 
 <!-- DÜZENLE MODAL -->
@@ -280,6 +287,7 @@
     const promos = await promoRes.json();
     window.__coaches = coaches;   // referans kodu çakışma kontrolü için
     checkRefCode();
+    loadSupport();
 
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
@@ -365,6 +373,50 @@
       warn.style.color = '#4ade80';
       el.style.borderColor = '#4ade80';
     }
+  }
+
+  // ---- Hoca mesajları (destek kutusu) ----
+  function esc(t){ return String(t).replace(/[<>&]/g, function(c){ return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; }); }
+  async function loadSupport() {
+    const box = document.getElementById('supportThreads'), empty = document.getElementById('supportEmpty');
+    const r = await fetch(`${API}/admin/support`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!r.ok) return;
+    const threads = await r.json();
+    const totalUnread = threads.reduce((a, t) => a + t.unread, 0);
+    const badge = document.getElementById('supportUnread');
+    badge.textContent = totalUnread; badge.style.display = totalUnread ? 'inline-block' : 'none';
+    empty.style.display = threads.length ? 'none' : 'block';
+    box.innerHTML = threads.map(function(t){
+      const msgs = t.messages.slice(-8).map(function(m){
+        const mine = m.from === 'admin';
+        return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:78%;background:'+(mine?'rgba(74,222,128,.10)':'#1a1b21')+
+          ';border:1px solid '+(mine?'rgba(74,222,128,.3)':'#2a2b33')+';border-radius:12px;padding:8px 12px">'+
+          '<div style="font-size:13px;white-space:pre-wrap">'+esc(m.text)+'</div>'+
+          '<div style="font-size:10.5px;color:#777;margin-top:3px">'+(mine?'Sen':t.name)+' · '+
+          new Date(m.at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div></div>';
+      }).join('');
+      return '<div style="border:1px solid #2a2b33;border-radius:14px;padding:14px">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+        '<b style="font-size:14px">'+esc(t.name)+'</b><span style="font-size:12px;color:#777">'+esc(t.email||'')+'</span>'+
+        (t.unread ? '<span style="background:#ef4444;color:#fff;border-radius:9px;padding:1px 7px;font-size:11px;font-weight:700">'+t.unread+' yeni</span>' : '')+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow:auto">'+msgs+'</div>'+
+        '<div style="display:flex;gap:8px;margin-top:10px">'+
+        '<input type="text" id="sup_'+t.coachId+'" placeholder="Cevap yaz..." style="flex:1" />'+
+        '<button class="btn-add" onclick="replySupport(\''+t.coachId+'\')">Gönder</button></div></div>';
+    }).join('');
+  }
+  async function replySupport(coachId) {
+    const el = document.getElementById('sup_' + coachId);
+    const text = el.value.trim();
+    if (!text) { showToast('Mesaj boş.', 'error'); return; }
+    const r = await fetch(`${API}/admin/support/${coachId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ text })
+    });
+    const d = await r.json();
+    if (!r.ok) { showToast(d.error || 'Gönderilemedi.', 'error'); return; }
+    el.value = ''; showToast('Cevap gönderildi.', 'success'); loadSupport();
   }
 
   async function addCoach() {

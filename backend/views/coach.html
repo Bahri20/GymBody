@@ -237,6 +237,7 @@
       <div class="navlink active" id="navStudents" onclick="showView('students')"><span class="ico">👥</span><span>Öğrenciler</span></div>
       <div class="navlink" id="navProgram" onclick="showView('program')"><span class="ico">🏋️</span><span>Program</span></div>
       <div class="navlink" id="navFinance" onclick="showView('finance')"><span class="ico">👤</span><span>Profil</span></div>
+      <div class="navlink" id="navSupport" onclick="showView('support')"><span class="ico">💬</span><span>İletişim</span><span id="supportBadge" class="hidden" style="margin-left:auto;background:var(--primary);color:#0b0d12;border-radius:9px;min-width:18px;height:18px;font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;padding:0 5px">0</span></div>
       <div class="navlink" id="navLogout" onclick="logout()"><span class="ico">🚪</span><span>Çıkış</span></div>
     </nav>
     <div class="side-bottom">
@@ -375,6 +376,20 @@
          <p class="muted" style="margin-top:4px;font-size:13px">Hesabından güvenli çıkış yap.</p>
        </div>
        <button class="btn btn-danger" style="min-width:170px" onclick="logout()">Çıkış Yap</button>
+     </div>
+   </div>
+
+   <!-- İLETİŞİM (yönetimle yazışma) -->
+   <div id="supportView" class="hidden view">
+     <div class="glass" style="padding:20px;max-width:760px">
+       <div style="font-size:14px;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px">💬 Yönetimle İletişim</div>
+       <p class="muted" style="margin-top:6px;font-size:13px">Sorun, öneri veya talebini buraya yaz. Mesajın kaydedilir, cevabı yine bu sayfada görürsün.</p>
+       <div id="supportThread" style="margin-top:16px;display:flex;flex-direction:column;gap:10px;max-height:420px;overflow:auto"></div>
+       <textarea id="supportText" class="inp" rows="3" placeholder="Mesajını yaz..." style="margin-top:14px;resize:vertical"></textarea>
+       <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+         <button class="btn" onclick="sendSupport()">Gönder</button>
+         <span id="supportMsg" class="muted" style="font-size:12.5px"></span>
+       </div>
      </div>
    </div>
   </main>
@@ -607,19 +622,67 @@
   function logout(){localStorage.removeItem('coachToken');location.reload();}
 
   function showView(v){
-    document.getElementById('mainContent').classList.toggle('hidden', v==='finance');
+    var standalone = (v==='finance'||v==='support');
+    document.getElementById('mainContent').classList.toggle('hidden', standalone);
     document.getElementById('profileMenu').classList.toggle('hidden', v!=='finance');
-    if(v!=='finance'){
+    document.getElementById('supportView').classList.toggle('hidden', v!=='support');
+    if(!standalone){
       document.getElementById('view1').classList.toggle('hidden', v!=='students');
       document.getElementById('view2').classList.toggle('hidden', v!=='program');
     }
-    [['navStudents','students'],['navProgram','program'],['navFinance','finance']].forEach(function(p){
+    if(v==='support') loadSupport();
+    [['navStudents','students'],['navProgram','program'],['navFinance','finance'],['navSupport','support']].forEach(function(p){
       var el=document.getElementById(p[0]); if(el) el.classList.toggle('active', v===p[1]);
     });
-    var titles={students:'Öğrenciler',program:'Program Editörü',finance:'Profil'};
+    var titles={students:'Öğrenciler',program:'Program Editörü',finance:'Profil',support:'İletişim'};
     var t=document.getElementById('pageTitle'); if(t&&titles[v]) t.textContent=titles[v];
     var ts=document.getElementById('topSearch'); if(ts) ts.classList.toggle('hidden', v!=='students');
   }
+  // ---- Yönetimle yazışma ----
+  function supportBubble(m){
+    const mine = m.from === 'coach';
+    return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:78%;background:'+(mine?'rgba(157,230,86,.12)':'var(--sc-high)')+
+      ';border:1px solid '+(mine?'rgba(157,230,86,.35)':'var(--border)')+';border-radius:14px;padding:10px 13px">'+
+      '<div style="font-size:13.5px;color:var(--text);white-space:pre-wrap">'+String(m.text).replace(/[<>&]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c];})+'</div>'+
+      '<div class="muted" style="font-size:10.5px;margin-top:4px">'+(mine?'Sen':'Yönetim')+' · '+new Date(m.at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div></div>';
+  }
+  async function loadSupport(){
+    const box = document.getElementById('supportThread');
+    try{
+      const r = await fetch('/coach/support', { headers: H() });
+      const msgs = await r.json();
+      box.innerHTML = msgs.length ? msgs.map(supportBubble).join('') :
+        '<p class="muted" style="font-size:13px">Henüz mesaj yok. İlk mesajı sen yaz.</p>';
+      box.scrollTop = box.scrollHeight;
+      refreshSupportBadge();
+    }catch(_){ box.innerHTML = '<p class="muted">Mesajlar yüklenemedi.</p>'; }
+  }
+  async function sendSupport(){
+    const el = document.getElementById('supportText'), info = document.getElementById('supportMsg');
+    const text = el.value.trim();
+    if(!text){ info.textContent = 'Mesaj boş.'; return; }
+    info.textContent = 'Gönderiliyor...';
+    try{
+      const r = await fetch('/coach/support', { method:'POST', headers: H(), body: JSON.stringify({ text }) });
+      const d = await r.json();
+      if(!r.ok){ info.textContent = d.error || 'Gönderilemedi.'; return; }
+      el.value = ''; info.textContent = 'Gönderildi ✓';
+      loadSupport();
+      setTimeout(function(){ info.textContent=''; }, 2500);
+    }catch(_){ info.textContent = 'Bağlantı hatası.'; }
+  }
+  // Okunmamış yönetim cevabı varsa menüde rozet
+  async function refreshSupportBadge(){
+    try{
+      const r = await fetch('/coach/support/unread', { headers: H() });
+      const d = await r.json();
+      const b = document.getElementById('supportBadge');
+      if(!b) return;
+      b.textContent = d.count;
+      b.classList.toggle('hidden', !d.count);
+    }catch(_){}
+  }
+
   function switchTab(n){ showView(n===1?'students':'program'); }
   function toggleProfile(){ showView('finance'); }
 
@@ -958,6 +1021,9 @@
     document.getElementById('cRef').textContent=d.referralCode;
     _students=(d.gymStudents&&d.gymStudents.length)?d.gymStudents:(d.students||[]);
     renderStudents();
+    // Yönetimden cevap gelmişse menüde rozet çıksın — panel açık kalırsa 60 sn'de bir tazelenir
+    refreshSupportBadge();
+    if(!window.__supportPoll) window.__supportPoll = setInterval(refreshSupportBadge, 60000);
   }
   async function addStudent(){
     const email=document.getElementById('newStudent').value.trim();
