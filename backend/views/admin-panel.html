@@ -126,7 +126,8 @@
       </div>
       <div class="form-group">
         <label>Referans Kodu (opsiyonel)</label>
-        <input type="text" id="newRef" placeholder="boş bırakılırsa otomatik üretilir" />
+        <input type="text" id="newRef" placeholder="boş bırakılırsa otomatik üretilir" oninput="checkRefCode()" />
+        <div id="refWarn" style="font-size:11.5px;margin-top:4px;min-height:14px"></div>
       </div>
       <div class="form-group">
         <label>Salon Kodu (opsiyonel)</label>
@@ -266,6 +267,8 @@
     if (coachRes.status === 401) { logout(); return; }
     const coaches = await coachRes.json();
     const promos = await promoRes.json();
+    window.__coaches = coaches;   // referans kodu çakışma kontrolü için
+    checkRefCode();
 
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
@@ -329,6 +332,30 @@
     }
   }
 
+  // Referans kodu yazılırken anında kontrol: kod linkte kullanıldığı için sunucudaki
+  // ile aynı sadeleştirmeyi uygulayıp yüklü hoca listesiyle karşılaştırıyoruz.
+  function checkRefCode() {
+    const el = document.getElementById('newRef'), warn = document.getElementById('refWarn');
+    if (!el || !warn) return;
+    const raw = el.value.trim();
+    const code = raw.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+    if (!raw) { warn.textContent = ''; el.style.borderColor = ''; return; }
+    const clash = (window.__coaches || []).find(c => c.referralCode === code);
+    if (clash) {
+      warn.textContent = `⚠ "${code}" kodu ${clash.name} hocada kullanılıyor.`;
+      warn.style.color = '#ef4444';
+      el.style.borderColor = '#ef4444';
+    } else if (!code) {
+      warn.textContent = '⚠ Bu kod harf/rakam içermiyor, otomatik üretime düşer.';
+      warn.style.color = '#f59e0b';
+      el.style.borderColor = '#f59e0b';
+    } else {
+      warn.textContent = code === raw.toLowerCase() ? `✓ "${code}" uygun.` : `✓ "${code}" olarak kaydedilecek.`;
+      warn.style.color = '#4ade80';
+      el.style.borderColor = '#4ade80';
+    }
+  }
+
   async function addCoach() {
     const body = {
       name: document.getElementById('newName').value.trim(),
@@ -355,6 +382,7 @@
     if (!r.ok) { showToast(data.error, 'error'); return; }
     showToast(`${body.name} eklendi! Kodu: ${data.referralCode}`, 'success');
     ['newName','newEmail','newPassword','newPhone','newRef','newGym','newNotes'].forEach(id => document.getElementById(id).value = '');
+    checkRefCode();
     document.getElementById('newCommission').value = 15;
     document.getElementById('newFreeVip').value = 0;
     loadPanel();

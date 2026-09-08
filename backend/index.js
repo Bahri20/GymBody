@@ -3029,8 +3029,12 @@ app.post('/admin/coach', adminMiddleware, async (req, res) => {
     // Temizlikten sonra boş kalırsa ya da hiç verilmediyse isimden otomatik üretiliyor.
     const manual = String(referralCode || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
     const code = manual || await generateReferralCode(name);
-    const existing = await Coach.findOne({ $or: [{ email }, { referralCode: code }] });
-    if (existing) return res.status(400).json({ error: "Bu email veya referral kodu zaten kullanılıyor." });
+    // Hangisinin çakıştığını ayrı ayrı söylüyoruz — "email veya kod" demek,
+    // kodu elle giren adminin hangisini düzelteceğini bilememesine yol açıyordu.
+    const byEmail = await Coach.findOne({ email });
+    if (byEmail) return res.status(400).json({ error: `Bu e-posta zaten kayıtlı: ${byEmail.name}` });
+    const byCode = await Coach.findOne({ referralCode: code });
+    if (byCode) return res.status(400).json({ error: `"${code}" kodu zaten ${byCode.name} hocada kullanılıyor. Başka bir kod gir.` });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const coach = await Coach.create({
