@@ -3025,7 +3025,10 @@ app.post('/admin/coach', adminMiddleware, async (req, res) => {
       return res.status(400).json({ error: "İsim, email ve şifre zorunlu." });
     }
     // referral kodu opsiyonel: verilmezse otomatik üret (hoca öğrencilerini e-posta ile ekliyor)
-    const code = referralCode ? referralCode.toLowerCase().trim() : await generateReferralCode(name);
+    // Elle girilen kod link/URL'de kullanılıyor: küçük harf + a-z0-9'a indirgeniyor.
+    // Temizlikten sonra boş kalırsa ya da hiç verilmediyse isimden otomatik üretiliyor.
+    const manual = String(referralCode || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
+    const code = manual || await generateReferralCode(name);
     const existing = await Coach.findOne({ $or: [{ email }, { referralCode: code }] });
     if (existing) return res.status(400).json({ error: "Bu email veya referral kodu zaten kullanılıyor." });
 

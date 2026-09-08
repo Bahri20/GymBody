@@ -125,6 +125,10 @@
         <input type="text" id="newPhone" placeholder="05xx xxx xx xx" />
       </div>
       <div class="form-group">
+        <label>Referans Kodu (opsiyonel)</label>
+        <input type="text" id="newRef" placeholder="boş bırakılırsa otomatik üretilir" />
+      </div>
+      <div class="form-group">
         <label>Salon Kodu (opsiyonel)</label>
         <input type="text" id="newGym" placeholder="MLFT2" />
       </div>
@@ -331,6 +335,8 @@
       email: document.getElementById('newEmail').value.trim(),
       password: document.getElementById('newPassword').value,
       phone: document.getElementById('newPhone').value.trim(),
+      // Boşsa gönderme: backend adı sadeleştirip sonuna sayı ekleyerek kendisi üretiyor
+      referralCode: document.getElementById('newRef').value.trim().toLowerCase() || undefined,
       gymCode: document.getElementById('newGym').value.trim(),
       discountRate: 0,
       commissionRate: parseInt(document.getElementById('newCommission').value),
@@ -348,7 +354,7 @@
     const data = await r.json();
     if (!r.ok) { showToast(data.error, 'error'); return; }
     showToast(`${body.name} eklendi! Kodu: ${data.referralCode}`, 'success');
-    ['newName','newEmail','newPassword','newPhone','newGym','newNotes'].forEach(id => document.getElementById(id).value = '');
+    ['newName','newEmail','newPassword','newPhone','newRef','newGym','newNotes'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('newCommission').value = 15;
     document.getElementById('newFreeVip').value = 0;
     loadPanel();
