@@ -448,7 +448,8 @@
 
   function mmRankIndex(liftKey, best, bodyweight, gender){
     const std = MM_STD[liftKey]; if(!std || !(best>0)) return -1;
-    const isFemale = String(gender||'').toLowerCase().indexOf('kad')===0;
+    const g = String(gender||'').trim().toLowerCase();
+    const isFemale = g==='female' || g==='kadın' || g==='kadin';
     const th = std[isFemale?'kadin':'erkek'];
     const bw = MM_REP_BASED.has(liftKey) ? 1 : (bodyweight>0?bodyweight:70);
     const ratio = best/bw;
@@ -498,6 +499,35 @@
   function mmMirrored(d, fill){
     return '<path d="'+d+'" fill="'+fill+'"/><path d="'+d+'" fill="'+fill+'" transform="'+MM_MIRROR+'"/>';
   }
+  // Lejant rozetleri: renk anlamını hocaya anlatmak için. Silüetler mobil uygulamadaki
+  // rozetlerin sadeleştirilmiş hali — renge ek olarak şekil de ayırt edici olsun.
+  function mmBadgeSvg(rank, size){
+    const c = rank.color, s = size || 26;
+    let extra = '';
+    if(rank.key==='gumus')  extra = '<path d="M8,22 Q2,18 4,12 Q8,16 10,22 Z" fill="'+c+'" opacity=".7"/><path d="M36,22 Q42,18 40,12 Q36,16 34,22 Z" fill="'+c+'" opacity=".7"/>';
+    if(rank.key==='altin')  extra = '<path d="M11,10 L15,15 L22,7 L29,15 L33,10 L33,15 L11,15 Z" fill="'+c+'"/>';
+    if(rank.key==='platin') extra = '<path d="M22,3 L38,12 L38,30 L22,41 L6,30 L6,12 Z" fill="none" stroke="'+c+'" stroke-width="1.2" opacity=".55"/>';
+    if(rank.key==='elmas')  extra = '<path d="M22,2 L24,9 L31,11 L24,13 L22,20 L20,13 L13,11 L20,9 Z" fill="'+c+'" opacity=".85"/>';
+    if(rank.key==='efsane') extra = '<path d="M22,1 L25,8 L33,8 L27,13 L29,21 L22,16 L15,21 L17,13 L11,8 L19,8 Z" fill="'+c+'" opacity=".9"/>';
+    return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 44 44">'+extra+
+      '<path d="M22,6 L35,13 L35,29 L22,39 L9,29 L9,13 Z" fill="'+c+'30" stroke="'+c+'" stroke-width="2"/>'+
+      '<path d="M22,13 L28,22 L22,31 L16,22 Z" fill="'+c+'" opacity=".45"/>'+
+      '<circle cx="22" cy="22" r="3.2" fill="'+c+'"/></svg>';
+  }
+  function mmRenderLegend(){
+    let h = '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:0 4px">';
+    h += '<span class="muted" style="font-size:10px;letter-spacing:.06em">DÜŞÜK</span>';
+    h += '<div style="width:1px;height:8px;background:var(--border)"></div>';
+    MM_RANKS.forEach(function(r, i){
+      if(i) h += '<div style="width:1px;height:6px;background:var(--border)"></div>';
+      h += '<div style="text-align:center;line-height:1">'+mmBadgeSvg(r, 26)+
+           '<div style="font-size:9.5px;font-weight:700;color:'+r.color+';margin-top:-2px">'+r.label.toUpperCase()+'</div></div>';
+    });
+    h += '<div style="width:1px;height:8px;background:var(--border)"></div>';
+    h += '<span class="muted" style="font-size:10px;letter-spacing:.06em">YÜKSEK</span>';
+    return h + '</div>';
+  }
+
   function mmFillFor(ranksMap, key, defaultColor){
     const r = ranksMap[key];
     if(!r) return defaultColor;
@@ -545,6 +575,7 @@
     html += '<div style="text-align:center">'+mmRenderFigure('front', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Ön</div></div>';
     html += '<div style="text-align:center">'+mmRenderFigure('back', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Arka</div></div>';
     html += '</div>';
+    html += mmRenderLegend();
     html += '<div style="flex:1;min-width:160px">';
     if(avgRank){
       html += '<div style="display:inline-flex;align-items:center;gap:6px;background:'+avgRank.color+'22;border:1px solid '+avgRank.color+';border-radius:20px;padding:5px 12px;margin-bottom:10px"><span style="width:7px;height:7px;border-radius:4px;background:'+avgRank.color+'"></span><b style="color:'+avgRank.color+';font-size:12px">ORTALAMA: '+avgRank.label.toUpperCase()+'</b></div>';

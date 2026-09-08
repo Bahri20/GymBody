@@ -2097,9 +2097,15 @@ app.post('/revenuecat-webhook', authMiddleware, async (req, res) => {
   try {
     const { entitlement, expiresAt } = req.body;
     if (entitlement !== 'vip') return res.status(400).json({ error: 'Geçersiz entitlement' });
-    const expiry = expiresAt ? new Date(expiresAt) : (() => {
+    const storeExpiry = expiresAt ? new Date(expiresAt) : (() => {
       const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d;
     })();
+    // Hediye günler (hoca kodu, promo kod, ödül) mevcut bitiş tarihinin üstüne
+    // ekleniyor; mağaza tarihi bunlardan kısa olabilir. Üzerine yazarsak kullanıcı
+    // satın alma yaptığı anda hediye günlerini kaybediyordu — hep geç olan kalır.
+    const current = await User.findById(req.userId, 'vipExpiresAt');
+    const currentExpiry = current?.vipExpiresAt ? new Date(current.vipExpiresAt) : null;
+    const expiry = currentExpiry && currentExpiry > storeExpiry ? currentExpiry : storeExpiry;
     await User.findByIdAndUpdate(req.userId, { isVip: true, vipExpiresAt: expiry });
     res.json({ success: true });
   } catch (e) {

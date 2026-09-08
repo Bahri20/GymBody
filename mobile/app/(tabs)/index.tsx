@@ -4371,7 +4371,7 @@ const pickAndUploadProfilePhoto = async () => {
       <>
         {renderVipPlanPicker()}
         <Text style={{ color: C.textMuted, fontSize: 11.5, textAlign: 'center', marginBottom: 10, lineHeight: 16 }}>
-          {t('Yeni süre mevcut üyeliğinin bitiş tarihine eklenir.')}
+          {t('Yeni süre mevcut üyeliğinin üstüne eklenir, kalan günlerin kaybolmaz.')}
         </Text>
         {loading ? <ActivityIndicator size="large" color="#FF9F1C" style={{ marginVertical: 8 }} /> : (
           <TouchableOpacity activeOpacity={0.88} onPress={() => purchaseVip(selectedVipPlan)}>

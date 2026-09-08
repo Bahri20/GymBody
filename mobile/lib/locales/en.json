@@ -514,7 +514,7 @@
   "Yeni Hesap Aç": "Create Account",
   "Yeni PR! {{entered}} kg > {{best}} kg": "New PR! {{entered}} kg > {{best}} kg",
   "Yeni programın buna göre ayarlansın diye yorum bırakabilirsin.": "Leave feedback so your next program is adjusted accordingly.",
-  "Yeni süre mevcut üyeliğinin bitiş tarihine eklenir.": "The new period is added on top of your current expiry date.",
+  "Yeni süre mevcut üyeliğinin üstüne eklenir, kalan günlerin kaybolmaz.": "The new period stacks on your current membership — you won't lose remaining days.",
   "Yok": "None",
   "Yorum yazmadan geç": "Skip without feedback",
   "YÜKLENİYOR": "LOADING",
