@@ -2464,15 +2464,6 @@ const pickAndUploadProfilePhoto = async () => {
   const dailyMealRights = userStats.isVip ? 999 : Math.max(0, 2 - todayLogs.length);
   const todayCalories = todayLogs.reduce((s, m) => s + (m.calories || 0), 0);
 
-  // Bu haftanın yenen ürünleri (Pazartesi başlangıçlı) — liste sadece o hafta tutulur
-  const weekStart = (() => {
-    const d = new Date(); d.setHours(0, 0, 0, 0);
-    const day = (d.getDay() + 6) % 7; // Pazartesi = 0
-    d.setDate(d.getDate() - day);
-    return d;
-  })();
-  const thisWeekMealLogs = mealLogs.filter((m) => new Date(m.date) >= weekStart);
-
   // Günlük toplamlar (haftalık grafik için gün gün topla)
   const dailyTotalsMap: Record<string, any> = {};
   mealLogs.forEach((m) => {
@@ -2576,7 +2567,7 @@ const pickAndUploadProfilePhoto = async () => {
       )}
 
       {/* ÜST BAŞLIK — her sekme kendi bağlamını söyler, profil erişimi aynı yerde kalır. */}
-      <View style={styles.topBar}>
+      {currentTab !== 'analiz' && <View style={styles.topBar}>
         <View style={{ flex: 1, paddingRight: 14 }}>
           <View style={styles.topEyebrowRow}>
             <View style={styles.topEyebrowDot} />
@@ -2603,7 +2594,7 @@ const pickAndUploadProfilePhoto = async () => {
             <Ionicons name="camera" size={10} color="#0B0D12" />
           </View>
         </TouchableOpacity>
-      </View>
+      </View>}
 
       <Animated.View style={{ flex: 1 }} key={currentTab} entering={FadeIn.duration(300)}>
       {currentTab === 'gymBody' && (
@@ -3287,27 +3278,73 @@ const pickAndUploadProfilePhoto = async () => {
           )}
         </ScrollView>
       )}
-      {/* ANALİZ iç switcher: Gelişim (foto) | Beslenme (kalori) */}
-      {currentTab === 'analiz' && (
-        <View style={styles.analysisSwitcherWrap}>
-          <TouchableOpacity
-            activeOpacity={0.82}
-            style={[styles.analysisSwitcherButton,
-              analizTab === 'gelisim' && styles.analysisSwitcherButtonActive]}
-            onPress={() => setAnalizTab('gelisim')}>
-            <Ionicons name="camera-outline" size={16} color={analizTab === 'gelisim' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-            <Text style={{ fontWeight: '700', color: analizTab === 'gelisim' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>{t('Gelişim')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.82}
-            style={[styles.analysisSwitcherButton,
-              analizTab === 'beslenme' && styles.analysisSwitcherButtonActive]}
-            onPress={() => setAnalizTab('beslenme')}>
-            <Ionicons name="restaurant-outline" size={16} color={analizTab === 'beslenme' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-            <Text style={{ fontWeight: '700', color: analizTab === 'beslenme' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>{t('Beslenme')}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* ANALİZ KOKPİTİ — başlık, özet, ana aksiyon ve mod seçimi tek yerde. */}
+      {currentTab === 'analiz' && (() => {
+        const latestWithFat = [...gallery]
+          .filter((item) => item.bodyFatPercentage != null)
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        const latestWeight = bodyStats[0]?.weight || user?.weight;
+        const remainingCalories = dailyTarget != null ? Math.max(0, dailyTarget - todayCalories) : null;
+        const isProgress = analizTab === 'gelisim';
+        return (
+          <LinearGradient
+            colors={isProgress ? ['rgba(198,255,61,0.16)', 'rgba(24,27,33,0.94)'] : ['rgba(255,159,28,0.16)', 'rgba(24,27,33,0.94)']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.analysisHero}>
+            <View style={styles.analysisHeroTop}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <View style={styles.analysisEyebrowRow}>
+                  <View style={[styles.analysisEyebrowDot, !isProgress && { backgroundColor: C.orange }]} />
+                  <Text style={styles.analysisEyebrow}>{t('ANALİZ MERKEZİ')}</Text>
+                </View>
+                <Text style={styles.analysisHeroTitle}>{isProgress ? t('Değişimini gör') : t('Gününü dengele')}</Text>
+                <Text style={styles.analysisHeroSubtitle} numberOfLines={1}>
+                  {isProgress ? t('Fotoğraflarınla gerçek ilerlemeyi takip et.') : t('Kalori ve makrolarını tek bakışta yönet.')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                activeOpacity={0.84}
+                onPress={() => askAndPickImage(isProgress ? 'progress' : 'meal')}
+                style={[styles.analysisHeroAction, !isProgress && { backgroundColor: C.orange }]}
+                disabled={loading}>
+                <Ionicons name={isProgress ? 'camera' : 'scan'} size={23} color={AZ_DARK.onLime} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.analysisMetricRow}>
+              {(isProgress ? [
+                { value: latestWithFat ? `%${latestWithFat.bodyFatPercentage}` : '--', label: t('YAĞ ORANI') },
+                { value: latestWeight ? `${latestWeight} kg` : '--', label: t('GÜNCEL KİLO') },
+                { value: `${gallery.length}`, label: t('KAYIT') },
+              ] : [
+                { value: `${todayCalories}`, label: t('ALINAN KCAL') },
+                { value: remainingCalories != null ? `${remainingCalories}` : '--', label: t('KALAN KCAL') },
+                { value: userStats.isVip ? 'VIP' : `${dailyMealRights}`, label: t('TARAMA HAKKI') },
+              ]).map((metric, index) => (
+                <View key={metric.label} style={[styles.analysisMetric, index > 0 && styles.analysisMetricBorder]}>
+                  <Text style={[styles.analysisMetricValue, !isProgress && { color: C.orange }]} numberOfLines={1}>{metric.value}</Text>
+                  <Text style={styles.analysisMetricLabel} numberOfLines={1}>{metric.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.analysisSwitcherWrap}>
+              <TouchableOpacity activeOpacity={0.82}
+                style={[styles.analysisSwitcherButton, isProgress && styles.analysisSwitcherButtonActive]}
+                onPress={() => setAnalizTab('gelisim')}>
+                <Ionicons name="body-outline" size={17} color={isProgress ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
+                <Text style={[styles.analysisSwitcherText, isProgress && styles.analysisSwitcherTextActive]}>{t('Gelişim')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.82}
+                style={[styles.analysisSwitcherButton, !isProgress && styles.analysisSwitcherButtonActiveNutrition]}
+                onPress={() => setAnalizTab('beslenme')}>
+                <Ionicons name="nutrition-outline" size={17} color={!isProgress ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
+                <Text style={[styles.analysisSwitcherText, !isProgress && styles.analysisSwitcherTextActive]}>{t('Beslenme')}</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        );
+      })()}
       {currentTab === 'analiz' && analizTab === 'gelisim' && loading && gallery.length === 0 && (
         <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
           {[1,2,3].map(i => (
@@ -3323,17 +3360,29 @@ const pickAndUploadProfilePhoto = async () => {
           contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 16 }}
           ListHeaderComponent={
             <View>
-              {/* 📸 FOTOĞRAF EKLEME YERİ */}
+              <View style={styles.analysisSectionHeading}>
+                <View>
+                  <Text style={styles.analysisSectionEyebrow}>{t('YENİ KAYIT')}</Text>
+                  <Text style={styles.analysisSectionTitle}>{t('Bugünkü formun')}</Text>
+                </View>
+                <Text style={styles.analysisSectionHint}>{t('AI destekli')}</Text>
+              </View>
+              {/* FOTOĞRAF EKLEME YERİ */}
               <LinearGradient colors={[AZ_DARK.glass, 'rgba(30,31,37,0.28)']} style={styles.analysisCaptureCard}>
               {!image ? (
                 <TouchableOpacity activeOpacity={0.85} onPress={() => askAndPickImage('progress')}>
                   <View style={styles.analysisCaptureEmpty}>
-                    <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: AZ_DARK.limeSoft10, justifyContent: 'center', alignItems: 'center', marginBottom: 12,
+                    <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: AZ_DARK.limeSoft10, justifyContent: 'center', alignItems: 'center',
                       shadowColor: AZ_DARK.lime, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6 }}>
-                      <Ionicons name="camera" size={26} color={AZ_DARK.lime} />
+                      <Ionicons name="camera" size={23} color={AZ_DARK.lime} />
                     </View>
-                    <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 17, marginBottom: 4 }}>{t('Yeni Gelişim Fotoğrafı')}</Text>
-                    <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13, textAlign: 'center' }}>{t('Çek veya galeriden seç · AI yağ oranını tahmin etsin')}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 15, marginBottom: 3 }}>{t('Gelişim fotoğrafı ekle')}</Text>
+                      <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5, lineHeight: 17 }}>{t('Çek veya galeriden seç · AI yağ oranını tahmin etsin')}</Text>
+                    </View>
+                    <View style={styles.analysisCaptureArrow}>
+                      <Ionicons name="arrow-forward" size={17} color={AZ_DARK.onLime} />
+                    </View>
                   </View>
                 </TouchableOpacity>
               ) : (
@@ -3487,17 +3536,14 @@ const pickAndUploadProfilePhoto = async () => {
             </View>
           }
           ListEmptyComponent={
-            <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 30 }}>
-              <Ionicons name="camera-outline" size={48} color={AZ_DARK.lime} />
-              <Text style={{ color: AZ_DARK.onSurface, fontSize: 17, fontWeight: '700', marginTop: 14 }}>{t('Henüz fotoğraf yok')}</Text>
-              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>{t('İlk gelişim fotoğrafını ekle, AI yağ oranını hesaplasın ve değişimini takip etmeye başla.')}</Text>
-              <TouchableOpacity
-                onPress={() => showImageSourceOptions('progress')}
-                style={{ marginTop: 18, backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-              >
-                <Ionicons name="add-circle-outline" size={20} color={AZ_DARK.onLime} />
-                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14 }}>{t('İlk Fotoğrafı Ekle')}</Text>
-              </TouchableOpacity>
+            <View style={styles.analysisEmptyState}>
+              <View style={styles.analysisEmptyIcon}>
+                <Ionicons name="time-outline" size={19} color={AZ_DARK.onSurfaceVariant} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.analysisEmptyTitle}>{t('Geçmiş kayıtların burada')}</Text>
+                <Text style={styles.analysisEmptyText}>{t('İlk fotoğraftan sonra değişimin görünür.')}</Text>
+              </View>
             </View>
           }
       renderItem={({ item }) => (
@@ -3557,15 +3603,15 @@ const pickAndUploadProfilePhoto = async () => {
       {currentTab === 'analiz' && analizTab === 'beslenme' && (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 16 }}>
 
-          {/* PLAN | ANALİZ geçişi — alt sekme (üstteki Gelişim/Beslenme kutusuyla karışmasın diye hafif underline stili) */}
-          <View style={{ flexDirection: 'row', gap: 24, marginBottom: 18, marginTop: 6, borderBottomWidth: 1, borderBottomColor: AZ_DARK.glassBorderFaint }}>
-            <TouchableOpacity onPress={() => setMealTab('analiz')} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: mealTab === 'analiz' ? AZ_DARK.lime : 'transparent' }}>
-              <Ionicons name="scan-outline" size={15} color={mealTab === 'analiz' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant} />
-              <Text style={{ fontWeight: '800', color: mealTab === 'analiz' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant, fontSize: 14 }}>{t('Analiz')}</Text>
+          {/* Beslenme alt görünümü */}
+          <View style={styles.analysisSubTabs}>
+            <TouchableOpacity onPress={() => setMealTab('analiz')} style={[styles.analysisSubTab, mealTab === 'analiz' && styles.analysisSubTabActive]}>
+              <Ionicons name="scan-outline" size={16} color={mealTab === 'analiz' ? C.orange : AZ_DARK.onSurfaceVariant} />
+              <Text style={[styles.analysisSubTabText, mealTab === 'analiz' && { color: AZ_DARK.onSurface }]}>{t('Günlük Takip')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setMealTab('plan')} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', paddingBottom: 10, borderBottomWidth: 2, borderBottomColor: mealTab === 'plan' ? AZ_DARK.lime : 'transparent' }}>
-              <Ionicons name="calendar-outline" size={15} color={mealTab === 'plan' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant} />
-              <Text style={{ fontWeight: '800', color: mealTab === 'plan' ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant, fontSize: 14 }}>{t('Plan')}</Text>
+            <TouchableOpacity onPress={() => setMealTab('plan')} style={[styles.analysisSubTab, mealTab === 'plan' && styles.analysisSubTabActive]}>
+              <Ionicons name="calendar-outline" size={16} color={mealTab === 'plan' ? C.orange : AZ_DARK.onSurfaceVariant} />
+              <Text style={[styles.analysisSubTabText, mealTab === 'plan' && { color: AZ_DARK.onSurface }]}>{t('Beslenme Planı')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -3642,28 +3688,24 @@ const pickAndUploadProfilePhoto = async () => {
           {mealTab === 'analiz' && (
           <View>
           {/* YAPAY ZEKA KALORİ ÖLÇER */}
-          <View style={{ borderRadius: 22, padding: 16, marginBottom: 16, backgroundColor: AZ_DARK.glass, alignItems: 'center' }}>
-            <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: AZ_DARK.limeSoft10, justifyContent: 'center', alignItems: 'center', marginBottom: 8 }}>
-              <Ionicons name="restaurant" size={22} color={AZ_DARK.lime} />
-            </View>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: AZ_DARK.onSurface, textAlign: 'center' }}>{t('Yapay Zeka Şefin')}</Text>
-            <Text style={{ fontSize: 13, color: AZ_DARK.onSurfaceVariant, textAlign: 'center', marginTop: 4, lineHeight: 18, paddingHorizontal: 10 }}>{t('Tabağının net bir fotoğrafını yükle, içindeki makroları anında söylesin.')}</Text>
-
-            {!userStats.isVip && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: AZ_DARK.limeSoft10, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 10 }}>
-                <Ionicons name="ticket-outline" size={14} color={AZ_DARK.lime} />
-                <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5 }}>{t('Bugünkü ücretsiz hakkın:')} <Text style={{ fontWeight: '800', color: AZ_DARK.lime }}>{dailyMealRights}</Text></Text>
+          <LinearGradient colors={['rgba(255,159,28,0.16)', AZ_DARK.glass]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.analysisMealScanner}>
+            <View style={styles.analysisMealScannerTop}>
+              <View style={styles.analysisMealScannerIcon}>
+                <Ionicons name="restaurant" size={21} color={C.orange} />
               </View>
-            )}
-
+              <View style={{ flex: 1 }}>
+                <Text style={styles.analysisMealScannerTitle}>{t('Tabağını analiz et')}</Text>
+                <Text style={styles.analysisMealScannerSubtitle}>{t('Fotoğrafını çek, kalori ve makroları saniyeler içinde gör.')}</Text>
+              </View>
+            </View>
             <TouchableOpacity activeOpacity={0.85}
-              style={{ flexDirection: 'row', gap: 8, backgroundColor: AZ_DARK.lime, paddingVertical: 13, paddingHorizontal: 30, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 12, alignSelf: 'stretch',
-                shadowColor: AZ_DARK.lime, shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6 }}
+              style={styles.analysisMealScannerButton}
               onPress={() => askAndPickImage('meal')} disabled={loading}>
               <Ionicons name="scan" size={20} color={AZ_DARK.onLime} />
-              <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('TABAĞI TARA')}</Text>
+              <Text style={{ color: AZ_DARK.onLime, fontWeight: '900', fontSize: 14, letterSpacing: 0.4 }}>{t('TABAĞI TARA')}</Text>
+              {!userStats.isVip && <Text style={styles.analysisMealScannerRights}>{dailyMealRights}</Text>}
             </TouchableOpacity>
-          </View>
+          </LinearGradient>
 
           {mealImage && !mealResult && !loading && (
             <View style={{ marginTop: 16 }}>
@@ -3722,49 +3764,58 @@ const pickAndUploadProfilePhoto = async () => {
           )}
 
           {/* GÜNLÜK KALORİ HEDEFİ — halka + makro barları (Stitch tasarımı) */}
-          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 20, marginBottom: 16, alignItems: 'center' }}>
-            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, alignSelf: 'flex-start', marginBottom: 24 }}>{t('Günlük Kalori Hedefi')}</Text>
+          <View style={styles.analysisCaloriesCard}>
+            <View style={styles.analysisCaloriesHeader}>
+              <View>
+                <Text style={styles.analysisCaloriesEyebrow}>{t('BUGÜN')}</Text>
+                <Text style={styles.analysisCaloriesTitle}>{t('Kalori hedefin')}</Text>
+              </View>
+              <Text style={styles.analysisCaloriesMealCount}>{t('{{count}} öğün', { count: todayLogs.length })}</Text>
+            </View>
 
-            {(() => {
-              const kcalPct = dailyTarget ? Math.min(1, todayCalories / dailyTarget) : 0;
-              const R = 45, CIRC = 2 * Math.PI * R;
-              return (
-                <View style={{ width: 192, height: 192, marginBottom: 24, alignItems: 'center', justifyContent: 'center' }}>
-                  <Svg width={192} height={192} viewBox="0 0 100 100" style={{ transform: [{ rotate: '-90deg' }] }}>
-                    <Circle cx={50} cy={50} r={R} fill="none" stroke={AZ_DARK.surfaceContainer} strokeWidth={8} />
-                    <Circle cx={50} cy={50} r={R} fill="none" stroke={AZ_DARK.lime} strokeWidth={8}
-                      strokeDasharray={`${CIRC}`} strokeDashoffset={CIRC * (1 - kcalPct)} strokeLinecap="round" />
-                  </Svg>
-                  <View style={{ position: 'absolute', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 32, fontWeight: '900', color: AZ_DARK.lime, letterSpacing: -1 }}>{todayCalories}</Text>
-                    <Text style={{ fontSize: 13, color: AZ_DARK.onSurfaceVariant, borderTopWidth: 1, borderTopColor: AZ_DARK.glassBorder, paddingTop: 4, marginTop: 4 }}>/ {dailyTarget ?? '--'} kcal</Text>
-                  </View>
-                </View>
-              );
-            })()}
-
-            <View style={{ width: '100%', gap: 14 }}>
-              {[
-                { label: t('Protein'), unit: 'g', color: AZ_DARK.macroProtein, cur: todayProtein, target: proteinTarget },
-                { label: t('Karbonhidrat'), unit: 'g', color: AZ_DARK.macroCarbs, cur: todayCarbs, target: carbsTarget },
-                { label: t('Yağ'), unit: 'g', color: AZ_DARK.macroFat, cur: todayFat, target: fatTarget },
-              ].map((mac) => {
-                const pct = mac.target ? Math.min(100, Math.round((mac.cur / mac.target) * 100)) : 0;
+            <View style={styles.analysisCaloriesBody}>
+              {(() => {
+                const kcalPct = dailyTarget ? Math.min(1, todayCalories / dailyTarget) : 0;
+                const R = 43, CIRC = 2 * Math.PI * R;
                 return (
-                  <View key={mac.label}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: mac.color }} />
-                        <Text style={{ color: AZ_DARK.onSurface, fontWeight: '600', fontSize: 12 }}>{mac.label}</Text>
-                      </View>
-                      <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12 }}>{mac.cur} / {mac.target ?? '--'}{mac.unit}</Text>
-                    </View>
-                    <View style={{ width: '100%', height: 8, backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 999, overflow: 'hidden' }}>
-                      <View style={{ width: `${pct}%`, height: '100%', backgroundColor: mac.color, borderRadius: 999 }} />
+                  <View style={styles.analysisCaloriesRing}>
+                    <Svg width={112} height={112} viewBox="0 0 100 100" style={{ transform: [{ rotate: '-90deg' }] }}>
+                      <Circle cx={50} cy={50} r={R} fill="none" stroke={AZ_DARK.surfaceContainer} strokeWidth={8} />
+                      <Circle cx={50} cy={50} r={R} fill="none" stroke={C.orange} strokeWidth={8}
+                        strokeDasharray={`${CIRC}`} strokeDashoffset={CIRC * (1 - kcalPct)} strokeLinecap="round" />
+                    </Svg>
+                    <View style={styles.analysisCaloriesRingLabel}>
+                      <Text style={styles.analysisCaloriesValue}>{todayCalories}</Text>
+                      <Text style={styles.analysisCaloriesTarget}>/ {dailyTarget ?? '--'}</Text>
+                      <Text style={styles.analysisCaloriesUnit}>KCAL</Text>
                     </View>
                   </View>
                 );
-              })}
+              })()}
+
+              <View style={styles.analysisMacrosCompact}>
+                {[
+                  { label: t('Protein'), unit: 'g', color: AZ_DARK.macroProtein, cur: todayProtein, target: proteinTarget },
+                  { label: t('Karbonhidrat'), unit: 'g', color: AZ_DARK.macroCarbs, cur: todayCarbs, target: carbsTarget },
+                  { label: t('Yağ'), unit: 'g', color: AZ_DARK.macroFat, cur: todayFat, target: fatTarget },
+                ].map((mac) => {
+                  const pct = mac.target ? Math.min(100, Math.round((mac.cur / mac.target) * 100)) : 0;
+                  return (
+                    <View key={mac.label} style={styles.analysisMacroCompactRow}>
+                      <View style={styles.analysisMacroCompactTop}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: mac.color }} />
+                          <Text style={styles.analysisMacroCompactLabel}>{mac.label}</Text>
+                        </View>
+                        <Text style={styles.analysisMacroCompactValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.76}>{mac.cur}<Text style={styles.analysisMacroCompactTarget}>/{mac.target ?? '--'}{mac.unit}</Text></Text>
+                      </View>
+                      <View style={styles.analysisMacroTrack}>
+                        <View style={{ width: `${pct}%`, height: '100%', backgroundColor: mac.color, borderRadius: 999 }} />
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
 
             <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12, marginTop: 14, textAlign: 'center' }}>
@@ -3773,74 +3824,66 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
 
           {/* BAZAL METABOLİZMA — sadece kalori analizi tabında */}
-          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, }}>
-            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15, marginBottom: 6 }}>{t('Kalori Hedefi')}</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-              <TextInput style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, fontSize: 15, color: AZ_DARK.onSurface }} placeholder={t('Yaş')} placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalAge} onChangeText={setGoalAge} keyboardType="numeric" />
-              <TextInput style={{ flex: 1, backgroundColor: AZ_DARK.surfaceContainer, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: AZ_DARK.glassBorder, fontSize: 15, color: AZ_DARK.onSurface }} placeholder={t('Hedef Kilo (kg)')} placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalTarget} onChangeText={setGoalTarget} keyboardType="numeric" />
+          <View style={styles.analysisGoalCard}>
+            <View style={styles.analysisGoalHeader}>
+              <View style={styles.analysisGoalIcon}><Ionicons name="calculator-outline" size={19} color={C.orange} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.analysisGoalTitle}>{t('Kalori hesabı')}</Text>
+                <Text style={styles.analysisGoalSubtitle}>{t('Hedefine göre günlük ihtiyacını hesapla')}</Text>
+              </View>
             </View>
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
-              <TouchableOpacity style={{ flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: goalGender === 'male' ? AZ_DARK.lime : AZ_DARK.surfaceContainer, borderWidth: 1, borderColor: goalGender === 'male' ? AZ_DARK.lime : AZ_DARK.glassBorder }} onPress={() => setGoalGender('male')}>
-                <Ionicons name="male" size={14} color={goalGender === 'male' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-                <Text style={{ color: goalGender === 'male' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontWeight: '700', fontSize: 14 }}>{t('Erkek')}</Text>
+            <View style={styles.analysisGoalInputs}>
+              <View style={styles.analysisGoalInputWrap}>
+                <Text style={styles.analysisGoalInputLabel}>{t('YAŞ')}</Text>
+                <TextInput style={styles.analysisGoalInput} placeholder="--" placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalAge} onChangeText={setGoalAge} keyboardType="numeric" />
+              </View>
+              <View style={styles.analysisGoalInputWrap}>
+                <Text style={styles.analysisGoalInputLabel}>{t('HEDEF KİLO')}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TextInput style={[styles.analysisGoalInput, { flex: 1 }]} placeholder="--" placeholderTextColor={AZ_DARK.onSurfaceVariant} value={goalTarget} onChangeText={setGoalTarget} keyboardType="numeric" />
+                  <Text style={styles.analysisGoalInputUnit}>kg</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.analysisGoalGender}>
+              <TouchableOpacity style={[styles.analysisGoalGenderButton, goalGender === 'male' && styles.analysisGoalGenderActive]} onPress={() => setGoalGender('male')}>
+                <Ionicons name="male" size={14} color={goalGender === 'male' ? '#0B0D12' : AZ_DARK.onSurfaceVariant} />
+                <Text style={[styles.analysisGoalGenderText, goalGender === 'male' && styles.analysisGoalGenderTextActive]}>{t('Erkek')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: goalGender === 'female' ? AZ_DARK.lime : AZ_DARK.surfaceContainer, borderWidth: 1, borderColor: goalGender === 'female' ? AZ_DARK.lime : AZ_DARK.glassBorder }} onPress={() => setGoalGender('female')}>
-                <Ionicons name="female" size={14} color={goalGender === 'female' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
-                <Text style={{ color: goalGender === 'female' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontWeight: '700', fontSize: 14 }}>{t('Kadın')}</Text>
+              <TouchableOpacity style={[styles.analysisGoalGenderButton, goalGender === 'female' && styles.analysisGoalGenderActive]} onPress={() => setGoalGender('female')}>
+                <Ionicons name="female" size={14} color={goalGender === 'female' ? '#0B0D12' : AZ_DARK.onSurfaceVariant} />
+                <Text style={[styles.analysisGoalGenderText, goalGender === 'female' && styles.analysisGoalGenderTextActive]}>{t('Kadın')}</Text>
               </TouchableOpacity>
             </View>
             {bmr != null ? (
-              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                <View style={{ flex: 1, backgroundColor: AZ_DARK.limeSoft10, borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: AZ_DARK.limeSoft20 }}>
-                  <Text style={{ color: AZ_DARK.lime, fontSize: 10, fontWeight: '600', marginBottom: 2 }}>BMR</Text>
-                  <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 15 }}>{bmr} <Text style={{ fontSize: 11, color: AZ_DARK.onSurfaceVariant }}>kcal</Text></Text>
+              <View style={styles.analysisGoalResults}>
+                <View style={styles.analysisGoalResult}>
+                  <Text style={styles.analysisGoalResultLabel}>BMR</Text>
+                  <Text style={styles.analysisGoalResultValue}>{bmr}<Text style={styles.analysisGoalResultUnit}> kcal</Text></Text>
                 </View>
-                <View style={{ flex: 1, backgroundColor: AZ_DARK.limeSoft10, borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: AZ_DARK.limeSoft20 }}>
-                  <Text style={{ color: AZ_DARK.lime, fontSize: 10, fontWeight: '600', marginBottom: 2 }}>TDEE</Text>
-                  <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 15 }}>{tdee} <Text style={{ fontSize: 11, color: AZ_DARK.onSurfaceVariant }}>kcal</Text></Text>
+                <View style={styles.analysisGoalResult}>
+                  <Text style={styles.analysisGoalResultLabel}>TDEE</Text>
+                  <Text style={styles.analysisGoalResultValue}>{tdee}<Text style={styles.analysisGoalResultUnit}> kcal</Text></Text>
                 </View>
                 {dailyTarget != null && (
-                  <View style={{ flex: 1, backgroundColor: AZ_DARK.limeSoft20, borderRadius: 10, padding: 10, minWidth: 90, borderWidth: 1, borderColor: AZ_DARK.limeSoft30 }}>
-                    <Text style={{ color: AZ_DARK.lime, fontSize: 10, fontWeight: '700', marginBottom: 2 }}>{t(goalMode)}</Text>
-                    <Text style={{ color: AZ_DARK.lime, fontWeight: '900', fontSize: 15 }}>{dailyTarget} <Text style={{ fontSize: 11 }}>kcal</Text></Text>
+                  <View style={[styles.analysisGoalResult, styles.analysisGoalResultHighlight]}>
+                    <Text style={[styles.analysisGoalResultLabel, { color: C.orange }]}>{t(goalMode)}</Text>
+                    <Text style={[styles.analysisGoalResultValue, { color: C.orange }]}>{dailyTarget}<Text style={styles.analysisGoalResultUnit}> kcal</Text></Text>
                   </View>
                 )}
               </View>
             ) : (
-              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', paddingVertical: 6, lineHeight: 20 }}>{t('Yaş gir → BMR hesaplansın.')}</Text>
+              <View style={styles.analysisGoalHint}>
+                <Ionicons name="sparkles-outline" size={14} color={C.orange} />
+                <Text style={styles.analysisGoalHintText}>{t('Yaşını gir, BMR ve günlük hedefin hesaplansın.')}</Text>
+              </View>
             )}
             {loading ? <ActivityIndicator size="small" color={AZ_DARK.lime} style={{ marginTop: 8 }} /> : (
               <TouchableOpacity activeOpacity={0.85} onPress={saveGoals}
-                style={{ marginTop: 10, backgroundColor: AZ_DARK.lime, borderRadius: 14, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 15, letterSpacing: 0.5 }}>{t('HEDEFLERİ KAYDET')}</Text>
+                style={styles.analysisGoalSave}>
+                <Ionicons name="checkmark-circle" size={17} color="#0B0D12" />
+                <Text style={styles.analysisGoalSaveText}>{t('HEDEFİ KAYDET')}</Text>
               </TouchableOpacity>
-            )}
-          </View>
-
-          {/* YENEN ÜRÜNLER & DETAYLAR — bu hafta */}
-          <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 16, padding: 16, marginBottom: 16, }}>
-            <Text style={{ color: AZ_DARK.onSurface, fontWeight: '700', fontSize: 15 }}>{t('Bu Hafta Yenenler')}</Text>
-            <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, marginBottom: 10 }}>{t('Liste her hafta başında (Pazartesi) yenilenir.')}</Text>
-            {thisWeekMealLogs.length === 0 ? (
-              <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 13.5, textAlign: 'center', paddingVertical: 6, lineHeight: 20 }}>{t('Bu hafta henüz taranmış öğün yok. Tabağını tara!')}</Text>
-            ) : (
-              thisWeekMealLogs.map((m, i) => (
-                <View key={m._id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: AZ_DARK.glassBorder }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: AZ_DARK.onSurface }}>{m.mealName || t('Öğün')}</Text>
-                    <Text style={{ fontSize: 11.5, color: AZ_DARK.onSurfaceVariant, marginTop: 2 }}>{new Date(m.date).toLocaleDateString(dateLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</Text>
-                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
-                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: AZ_DARK.macroProtein }}>P {m.protein || 0}g</Text>
-                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: AZ_DARK.macroCarbs }}>K {m.carbs || 0}g</Text>
-                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: AZ_DARK.macroFat }}>Y {m.fat || 0}g</Text>
-                    </View>
-                  </View>
-                  <View style={{ alignItems: 'center', marginLeft: 12, backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
-                    <Text style={{ fontSize: 17, fontWeight: '800', color: AZ_DARK.lime }}>{m.calories || 0}</Text>
-                    <Text style={{ fontSize: 10, color: AZ_DARK.onSurfaceVariant, fontWeight: '600' }}>kcal</Text>
-                  </View>
-                </View>
-              ))
             )}
           </View>
 
@@ -4055,14 +4098,27 @@ const pickAndUploadProfilePhoto = async () => {
             );
           })()}
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            {selectedMuscle ? (
+          {selectedMuscle && (
+            <View style={{ flexDirection: 'row', marginBottom: 8 }}>
               <TouchableOpacity onPress={() => setSelectedMuscle(null)} activeOpacity={0.8}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surface2, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12 }}>
                 <Ionicons name="close-circle" size={15} color={C.textMuted} />
                 <Text style={{ color: C.textSec, fontSize: 12, fontWeight: '700' }}>{t(MUSCLE_NAMES[selectedMuscle])} {t('· Tümünü göster')}</Text>
               </TouchableOpacity>
-            ) : <View />}
+            </View>
+          )}
+          <View style={styles.strengthToolbar}>
+            <View style={styles.strengthChallengeGroup}>
+              <TouchableOpacity onPress={() => { setChallengeLift('bench'); setChallengeMyWeight(''); setChallengeScreen('create'); }}
+                activeOpacity={0.82} style={styles.strengthChallengePrimary}>
+                <Ionicons name="flash" size={14} color="#0B0D12" />
+                <Text style={styles.strengthChallengePrimaryText}>{t('Meydan Oku')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setChallengeCodeInput(''); setChallengeTheirWeight(''); setChallengeInfo(null); setChallengeScreen('accept'); }}
+                activeOpacity={0.82} style={styles.strengthChallengeCode}>
+                <Ionicons name="key-outline" size={15} color={C.textSec} />
+              </TouchableOpacity>
+            </View>
             <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 14, padding: 3 }}>
               <TouchableOpacity onPress={() => setLiftViewMode('cards')}
                 style={{ paddingVertical: 5, paddingHorizontal: 8, borderRadius: 11, backgroundColor: liftViewMode === 'cards' ? C.orange : 'transparent' }}>
@@ -4319,20 +4375,6 @@ const pickAndUploadProfilePhoto = async () => {
             })}
           </View>
           )}
-
-          {/* ARKADAŞ MEYDAN OKUMASI */}
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20, marginTop: 4 }}>
-            <TouchableOpacity onPress={() => { setChallengeLift('bench'); setChallengeMyWeight(''); setChallengeScreen('create'); }}
-              activeOpacity={0.82} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 13, borderWidth: 1, borderColor: C.orange + '55' }}>
-              <Text style={{ fontSize: 16 }}>⚔️</Text>
-              <Text style={{ color: C.orange, fontWeight: '800', fontSize: 13 }}>{t('Meydan Oku')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setChallengeCodeInput(''); setChallengeTheirWeight(''); setChallengeInfo(null); setChallengeScreen('accept'); }}
-              activeOpacity={0.82} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 13, borderWidth: 1, borderColor: C.border }}>
-              <Ionicons name="key-outline" size={16} color={C.textSec} />
-              <Text style={{ color: C.textSec, fontWeight: '700', fontSize: 13 }}>{t('Kodu Gir')}</Text>
-            </TouchableOpacity>
-          </View>
 
         </ScrollView>
       )}
@@ -6153,7 +6195,7 @@ const pickAndUploadProfilePhoto = async () => {
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => setChatVisible(true)}
-          style={{ position: 'absolute', bottom: 116 + (insets.bottom || 0), right: 20, width: 56, height: 56, borderRadius: 28, overflow: 'hidden', zIndex: 100 }}
+          style={{ position: 'absolute', bottom: 104 + (insets.bottom || 0), right: 20, width: 56, height: 56, borderRadius: 28, overflow: 'hidden', zIndex: 100 }}
         >
           <LinearGradient colors={[mascotFor(user?.gender).color, mascotFor(user?.gender).colorDark]} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             {/* Maskot — cinsiyete göre Gymbo ya da Momo, jenerik robot ikonunun yerine */}
@@ -7702,15 +7744,125 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   profileAvatarText: { color: '#0B0D12', fontWeight: '900', fontSize: 34 },
   profileName: { fontSize: 23, fontWeight: '800', color: C.text },
   profileEmail: { fontSize: 13.5, color: C.textMuted, marginTop: 4 },
-  analysisSwitcherWrap: { flexDirection: 'row', marginHorizontal: 16, marginTop: 8, marginBottom: 8,
-    backgroundColor: C.surface, borderRadius: 17, padding: 5, borderWidth: 1, borderColor: C.border },
-  analysisSwitcherButton: { flex: 1, gap: 7, paddingVertical: 11, alignItems: 'center', justifyContent: 'center',
-    borderRadius: 13, flexDirection: 'row' },
+  analysisHero: { marginHorizontal: 16, marginTop: 2, marginBottom: 10, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 12,
+    borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+  analysisHeroTop: { flexDirection: 'row', alignItems: 'flex-start' },
+  analysisEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 5 },
+  analysisEyebrowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: AZ_DARK.lime },
+  analysisEyebrow: { color: C.textMuted, fontSize: 10.5, fontWeight: '800', letterSpacing: 1.15 },
+  analysisHeroTitle: { color: C.text, fontSize: 24, fontWeight: '900', letterSpacing: -0.65 },
+  analysisHeroSubtitle: { color: C.textSec, fontSize: 11.5, lineHeight: 16, marginTop: 3, maxWidth: 255 },
+  analysisHeroAction: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: AZ_DARK.lime, shadowColor: AZ_DARK.lime, shadowOpacity: .25, shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 }, elevation: 7 },
+  analysisMetricRow: { flexDirection: 'row', marginTop: 11, paddingVertical: 9, backgroundColor: 'rgba(8,10,14,0.34)',
+    borderRadius: 14, borderWidth: 1, borderColor: C.border },
+  analysisMetric: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
+  analysisMetricBorder: { borderLeftWidth: 1, borderLeftColor: C.border },
+  analysisMetricValue: { color: AZ_DARK.lime, fontSize: 15, fontWeight: '900', letterSpacing: -0.25 },
+  analysisMetricLabel: { color: C.textMuted, fontSize: 8, fontWeight: '800', letterSpacing: .55, marginTop: 2 },
+  analysisSwitcherWrap: { flexDirection: 'row', marginTop: 9, backgroundColor: 'rgba(8,10,14,0.46)',
+    borderRadius: 14, padding: 3, borderWidth: 1, borderColor: C.border },
+  analysisSwitcherButton: { flex: 1, gap: 7, paddingVertical: 8, alignItems: 'center', justifyContent: 'center',
+    borderRadius: 11, flexDirection: 'row' },
   analysisSwitcherButtonActive: { backgroundColor: AZ_DARK.lime,
     shadowColor: AZ_DARK.lime, shadowOpacity: .22, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 5 },
-  analysisCaptureCard: { borderRadius: 22, padding: 5, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder },
-  analysisCaptureEmpty: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: AZ_DARK.limeSoft30,
-    borderRadius: 18, paddingVertical: 34, paddingHorizontal: 20, alignItems: 'center' },
+  analysisSwitcherButtonActiveNutrition: { backgroundColor: C.orange,
+    shadowColor: C.orange, shadowOpacity: .2, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 5 },
+  analysisSwitcherText: { color: AZ_DARK.onSurfaceVariant, fontWeight: '800', fontSize: 13 },
+  analysisSwitcherTextActive: { color: AZ_DARK.onLime },
+  analysisSectionHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 5, marginBottom: 10 },
+  analysisSectionEyebrow: { color: AZ_DARK.lime, fontSize: 9.5, fontWeight: '900', letterSpacing: 1.1, marginBottom: 3 },
+  analysisSectionTitle: { color: C.text, fontSize: 18, fontWeight: '800' },
+  analysisSectionHint: { color: C.textMuted, fontSize: 11.5, marginBottom: 2 },
+  analysisCaptureCard: { borderRadius: 20, padding: 5, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder },
+  analysisCaptureEmpty: { borderWidth: 1, borderColor: AZ_DARK.limeSoft30, backgroundColor: AZ_DARK.limeSoft10,
+    borderRadius: 16, paddingVertical: 15, paddingHorizontal: 14, alignItems: 'center', flexDirection: 'row', gap: 12 },
+  analysisCaptureArrow: { width: 32, height: 32, borderRadius: 11, backgroundColor: AZ_DARK.lime,
+    alignItems: 'center', justifyContent: 'center' },
+  analysisEmptyState: { flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 2, marginBottom: 18, padding: 13,
+    borderRadius: 16, backgroundColor: C.surface2, borderWidth: 1, borderColor: AZ_DARK.glassBorder },
+  analysisEmptyIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: C.surface2,
+    alignItems: 'center', justifyContent: 'center' },
+  analysisEmptyTitle: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '800', marginBottom: 2 },
+  analysisEmptyText: { color: C.textSec, fontSize: 11.5, lineHeight: 16 },
+  analysisSubTabs: { flexDirection: 'row', gap: 5, marginTop: 3, marginBottom: 14, padding: 4,
+    borderRadius: 15, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  analysisSubTab: { flex: 1, flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 10, borderRadius: 11 },
+  analysisSubTabActive: { backgroundColor: C.surface2 },
+  analysisSubTabText: { color: C.textMuted, fontWeight: '800', fontSize: 12.5 },
+  analysisMealScanner: { borderRadius: 22, padding: 16, marginBottom: 16, borderWidth: 1,
+    borderColor: 'rgba(255,159,28,0.24)', overflow: 'hidden' },
+  analysisMealScannerTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  analysisMealScannerIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(255,159,28,0.12)',
+    alignItems: 'center', justifyContent: 'center' },
+  analysisMealScannerTitle: { color: C.text, fontSize: 16, fontWeight: '800', marginBottom: 3 },
+  analysisMealScannerSubtitle: { color: C.textSec, fontSize: 12, lineHeight: 17 },
+  analysisMealScannerButton: { flexDirection: 'row', gap: 8, backgroundColor: C.orange, paddingVertical: 13,
+    paddingHorizontal: 18, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  analysisMealScannerRights: { position: 'absolute', right: 12, minWidth: 24, height: 24, borderRadius: 9,
+    backgroundColor: 'rgba(11,13,18,0.18)', color: AZ_DARK.onLime, textAlign: 'center', lineHeight: 24,
+    fontWeight: '900', fontSize: 11 },
+  analysisCaloriesCard: { backgroundColor: AZ_DARK.glass, borderRadius: 20, padding: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: C.border },
+  analysisCaloriesHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 12 },
+  analysisCaloriesEyebrow: { color: C.orange, fontSize: 9.5, fontWeight: '900', letterSpacing: 1.05, marginBottom: 2 },
+  analysisCaloriesTitle: { color: C.text, fontSize: 17, fontWeight: '800' },
+  analysisCaloriesMealCount: { color: C.textMuted, fontSize: 11.5, fontWeight: '700', paddingBottom: 2 },
+  analysisCaloriesBody: { flexDirection: 'row', alignItems: 'center', gap: 13, overflow: 'hidden' },
+  analysisCaloriesRing: { width: 112, height: 112, alignItems: 'center', justifyContent: 'center' },
+  analysisCaloriesRingLabel: { position: 'absolute', alignItems: 'center' },
+  analysisCaloriesValue: { color: C.orange, fontSize: 23, fontWeight: '900', letterSpacing: -0.6 },
+  analysisCaloriesTarget: { color: C.textSec, fontSize: 10.5, fontWeight: '700', marginTop: -1 },
+  analysisCaloriesUnit: { color: C.textMuted, fontSize: 7.5, fontWeight: '900', letterSpacing: 1, marginTop: 2 },
+  analysisMacrosCompact: { flex: 1, minWidth: 0, gap: 10, overflow: 'hidden' },
+  analysisMacroCompactRow: { width: '100%', minWidth: 0, gap: 5, overflow: 'hidden' },
+  analysisMacroCompactTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  analysisMacroCompactLabel: { color: C.text, fontSize: 10.5, fontWeight: '700', flexShrink: 1 },
+  analysisMacroCompactValue: { color: C.text, fontSize: 11, fontWeight: '900', marginLeft: 4, maxWidth: 62, textAlign: 'right' },
+  analysisMacroCompactTarget: { color: C.textMuted, fontSize: 9.5, fontWeight: '600' },
+  analysisMacroTrack: { width: '100%', height: 5, borderRadius: 999, backgroundColor: AZ_DARK.surfaceContainer, overflow: 'hidden' },
+  strengthToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 },
+  strengthChallengeGroup: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
+  strengthChallengePrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: C.orange, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12 },
+  strengthChallengePrimaryText: { color: '#0B0D12', fontWeight: '900', fontSize: 11.5 },
+  strengthChallengeCode: { width: 34, height: 34, borderRadius: 12, backgroundColor: C.surface2,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  analysisGoalCard: { backgroundColor: AZ_DARK.glass, borderRadius: 20, padding: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: C.border },
+  analysisGoalHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 14 },
+  analysisGoalIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: 'rgba(255,159,28,0.12)',
+    alignItems: 'center', justifyContent: 'center' },
+  analysisGoalTitle: { color: C.text, fontSize: 16, fontWeight: '800', marginBottom: 2 },
+  analysisGoalSubtitle: { color: C.textMuted, fontSize: 11.5 },
+  analysisGoalInputs: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  analysisGoalInputWrap: { flex: 1, backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 13,
+    borderWidth: 1, borderColor: AZ_DARK.glassBorder, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6 },
+  analysisGoalInputLabel: { color: C.orange, fontSize: 8.5, fontWeight: '900', letterSpacing: .8 },
+  analysisGoalInput: { color: C.text, fontSize: 17, fontWeight: '800', paddingVertical: 3, minHeight: 29 },
+  analysisGoalInputUnit: { color: C.textMuted, fontSize: 11, fontWeight: '700', marginLeft: 3 },
+  analysisGoalGender: { flexDirection: 'row', padding: 3, gap: 3, backgroundColor: AZ_DARK.surfaceContainer,
+    borderRadius: 13, borderWidth: 1, borderColor: AZ_DARK.glassBorder, marginBottom: 10 },
+  analysisGoalGenderButton: { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, paddingVertical: 8 },
+  analysisGoalGenderActive: { backgroundColor: C.orange },
+  analysisGoalGenderText: { color: C.textMuted, fontSize: 12, fontWeight: '800' },
+  analysisGoalGenderTextActive: { color: '#0B0D12' },
+  analysisGoalResults: { flexDirection: 'row', gap: 6, marginBottom: 2 },
+  analysisGoalResult: { flex: 1, minWidth: 0, backgroundColor: C.surface2, borderRadius: 11, paddingVertical: 9,
+    paddingHorizontal: 7, borderWidth: 1, borderColor: C.border },
+  analysisGoalResultHighlight: { backgroundColor: 'rgba(255,159,28,0.11)', borderColor: 'rgba(255,159,28,0.32)' },
+  analysisGoalResultLabel: { color: C.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: .55, marginBottom: 3 },
+  analysisGoalResultValue: { color: C.text, fontSize: 13, fontWeight: '900' },
+  analysisGoalResultUnit: { color: C.textMuted, fontSize: 8.5, fontWeight: '600' },
+  analysisGoalHint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: 'rgba(255,159,28,0.07)', borderRadius: 11, paddingVertical: 8, paddingHorizontal: 10 },
+  analysisGoalHintText: { color: C.textSec, fontSize: 11.5, fontWeight: '600' },
+  analysisGoalSave: { marginTop: 10, backgroundColor: C.orange, borderRadius: 13, paddingVertical: 10,
+    flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center' },
+  analysisGoalSaveText: { color: '#0B0D12', fontWeight: '900', fontSize: 13, letterSpacing: .45 },
   strengthIntroRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14,
     backgroundColor: C.surface, borderRadius: 16, paddingVertical: 11, paddingHorizontal: 13, borderWidth: 1, borderColor: C.border },
   strengthIntroIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: C.orange + '18',
