@@ -36,3 +36,8 @@ Thumbs.db
 
 # graphify çıktısı (araç üretir, repoya gitmez)
 graphify-out/
+
+# Editör geçici dosyaları (vim swap) — repoda görünmesin
+*.swp
+*.swo
+*~
