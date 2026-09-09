@@ -21,7 +21,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Path, Ellipse, G, Circle, Defs, LinearGradient as SvgLinearGradient, RadialGradient, Stop, ClipPath, Rect } from 'react-native-svg';
-import MuscleBodyMap, { MUSCLE_NAMES } from '../../components/MuscleBodyMap';
+import MuscleBodyMap, { BODY_MAP_ASPECT_RATIO, MUSCLE_NAMES } from '../../components/MuscleBodyMap';
 import {
   LIFTS, REP_BASED_LIFTS, RANKS, STD, computeRank, normGender, genderKey,
   MUSCLE_KEYS, MUSCLE_LIFT_MAP, estRankIndex, computeMuscleRank, computeBodyAverageRank, buildMuscleRanksMap,
@@ -1011,8 +1011,8 @@ export default function App() {
   const [gallery, setGallery] = useState<any[]>([]);
   const [note, setNote] = useState('');
 
-  // SEKME YÖNETİMİ: 'gallery' | 'meal' | 'profile'
-  const [currentTab, setCurrentTab] = useState('analiz');
+  // Uygulama GymBody sekmesiyle açılır.
+  const [currentTab, setCurrentTab] = useState('gymBody');
   const currentTabRef = useRef(currentTab);
   currentTabRef.current = currentTab;
 
@@ -3937,8 +3937,8 @@ const pickAndUploadProfilePhoto = async () => {
                   </View>
 
                   {(() => {
-                    const mapWidth = Math.min(160, Dimensions.get('window').width * 0.38);
-                    const mapHeight = mapWidth * 514 / 230;
+                    const mapWidth = Math.min(190, Dimensions.get('window').width * 0.46);
+                    const mapHeight = mapWidth * BODY_MAP_ASPECT_RATIO;
                     // rank yükseldikçe arkadaki bloom büyür ve belirginleşir (bronz en soluk, efsane en parlak)
                     const screenW = Dimensions.get('window').width;
                     // Bloom artık kartla sınırlı değil — sayfa payının dışına taşıp kenarlarda sönümleniyor
@@ -3962,6 +3962,7 @@ const pickAndUploadProfilePhoto = async () => {
                         <MuscleBodyMap
                           width={mapWidth}
                           view={bodyMapView}
+                          selectedMuscle={selectedMuscle}
                           ranks={muscleRanksMap}
                           rankColors={{ bronz: RANKS[0].color, gumus: RANKS[1].color, altin: RANKS[2].color, platin: RANKS[3].color, elmas: RANKS[4].color, efsane: RANKS[5].color }}
                           defaultColor={C.surface2}

@@ -486,33 +486,56 @@
     return Math.round(idxs.reduce(function(s,i){return s+i;},0)/idxs.length);
   }
 
-  // Kas bölgesi path'leri — mobile/components/MuscleBodyMap.tsx ile aynı koordinat sistemi (viewBox 0 -20 230 460, sadeleştirilmiş)
+  // Mobil ile aynı titanyum figür: mobile/components/muscleBodyGeometry.ts (320 × 610).
   const MM_MUSCLES = [
-    { key:'trapez', view:'front', mirror:true, d:'M108,54 C98,56 86,59 76,64 C86,68 98,68 107,62 Z' },
-    { key:'omuz', view:'front', mirror:true, d:'M70,63 C60,67 52,76 49,89 C53,98 62,101 70,98 C75,87 75,74 70,63 Z' },
-    { key:'gogus', view:'front', mirror:true, d:'M113,66 C98,66 86,70 80,79 C78,90 83,100 93,105 C104,109 112,107 113,100 L113,66 Z' },
-    { key:'biceps', view:'front', mirror:true, d:'M50,94 C44,103 41,115 40,129 C39,139 40,147 43,153 C50,151 55,144 57,133 C59,118 56,103 50,94 Z' },
-    { key:'onkol', view:'front', mirror:true, d:'M42,158 C38,170 35,184 33,198 C32,208 31,216 31,224 C35,226 39,224 41,219 C44,207 46,193 48,179 C49,169 47,161 42,158 Z' },
-    { key:'karin', view:'front', mirror:false, d:'M97,110 C92,123 90,138 92,153 C94,167 100,180 107,189 C112,193 118,193 123,189 C130,180 136,167 138,153 C140,138 138,123 133,110 C121,105 109,105 97,110 Z' },
-    { key:'kuad', view:'front', mirror:true, d:'M90,216 C85,236 84,258 87,278 C89,294 94,306 100,312 C106,306 110,294 111,278 C112,258 111,236 108,218 C102,212 95,212 90,216 Z' },
-    { key:'trapez', view:'back', mirror:true, d:'M108,54 C98,56 86,59 76,64 C86,68 98,68 107,62 Z' },
-    { key:'omuz', view:'back', mirror:true, d:'M70,63 C60,67 52,76 49,89 C53,98 62,101 70,98 C75,87 75,74 70,63 Z' },
-    { key:'triceps', view:'back', mirror:true, d:'M50,94 C44,103 41,115 40,129 C39,139 40,147 43,153 C50,151 55,144 57,133 C59,118 56,103 50,94 Z' },
-    { key:'sirt', view:'back', mirror:false, d:'M115,64 C104,64 90,68 82,76 C79,90 80,108 82,122 C85,140 92,154 101,162 C106,166 111,167 115,167 C119,167 124,166 129,162 C138,154 145,140 148,122 C150,108 151,90 148,76 C140,68 126,64 115,64 Z' },
-    { key:'bel', view:'back', mirror:false, d:'M105,164 C103,175 103,187 105,198 L125,198 C127,187 127,175 125,164 C119,170 111,170 105,164 Z' },
-    { key:'kalca', view:'back', mirror:true, d:'M89,200 C84,210 83,222 86,234 C90,245 99,249 107,247 C113,243 115,233 114,223 C113,211 109,203 103,199 C98,196 92,196 89,200 Z' },
-    { key:'arkabacak', view:'back', mirror:true, d:'M88,252 C84,272 84,292 87,310 C89,322 94,332 99,338 C104,332 108,322 109,310 C111,292 110,272 108,254 C101,248 93,248 88,252 Z' },
-    { key:'kalf', view:'back', mirror:true, d:'M91,344 C86,358 85,374 88,390 C90,400 94,408 98,412 C102,408 105,400 106,390 C107,374 106,358 103,346 C99,340 94,340 91,344 Z' },
-  ];
+  { view: 'front', key: 'trapez', d: 'M145 90 Q139 98 124 102 L108 111 Q127 116 143 108 L153 111 Z', paired: true, detail: 'M140 99 L121 108' },
+  { view: 'front', key: 'omuz', d: 'M103 108 C90 103 77 113 71 130 Q67 142 72 157 C81 158 88 152 94 144 Q94 123 103 108 Z', paired: true, detail: 'M90 115 Q78 126 77 144' },
+  { view: 'front', key: 'gogus', d: 'M157 115 C143 110 122 108 106 113 Q97 126 96 146 C109 161 134 171 156 164 Q160 143 157 115 Z', paired: true, detail: 'M110 121 Q132 120 150 127 M105 134 Q127 143 150 143 M110 150 Q130 160 151 157' },
+  { view: 'front', key: 'biceps', d: 'M73 160 Q61 168 57 184 Q53 201 57 214 C65 217 74 207 78 194 Q85 174 83 155 Z', paired: true, detail: 'M72 169 Q61 188 62 204' },
+  { view: 'front', key: 'triceps', d: 'M86 157 L91 155 Q90 178 82 200 L76 208 Q82 184 86 157 Z', paired: true, detail: '' },
+  { view: 'front', key: 'onkol', d: 'M56 223 Q46 231 41 249 L31 281 L40 288 Q49 276 55 257 Q61 239 63 226 Z', paired: true, detail: 'M53 235 L38 276' },
+  { view: 'front', key: 'onkol', d: 'M63 230 Q66 242 58 261 L46 287 L42 287 Q55 260 63 230 Z', paired: true, detail: '' },
+  { view: 'front', key: 'karin', d: 'M145 173 Q137 171 130 175 L133 193 Q143 198 156 194 L157 174 Z', paired: true, detail: 'M138 178 L151 180' },
+  { view: 'front', key: 'karin', d: 'M134 200 L136 218 Q145 223 156 219 L156 200 Q145 202 134 200 Z', paired: true, detail: 'M140 205 L151 206' },
+  { view: 'front', key: 'karin', d: 'M137 225 L140 242 Q148 247 156 243 L156 225 Q146 228 137 225 Z', paired: true, detail: 'M143 230 L151 231' },
+  { view: 'front', key: 'karin', d: 'M141 250 Q144 270 157 280 L156 250 Q149 253 141 250 Z', paired: true, detail: '' },
+  { view: 'front', key: 'karin', d: 'M104 163 L119 172 L128 199 L124 224 Q111 201 104 163 Z', paired: true, detail: 'M110 174 L122 185 M114 188 L126 198' },
+  { view: 'front', key: 'karin', d: 'M123 230 L132 237 L138 265 L130 263 L121 251 Z', paired: true, detail: '' },
+  { view: 'front', key: 'kuad', d: 'M117 285 C105 303 102 330 109 357 Q114 381 122 397 C118 366 123 331 134 303 Z', paired: true, detail: 'M115 308 Q109 333 116 361' },
+  { view: 'front', key: 'kuad', d: 'M138 303 Q123 337 123 367 Q123 387 130 400 C141 386 146 361 149 336 L152 308 Z', paired: true, detail: 'M138 319 Q129 355 133 381' },
+  { view: 'front', key: 'kuad', d: 'M151 348 Q144 380 132 407 L139 423 Q153 413 155 389 Q156 367 151 348 Z', paired: true, detail: 'M149 388 Q147 405 140 413' },
+  { view: 'front', key: 'kuad', d: 'M111 371 Q113 400 123 418 L130 413 Q117 390 111 371 Z', paired: true, detail: '' },
+  { view: 'front', key: 'kalf', d: 'M120 448 Q111 465 116 486 L125 516 L130 516 Q124 484 129 455 Z', paired: true, detail: 'M120 462 Q117 477 123 494' },
+  { view: 'back', key: 'trapez', d: 'M145 89 L143 99 Q126 102 105 111 L114 126 Q140 136 157 173 L157 114 Z', paired: true, detail: 'M140 111 Q147 127 154 143' },
+  { view: 'back', key: 'omuz', d: 'M102 109 Q83 105 74 123 Q68 135 72 156 Q87 153 98 138 L108 121 Z', paired: true, detail: 'M91 116 Q78 129 77 142' },
+  { view: 'back', key: 'sirt', d: 'M111 130 C99 137 100 157 106 171 Q128 173 147 166 Q129 137 111 130 Z', paired: true, detail: 'M108 148 Q126 152 137 159' },
+  { view: 'back', key: 'sirt', d: 'M106 178 Q109 209 127 239 L144 244 L154 192 L151 174 Q131 183 106 178 Z', paired: true, detail: 'M113 187 Q126 201 143 205 M119 204 Q126 216 139 225' },
+  { view: 'back', key: 'triceps', d: 'M75 160 C63 164 56 184 56 201 L60 215 Q68 212 74 202 Q85 181 85 157 Z', paired: true, detail: 'M73 172 Q64 185 65 202' },
+  { view: 'back', key: 'triceps', d: 'M86 158 L92 158 Q89 189 80 205 L72 214 Q83 190 86 158 Z', paired: true, detail: '' },
+  { view: 'back', key: 'onkol', d: 'M55 223 Q45 233 40 253 L31 282 L40 289 Q56 270 63 228 Z', paired: true, detail: 'M53 237 L38 278' },
+  { view: 'back', key: 'bel', d: 'M154 209 L149 231 Q145 250 129 260 L154 278 Q158 253 157 233 Z', paired: true, detail: 'M151 239 L147 258' },
+  { view: 'back', key: 'kalca', d: 'M126 270 Q115 271 111 291 Q104 313 117 324 Q137 337 155 319 L157 284 Q141 270 126 270 Z', paired: true, detail: 'M121 284 Q133 278 147 289' },
+  { view: 'back', key: 'arkabacak', d: 'M112 331 Q105 355 115 383 L126 418 L133 418 Q125 385 130 345 Z', paired: true, detail: 'M116 344 Q114 366 122 389' },
+  { view: 'back', key: 'arkabacak', d: 'M137 338 L154 327 Q158 357 150 386 L140 416 L135 408 Q140 379 137 338 Z', paired: true, detail: 'M148 345 Q150 369 142 391' },
+  { view: 'back', key: 'kalf', d: 'M124 441 Q113 449 114 471 C113 486 122 498 132 505 Q139 488 137 470 L134 444 Z', paired: true, detail: 'M123 454 Q119 475 129 488' },
+  { view: 'back', key: 'kalf', d: 'M141 443 Q150 451 151 466 Q153 486 140 502 L135 509 Q142 477 141 443 Z', paired: true, detail: 'M146 459 Q150 475 142 491' },
+];
   const MM_BASE = {
-    neck:'M107,40 L107,56 L123,56 L123,40 C120,45 110,45 107,40 Z',
-    torso:'M70,62 C68,84 72,106 80,126 C86,140 92,150 93,158 C94,174 90,190 88,202 L88,210 L142,210 L142,202 C140,190 136,174 137,158 C138,150 144,140 150,126 C158,106 162,84 160,62 C146,55 130,52 115,52 C100,52 84,55 70,62 Z',
-    arm:'M69,63 C58,68 50,78 46,92 C42,108 40,124 38,140 C36,158 34,174 31,190 C29,202 28,212 27,220 L45,226 C48,214 50,202 52,190 C55,172 58,154 60,138 C62,122 64,106 66,92 C67,80 68,70 69,63 Z',
-    leg:'M88,210 C84,234 83,258 85,280 C87,302 90,322 92,342 C94,362 95,382 96,400 L96,420 L110,420 L111,400 C112,380 112,360 112,340 C112,318 112,296 113,274 C114,254 114,232 115,214 L115,210 Z',
-  };
-  const MM_MIRROR = 'translate(230,0) scale(-1,1)';
-  function mmMirrored(d, fill){
-    return '<path d="'+d+'" fill="'+fill+'"/><path d="'+d+'" fill="'+fill+'" transform="'+MM_MIRROR+'"/>';
+    torso:'M145 80 L143 96 Q126 99 106 105 C93 110 88 131 94 153 Q100 179 113 207 L122 233 Q124 249 115 268 C108 280 108 295 111 311 Q132 305 160 322 Q188 305 209 311 C212 295 212 280 205 268 Q196 249 198 233 L207 207 Q220 179 226 153 C232 131 227 110 214 105 Q194 99 177 96 L175 80 Z',
+    arm:'M100 109 C81 99 70 117 65 135 Q57 157 52 181 L48 211 Q47 226 40 242 L27 283 L29 295 L43 298 Q49 279 58 261 Q69 235 69 220 C81 201 88 179 92 158 L104 133 Z',
+    hand:'M28 291 Q23 300 23 309 L25 322 Q27 328 30 322 L30 311 L32 326 Q35 330 37 325 L37 311 L40 319 Q44 320 44 315 L44 302 L47 306 Q52 306 50 300 L44 290 Z',
+    leg:'M115 279 Q104 302 104 328 Q103 355 112 385 L120 420 Q118 435 114 453 Q110 474 119 502 L127 535 L128 558 L142 558 L143 534 Q145 510 151 492 Q160 469 151 447 L143 427 Q151 410 155 384 Q162 347 158 317 L146 284 Z',
+    foot:'M128 552 L143 552 L146 574 Q145 584 131 586 L115 586 Q108 585 112 578 L122 567 Z',
+    head:'M160 21 C147 21 138 30 138 44 L140 65 Q145 80 160 87 Q175 80 180 65 L182 44 C182 30 173 21 160 21 Z'
+};
+
+  let mmFigureId = 0;
+  function mmMix(color, target, amount){
+    return '#' + [1,3,5].map(function(offset){
+      const channel = parseInt(color.slice(offset,offset+2),16);
+      const end = parseInt(target.slice(offset,offset+2),16);
+      return Math.round(channel+(end-channel)*amount).toString(16).padStart(2,'0');
+    }).join('');
   }
   // Lejant rozetleri: renk anlamını hocaya anlatmak için. Silüetler mobil uygulamadaki
   // rozetlerin sadeleştirilmiş hali — renge ek olarak şekil de ayırt edici olsun.
@@ -543,32 +566,49 @@
     return h + '</div>';
   }
 
-  function mmFillFor(ranksMap, key, defaultColor){
-    const r = ranksMap[key];
-    if(!r) return defaultColor;
-    const found = MM_RANKS.find(function(x){return x.key===r;});
-    return found ? found.color : defaultColor;
-  }
-  // Tek görünüm (front/back) SVG'si — sadeleştirilmiş silüet (saç/yüz detayı yok, mobile app'teki tam figürün küçük versiyonu)
+  // IDs are unique even when several student figures appear on the same page.
   function mmRenderFigure(view, ranksMap){
-    // mobile app'teki DARK.surface2/DARK.border ile birebir aynı (app/(tabs)/index.tsx)
-    const defaultColor='#171C26', skin='#171C26';
-    let s = '<svg viewBox="0 -10 230 440" width="120" height="'+Math.round(120*450/230)+'">';
-    s += '<g fill="'+skin+'" stroke="rgba(255,255,255,0.07)" stroke-width="1">';
-    s += '<ellipse cx="115" cy="18" rx="19" ry="20"/>';
-    s += '<path d="'+MM_BASE.neck+'"/>';
-    s += '<path d="'+MM_BASE.torso+'"/>';
-    s += mmMirrored(MM_BASE.arm, skin);
-    s += '<ellipse cx="36" cy="236" rx="9" ry="11"/><ellipse cx="194" cy="236" rx="9" ry="11"/>';
-    s += mmMirrored(MM_BASE.leg, skin);
-    s += '</g>';
-    s += '<g stroke="rgba(0,0,0,0.35)" stroke-width="1">';
-    MM_MUSCLES.filter(function(m){return m.view===view;}).forEach(function(m){
-      const fill = mmFillFor(ranksMap, m.key, defaultColor);
-      s += m.mirror ? mmMirrored(m.d, fill) : ('<path d="'+m.d+'" fill="'+fill+'"/>');
+    const prefix = 'coach-body-' + (++mmFigureId) + '-';
+    const fill = key => 'url(#'+prefix+key+')';
+    const path = (d, attrs='') => '<path d="'+d+'" '+attrs+'/>';
+    const pair = (d, attrs='') => path(d,attrs)+path(d,attrs+' transform="translate(320 0) scale(-1 1)"');
+    const gradient = (key, stops, x='90%', y='85%') => '<linearGradient id="'+prefix+key+'" x1="0%" y1="0%" x2="'+x+'" y2="'+y+'">'+stops.map(stop=>'<stop offset="'+stop[0]+'" stop-color="'+stop[1]+'" stop-opacity="'+(stop[2]===undefined?1:stop[2])+'"/>').join('')+'</linearGradient>';
+    const baseColor='#171C26';
+    const base=mmMix(baseColor,'#738895',.35), edge=mmMix(baseColor,'#738895',.55);
+    const light=mmMix(baseColor,'#DCEFFF',.55), dark=mmMix(baseColor,'#111923',.6);
+    let s='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 610" width="160" height="305" style="display:block;width:100%;height:auto" role="img" aria-label="'+(view==='front'?'Ön':'Arka')+' kas haritası"><defs>';
+    s+=gradient('base',[[0,dark],['28%',base],['47%',light],['64%',base],['100%',dark]],'100%','60%');
+    s+=gradient('head',[[0,dark],['38%',light],['58%',base],['100%',dark]],'100%','70%');
+    s+=gradient('neutral',[[0,mmMix(base,'#111923',.6)],['26%',mmMix(base,'#DCEFFF',.27)],['47%',base],['100%',mmMix(base,'#111923',.7)]]);
+    s+=gradient('shine',[[0,'#DCEFFF',.52],['50%','#DCEFFF',.03],['100%','#DCEFFF',0]],'85%','100%');
+    MM_RANKS.forEach(r=>{s+=gradient(r.key,[[0,mmMix(r.color,'#101622',.65)],['26%',mmMix(r.color,'#FFFFFF',.27)],['47%',r.color],['76%',mmMix(r.color,'#111724',.32)],['100%',mmMix(r.color,'#0A101B',.7)]]);});
+    s+='</defs><g fill="'+fill('base')+'" stroke="rgba(255,255,255,.07)" stroke-width=".65">';
+    s+=pair(MM_BASE.leg)+path(MM_BASE.torso)+pair(MM_BASE.arm)+pair(MM_BASE.hand)+pair(MM_BASE.foot)+path(MM_BASE.head,'fill="'+fill('head')+'"')+'</g>';
+    s+=pair('M128 526 L133 551 M121 572 L115 578 M28 302 L27 311 M34 300 L34 312 M39 298 L40 308','fill="none" stroke="#DCEFFF" stroke-opacity=".18"');
+    if(view==='front'){
+      s+=path('M141 45 Q148 36 160 36 L160 66 L150 71 Q143 59 141 45 Z','fill="'+fill('shine')+'" opacity=".5"');
+      s+=path('M144 55 Q153 58 157 55 M163 55 Q169 58 176 55 M160 55 L157 67 L163 67 M154 76 Q160 78 166 76','fill="none" stroke="'+dark+'" stroke-width="1.1" opacity=".7"');
+      s+=pair('M145 90 L151 108','fill="none" stroke="#DCEFFF" stroke-opacity=".18"');
+      s+=pair('M120 430 Q129 422 138 431 L137 443 Q128 450 122 441 Z','fill="'+fill('head')+'" stroke="'+edge+'" stroke-width=".5"');
+      s+=pair('M134 453 Q140 475 137 505 L136 544 L132 544 L129 507 Z','fill="'+fill('head')+'"');
+      s+=pair('M121 273 Q139 282 155 300 L153 308 Q134 290 117 286 Z','fill="'+fill('shine')+'" opacity=".4"');
+    } else {
+      s+=path('M146 31 Q156 24 168 30 M147 73 Q160 83 173 73 M158 97 L158 206','fill="none" stroke="#DCEFFF" stroke-opacity=".2" stroke-width="1.2"');
+      s+=pair('M130 506 Q131 532 135 550 L138 550 L139 515','fill="none" stroke="'+light+'" stroke-width="1.5" opacity=".65"');
+    }
+    MM_MUSCLES.filter(m=>m.view===view).forEach(m=>{
+      const rank=MM_RANKS.find(r=>r.key===ranksMap[m.key]);
+      const draw=m.paired?pair:path;
+      s+='<g><title>'+MM_MUSCLE_NAMES[m.key]+' · '+(rank?rank.label:'Ranksız')+'</title>';
+      s+=draw(m.d,'fill="'+fill(rank?rank.key:'neutral')+'" stroke="'+(rank?rank.color:'rgba(0,0,0,.35)')+'" stroke-opacity=".38" stroke-width=".6"');
+      s+=draw(m.d,'fill="none" stroke="'+fill('shine')+'" stroke-width=".9" pointer-events="none"');
+      if(m.detail){
+        s+=draw(m.detail,'fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1.2" stroke-opacity=".2" pointer-events="none"');
+        s+=draw(m.detail,'fill="none" stroke="#DCEFFF" stroke-opacity=".13" stroke-width=".75" pointer-events="none"');
+      }
+      s+='</g>';
     });
-    s += '</g></svg>';
-    return s;
+    return s+'</svg>';
   }
   function mmBuildRanksMap(lifts, bw, gender){
     const out={};
@@ -586,9 +626,9 @@
     const avgRank = avgIdx>=0 ? MM_RANKS[avgIdx] : null;
     let html = '<p class="muted" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">💪 Kas Haritası</p>';
     html += '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">';
-    html += '<div style="display:flex;gap:10px">';
-    html += '<div style="text-align:center">'+mmRenderFigure('front', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Ön</div></div>';
-    html += '<div style="text-align:center">'+mmRenderFigure('back', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Arka</div></div>';
+    html += '<div style="display:flex;gap:10px;width:330px;max-width:100%">';
+    html += '<div style="text-align:center;flex:1;min-width:0">'+mmRenderFigure('front', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Ön</div></div>';
+    html += '<div style="text-align:center;flex:1;min-width:0">'+mmRenderFigure('back', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Arka</div></div>';
     html += '</div>';
     html += mmRenderLegend();
     html += '<div style="flex:1;min-width:160px">';

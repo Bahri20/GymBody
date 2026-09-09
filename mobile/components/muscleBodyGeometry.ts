@@ -1,0 +1,60 @@
+// Approved sculpted anatomy. Coordinates use a 320 × 610 canvas.
+export const MUSCLE_NAMES: Record<string, string> = {
+  trapez: 'Trapez',
+  omuz: 'Omuz',
+  gogus: 'Gogus',
+  biceps: 'Biceps',
+  onkol: 'On kol',
+  karin: 'Karin',
+  kuad: 'Quadriceps',
+  triceps: 'Triceps',
+  sirt: 'Sirt (kanat)',
+  bel: 'Bel',
+  kalca: 'Kalca',
+  arkabacak: 'Arka bacak',
+  kalf: 'Kalf',
+};
+
+export type MuscleShape = { view: 'front' | 'back'; key: string; d: string; paired: boolean; detail: string };
+export const MUSCLES: MuscleShape[] = [
+  { view: 'front', key: 'trapez', d: 'M145 90 Q139 98 124 102 L108 111 Q127 116 143 108 L153 111 Z', paired: true, detail: 'M140 99 L121 108' },
+  { view: 'front', key: 'omuz', d: 'M103 108 C90 103 77 113 71 130 Q67 142 72 157 C81 158 88 152 94 144 Q94 123 103 108 Z', paired: true, detail: 'M90 115 Q78 126 77 144' },
+  { view: 'front', key: 'gogus', d: 'M157 115 C143 110 122 108 106 113 Q97 126 96 146 C109 161 134 171 156 164 Q160 143 157 115 Z', paired: true, detail: 'M110 121 Q132 120 150 127 M105 134 Q127 143 150 143 M110 150 Q130 160 151 157' },
+  { view: 'front', key: 'biceps', d: 'M73 160 Q61 168 57 184 Q53 201 57 214 C65 217 74 207 78 194 Q85 174 83 155 Z', paired: true, detail: 'M72 169 Q61 188 62 204' },
+  { view: 'front', key: 'triceps', d: 'M86 157 L91 155 Q90 178 82 200 L76 208 Q82 184 86 157 Z', paired: true, detail: '' },
+  { view: 'front', key: 'onkol', d: 'M56 223 Q46 231 41 249 L31 281 L40 288 Q49 276 55 257 Q61 239 63 226 Z', paired: true, detail: 'M53 235 L38 276' },
+  { view: 'front', key: 'onkol', d: 'M63 230 Q66 242 58 261 L46 287 L42 287 Q55 260 63 230 Z', paired: true, detail: '' },
+  { view: 'front', key: 'karin', d: 'M145 173 Q137 171 130 175 L133 193 Q143 198 156 194 L157 174 Z', paired: true, detail: 'M138 178 L151 180' },
+  { view: 'front', key: 'karin', d: 'M134 200 L136 218 Q145 223 156 219 L156 200 Q145 202 134 200 Z', paired: true, detail: 'M140 205 L151 206' },
+  { view: 'front', key: 'karin', d: 'M137 225 L140 242 Q148 247 156 243 L156 225 Q146 228 137 225 Z', paired: true, detail: 'M143 230 L151 231' },
+  { view: 'front', key: 'karin', d: 'M141 250 Q144 270 157 280 L156 250 Q149 253 141 250 Z', paired: true, detail: '' },
+  { view: 'front', key: 'karin', d: 'M104 163 L119 172 L128 199 L124 224 Q111 201 104 163 Z', paired: true, detail: 'M110 174 L122 185 M114 188 L126 198' },
+  { view: 'front', key: 'karin', d: 'M123 230 L132 237 L138 265 L130 263 L121 251 Z', paired: true, detail: '' },
+  { view: 'front', key: 'kuad', d: 'M117 285 C105 303 102 330 109 357 Q114 381 122 397 C118 366 123 331 134 303 Z', paired: true, detail: 'M115 308 Q109 333 116 361' },
+  { view: 'front', key: 'kuad', d: 'M138 303 Q123 337 123 367 Q123 387 130 400 C141 386 146 361 149 336 L152 308 Z', paired: true, detail: 'M138 319 Q129 355 133 381' },
+  { view: 'front', key: 'kuad', d: 'M151 348 Q144 380 132 407 L139 423 Q153 413 155 389 Q156 367 151 348 Z', paired: true, detail: 'M149 388 Q147 405 140 413' },
+  { view: 'front', key: 'kuad', d: 'M111 371 Q113 400 123 418 L130 413 Q117 390 111 371 Z', paired: true, detail: '' },
+  { view: 'front', key: 'kalf', d: 'M120 448 Q111 465 116 486 L125 516 L130 516 Q124 484 129 455 Z', paired: true, detail: 'M120 462 Q117 477 123 494' },
+  { view: 'back', key: 'trapez', d: 'M145 89 L143 99 Q126 102 105 111 L114 126 Q140 136 157 173 L157 114 Z', paired: true, detail: 'M140 111 Q147 127 154 143' },
+  { view: 'back', key: 'omuz', d: 'M102 109 Q83 105 74 123 Q68 135 72 156 Q87 153 98 138 L108 121 Z', paired: true, detail: 'M91 116 Q78 129 77 142' },
+  { view: 'back', key: 'sirt', d: 'M111 130 C99 137 100 157 106 171 Q128 173 147 166 Q129 137 111 130 Z', paired: true, detail: 'M108 148 Q126 152 137 159' },
+  { view: 'back', key: 'sirt', d: 'M106 178 Q109 209 127 239 L144 244 L154 192 L151 174 Q131 183 106 178 Z', paired: true, detail: 'M113 187 Q126 201 143 205 M119 204 Q126 216 139 225' },
+  { view: 'back', key: 'triceps', d: 'M75 160 C63 164 56 184 56 201 L60 215 Q68 212 74 202 Q85 181 85 157 Z', paired: true, detail: 'M73 172 Q64 185 65 202' },
+  { view: 'back', key: 'triceps', d: 'M86 158 L92 158 Q89 189 80 205 L72 214 Q83 190 86 158 Z', paired: true, detail: '' },
+  { view: 'back', key: 'onkol', d: 'M55 223 Q45 233 40 253 L31 282 L40 289 Q56 270 63 228 Z', paired: true, detail: 'M53 237 L38 278' },
+  { view: 'back', key: 'bel', d: 'M154 209 L149 231 Q145 250 129 260 L154 278 Q158 253 157 233 Z', paired: true, detail: 'M151 239 L147 258' },
+  { view: 'back', key: 'kalca', d: 'M126 270 Q115 271 111 291 Q104 313 117 324 Q137 337 155 319 L157 284 Q141 270 126 270 Z', paired: true, detail: 'M121 284 Q133 278 147 289' },
+  { view: 'back', key: 'arkabacak', d: 'M112 331 Q105 355 115 383 L126 418 L133 418 Q125 385 130 345 Z', paired: true, detail: 'M116 344 Q114 366 122 389' },
+  { view: 'back', key: 'arkabacak', d: 'M137 338 L154 327 Q158 357 150 386 L140 416 L135 408 Q140 379 137 338 Z', paired: true, detail: 'M148 345 Q150 369 142 391' },
+  { view: 'back', key: 'kalf', d: 'M124 441 Q113 449 114 471 C113 486 122 498 132 505 Q139 488 137 470 L134 444 Z', paired: true, detail: 'M123 454 Q119 475 129 488' },
+  { view: 'back', key: 'kalf', d: 'M141 443 Q150 451 151 466 Q153 486 140 502 L135 509 Q142 477 141 443 Z', paired: true, detail: 'M146 459 Q150 475 142 491' },
+];
+
+export const BASE_PATHS = {
+    torso:'M145 80 L143 96 Q126 99 106 105 C93 110 88 131 94 153 Q100 179 113 207 L122 233 Q124 249 115 268 C108 280 108 295 111 311 Q132 305 160 322 Q188 305 209 311 C212 295 212 280 205 268 Q196 249 198 233 L207 207 Q220 179 226 153 C232 131 227 110 214 105 Q194 99 177 96 L175 80 Z',
+    arm:'M100 109 C81 99 70 117 65 135 Q57 157 52 181 L48 211 Q47 226 40 242 L27 283 L29 295 L43 298 Q49 279 58 261 Q69 235 69 220 C81 201 88 179 92 158 L104 133 Z',
+    hand:'M28 291 Q23 300 23 309 L25 322 Q27 328 30 322 L30 311 L32 326 Q35 330 37 325 L37 311 L40 319 Q44 320 44 315 L44 302 L47 306 Q52 306 50 300 L44 290 Z',
+    leg:'M115 279 Q104 302 104 328 Q103 355 112 385 L120 420 Q118 435 114 453 Q110 474 119 502 L127 535 L128 558 L142 558 L143 534 Q145 510 151 492 Q160 469 151 447 L143 427 Q151 410 155 384 Q162 347 158 317 L146 284 Z',
+    foot:'M128 552 L143 552 L146 574 Q145 584 131 586 L115 586 Q108 585 112 578 L122 567 Z',
+    head:'M160 21 C147 21 138 30 138 44 L140 65 Q145 80 160 87 Q175 80 180 65 L182 44 C182 30 173 21 160 21 Z'
+};
