@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Path, Ellipse, G, Circle, Defs, LinearGradient as SvgLinearGradient, RadialGradient, Stop, ClipPath, Rect } from 'react-native-svg';
 import MuscleBodyMap, { BODY_MAP_ASPECT_RATIO, MUSCLE_NAMES } from '../../components/MuscleBodyMap';
+import FloatingMascot from '../../components/FloatingMascot';
 import {
   LIFTS, REP_BASED_LIFTS, RANKS, STD, computeRank, normGender, genderKey,
   MUSCLE_KEYS, MUSCLE_LIFT_MAP, estRankIndex, computeMuscleRank, computeBodyAverageRank, buildMuscleRanksMap,
@@ -2608,9 +2609,11 @@ const pickAndUploadProfilePhoto = async () => {
 
         {/* HIZLI DURUM — ekran açıldığında program, seri ve ilerleme tek bakışta. */}
         {(weeklyPlan || customPlanTotalEx > 0) && (() => {
-          const total = weeklyPlan?.totalDays || weeklyPlan?.workoutPlan?.length || customPlan.length || 1;
-          const current = weeklyPlan ? Math.min(weeklyPlan.currentDay || 1, total) : Math.min(customSelectedDay || 1, total);
-          const progress = Math.max(0, Math.min(1, current / total));
+          const isCustom = activeProgram === 'custom' && customPlanTotalEx > 0;
+          const total = isCustom ? (customPlan.length || 1) : (weeklyPlan?.totalDays || weeklyPlan?.workoutPlan?.length || 1);
+          const current = Math.min(isCustom ? (customSelectedDay || 1) : (weeklyPlan?.currentDay || 1), total);
+          const completed = weeklyPlan?.completedFully ? total : Math.min(total, weeklyPlan?.workoutPlan?.filter((day: any) => day.completed).length || 0);
+          const progress = Math.max(0, Math.min(1, completed / total));
           return (
             <LinearGradient colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={lkStyles.statusRail}>
               <View style={lkStyles.statusRailIcon}>
@@ -2620,15 +2623,15 @@ const pickAndUploadProfilePhoto = async () => {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
                   <Text style={lkStyles.statusRailTitle} numberOfLines={1}>{activeProgram === 'custom' ? t('Kendi Programın') : t('AI Programı')}</Text>
                   <View style={lkStyles.statusRailMetaRow}>
-                    <Text style={lkStyles.statusRailMeta}>{current}/{total}</Text>
+                    <Text style={lkStyles.statusRailMeta}>{isCustom ? t('{{day}}. Gün', { day: current }) : t('{{done}}/{{total}} tamamlandı', { done: completed, total })}</Text>
                     <View style={lkStyles.statusRailDivider} />
                     <Ionicons name="flame" size={12} color={LK.accentFixed} />
                     <Text style={lkStyles.statusRailMeta}>{userStats.streak || 0}</Text>
                   </View>
                 </View>
-                <View style={lkStyles.statusTrack}>
+                {!isCustom && <View style={lkStyles.statusTrack}>
                   <View style={[lkStyles.statusFill, { width: `${progress * 100}%`, backgroundColor: activeProgram === 'custom' ? LK.accent : LK.primaryFixed }]} />
-                </View>
+                </View>}
               </View>
             </LinearGradient>
           );
@@ -2952,7 +2955,6 @@ const pickAndUploadProfilePhoto = async () => {
     <View>
       {currentWorkoutDay && (() => {
         const exs = currentWorkoutDay.exercises || [];
-        const total = weeklyPlan.totalDays || weeklyPlan.workoutPlan?.length || 1;
         const estMin = exs.length * 6 + 8;
         return (
         <View>
@@ -2975,13 +2977,14 @@ const pickAndUploadProfilePhoto = async () => {
               </View>
               {/* İlerleme halkası — üst kenar lime, gerisi nötr */}
               <View style={lkStyles.progressRing}>
-                <Text style={lkStyles.progressText}>{weeklyPlan.currentDay}/{total}</Text>
+                <Text style={lkStyles.progressText}>{weeklyPlan.currentDay}</Text>
+                <Text style={{ color: LK.onSurfaceVariant, fontSize: 10 }}>{t('Gün')}</Text>
               </View>
             </View>
             <TouchableOpacity activeOpacity={0.88} onPress={() => { setWorkoutSource('gymbody'); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); ptLogIdRef.current = null; }}
               style={lkStyles.primaryPill}>
               <Ionicons name="play" size={18} color={LK.onPrimaryContainer} />
-              <Text style={lkStyles.primaryPillText}>{t('Antrenmana başla')}</Text>
+              <Text style={lkStyles.primaryPillText}>{currentWorkoutDay.completed ? t('Antrenmanı tekrarla') : t('Antrenmana başla')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -2993,9 +2996,9 @@ const pickAndUploadProfilePhoto = async () => {
               <Ionicons name="create-outline" size={14} color={LK.onSurface} />
               <Text style={lkStyles.ghostPillText}>{t('Düzenle')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.8} onPress={() => setDayFeedbackVisible(true)} style={lkStyles.limePill}>
+            <TouchableOpacity disabled={!!currentWorkoutDay.completed} activeOpacity={0.8} onPress={() => setDayFeedbackVisible(true)} style={lkStyles.limePill}>
               <Ionicons name="checkmark" size={14} color={LK.primaryFixed} />
-              <Text style={lkStyles.limePillText}>{t('Tamamla')}</Text>
+              <Text style={lkStyles.limePillText}>{currentWorkoutDay.completed ? t('Tamamlandı') : t('Tamamla')}</Text>
             </TouchableOpacity>
           </View>
           {exs.map((ex: any, j: number) => (
@@ -3992,7 +3995,7 @@ const pickAndUploadProfilePhoto = async () => {
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>{t('KAS HARİTASI')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <TouchableOpacity onPress={() => setMuscleTrendVisible(true)}
+                    <TouchableOpacity accessibilityLabel={t('Güç gelişimini gör')} onLongPress={() => showToast(t('Güç gelişimini gör'))} onPress={() => setMuscleTrendVisible(true)}
                       style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="trending-up" size={16} color={C.textSec} />
                     </TouchableOpacity>
@@ -4010,17 +4013,22 @@ const pickAndUploadProfilePhoto = async () => {
                   </View>
 
                   {/* Rank sırası — bronzdan efsaneye artan boyutlu noktalar, mevcut seviye beyaz halkalı */}
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 5, marginBottom: 10, height: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 3, marginBottom: 10 }}>
                     {RANKS.map((r, i) => {
                       const reached = displayIdx >= i;
                       const isCurrent = displayIdx === i;
                       const dotSize = 5 + i * 1.7;
                       return (
-                        <View key={r.key} style={{
+                        <TouchableOpacity key={r.key} accessibilityRole="button" accessibilityLabel={t(r.label)}
+                          onPress={() => Alert.alert(t(r.label), t('Kas renkleri kayıtlı hareketlerinin ortalama rankını gösterir. Gri bölgelerde henüz rank yok. Bir kasa dokunarak hareketlerini ve seviyesini görebilirsin.'))}
+                          style={{ flex: 1, alignItems: 'center', gap: 4, paddingVertical: 6 }}>
+                        <View style={{
                           width: isCurrent ? dotSize + 5 : dotSize, height: isCurrent ? dotSize + 5 : dotSize,
                           borderRadius: 99, backgroundColor: r.color, opacity: reached ? 1 : 0.25,
                           borderWidth: isCurrent ? 1.5 : 0, borderColor: '#fff',
                         }} />
+                        <Text numberOfLines={1} style={{ fontSize: 9, color: isCurrent ? r.color : C.textSec, fontWeight: isCurrent ? '800' : '500' }}>{t(r.label)}</Text>
+                        </TouchableOpacity>
                       );
                     })}
                   </View>
@@ -4048,7 +4056,7 @@ const pickAndUploadProfilePhoto = async () => {
                           </Svg>
                         )}
                         <View style={{ width: mapWidth, height: mapHeight }} {...muscleMapPanResponder.panHandlers}>
-                        <MuscleBodyMap
+                        <MuscleBodyMap gender={user?.gender}
                           width={mapWidth}
                           view={bodyMapView}
                           selectedMuscle={selectedMuscle}
@@ -4115,18 +4123,22 @@ const pickAndUploadProfilePhoto = async () => {
                 <Text style={styles.strengthChallengePrimaryText}>{t('Meydan Oku')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => { setChallengeCodeInput(''); setChallengeTheirWeight(''); setChallengeInfo(null); setChallengeScreen('accept'); }}
-                activeOpacity={0.82} style={styles.strengthChallengeCode}>
+                accessibilityLabel={t('Kodu Gir')} onLongPress={() => showToast(t('Kodu Gir'))}
+                activeOpacity={0.82} style={[styles.strengthChallengeCode, { width: 'auto', paddingHorizontal: 8, flexDirection: 'row', gap: 4 }]}>
                 <Ionicons name="key-outline" size={15} color={C.textSec} />
+                <Text style={{ color: C.textSec, fontSize: 10, fontWeight: '700' }}>{t('Kod')}</Text>
               </TouchableOpacity>
             </View>
             <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 14, padding: 3 }}>
-              <TouchableOpacity onPress={() => setLiftViewMode('cards')}
+              <TouchableOpacity accessibilityLabel={t('Kart görünümü')} onLongPress={() => showToast(t('Kart görünümü'))} onPress={() => setLiftViewMode('cards')}
                 style={{ paddingVertical: 5, paddingHorizontal: 8, borderRadius: 11, backgroundColor: liftViewMode === 'cards' ? C.orange : 'transparent' }}>
                 <Ionicons name="albums-outline" size={14} color={liftViewMode === 'cards' ? '#0B0D12' : C.textMuted} />
+                <Text style={{ fontSize: 8, color: liftViewMode === 'cards' ? '#0B0D12' : C.textSec }}>{t('Kart')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setLiftViewMode('list')}
+              <TouchableOpacity accessibilityLabel={t('Liste görünümü')} onLongPress={() => showToast(t('Liste görünümü'))} onPress={() => setLiftViewMode('list')}
                 style={{ paddingVertical: 5, paddingHorizontal: 8, borderRadius: 11, backgroundColor: liftViewMode === 'list' ? C.orange : 'transparent' }}>
                 <Ionicons name="list-outline" size={14} color={liftViewMode === 'list' ? '#0B0D12' : C.textMuted} />
+                <Text style={{ fontSize: 8, color: liftViewMode === 'list' ? '#0B0D12' : C.textSec }}>{t('Liste')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -5598,6 +5610,10 @@ const pickAndUploadProfilePhoto = async () => {
                 </View>
               </View>
               <View style={{ marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 }}>
+                  <Text style={{ color: C.textSec, fontSize: 12, fontWeight: '700' }}>{t('Kas grupları')}</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 11 }}>{t('Kaydır →')}</Text>
+                </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
                   {['Tümü', ...Object.keys(libData)].map((g) => (
                     <TouchableOpacity key={g} onPress={() => setLibGroup(g)} style={{ backgroundColor: libGroup === g ? C.lime : C.surface, borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14 }}>
@@ -5613,7 +5629,8 @@ const pickAndUploadProfilePhoto = async () => {
                 const allExercises = Object.entries(libData).flatMap(([g, arr]) => (arr as any[]).map((x) => ({ ...x, _group: g })));
                 const q = libSearch.toLowerCase().trim();
                 const filtered = allExercises.filter((x) => (libGroup === 'Tümü' || x._group === libGroup) && (!q || x.name.toLowerCase().includes(q)));
-                const favExercises = allExercises.filter((x) => favSet.has(x.name));
+                const favExercises = filtered.filter((x) => favSet.has(x.name));
+                const otherExercises = filtered.filter((x) => !favSet.has(x.name));
                 // Seçim modunda karta dokunmak hareketi güne ekler; normal modda detayı açar.
                 // Seçim modunda o güne ekli hareketler — kartta yeşil tik olarak görünür
                 const pickedNames = new Set<string>(
@@ -5669,22 +5686,28 @@ const pickAndUploadProfilePhoto = async () => {
                 };
                 return (
                   <FlatList
-                    data={filtered}
+                    data={otherExercises}
                     keyExtractor={(it: any) => it.name}
                     numColumns={2}
-                    contentContainerStyle={{ padding: 12 }}
+                    contentContainerStyle={{ padding: 16, paddingBottom: 32 + insets.bottom }}
                     columnWrapperStyle={{ gap: 10 }}
                     renderItem={({ item }: any) => renderCard(item)}
                     ListHeaderComponent={favExercises.length ? (
                       <View style={{ marginBottom: 6 }}>
-                        <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, marginBottom: 10, paddingHorizontal: 2 }}>{t('⭐ Favorilerim')}</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 4 }}>
-                          {favExercises.map((item) => renderCard(item, { maxWidth: 150, width: 150 }))}
-                        </ScrollView>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+                          <Ionicons name="star" size={17} color={C.lime} />
+                          <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{t('Favorilerim')} · {favExercises.length}</Text>
+                        </View>
+                        {Array.from({ length: Math.ceil(favExercises.length / 2) }, (_, row) => (
+                          <View key={row} style={{ flexDirection: 'row', gap: 10 }}>
+                            {favExercises.slice(row * 2, row * 2 + 2).map((item) => renderCard(item))}
+                          </View>
+                        ))}
                         <View style={{ height: 1, backgroundColor: C.surface2, marginVertical: 14 }} />
+                        {otherExercises.length > 0 && <Text style={{ color: C.textSec, fontWeight: '700', marginBottom: 10 }}>{t('Diğer hareketler')} · {otherExercises.length}</Text>}
                       </View>
                     ) : null}
-                    ListEmptyComponent={<Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 }}>{t('Eşleşen hareket yok.')}</Text>}
+                    ListEmptyComponent={filtered.length === 0 ? <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 }}>{t('Eşleşen hareket yok.')}</Text> : null}
                   />
                 );
               })()}
@@ -6190,22 +6213,9 @@ const pickAndUploadProfilePhoto = async () => {
         </View>
       </Modal>
 
-      {/* AI SOHBET BUTONU (floating) */}
-      {user && (
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => setChatVisible(true)}
-          style={{ position: 'absolute', bottom: 104 + (insets.bottom || 0), right: 20, width: 56, height: 56, borderRadius: 28, overflow: 'hidden', zIndex: 100 }}
-        >
-          <LinearGradient colors={[mascotFor(user?.gender).color, mascotFor(user?.gender).colorDark]} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            {/* Maskot — cinsiyete göre Gymbo ya da Momo, jenerik robot ikonunun yerine */}
-            <Image source={mascotFor(user?.gender).avatar}
-              style={{ width: 42, height: 42 }} resizeMode="contain" />
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
-
       {/* AI SOHBET MODAL */}
+      <FloatingMascot source={mascotFor(user?.gender).avatar} color={mascotFor(user?.gender).color}
+        label={t('AI sohbetini aç')} onPress={() => setChatVisible(true)} />
       <Modal visible={chatVisible} transparent animationType="slide" onRequestClose={() => { Keyboard.dismiss(); setChatVisible(false); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} />
@@ -6976,7 +6986,7 @@ const pickAndUploadProfilePhoto = async () => {
                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 3 }}>GYMBODY<Text style={{ color: C.lime }}>AI</Text></Text>
                       </View>
                       <View style={{ marginTop: 14 }}>
-                        <MuscleBodyMap
+                        <MuscleBodyMap gender={user?.gender}
                           width={270}
                           view="both"
                           ranks={muscleRanksMap}
@@ -7060,12 +7070,12 @@ const pickAndUploadProfilePhoto = async () => {
 
                   <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: 14 }}>
                     <View style={{ alignItems: 'center' }}>
-                      <MuscleBodyMap width={120} view={trendView} ranks={thenMap} rankColors={rankColorsProp} defaultColor={C.surface2} baseColor={C.surface2} outlineColor={C.border} strokeColor="rgba(0,0,0,0.35)" detailColor="rgba(0,0,0,0.25)" showLabels={false} />
+                      <MuscleBodyMap gender={user?.gender} width={120} view={trendView} ranks={thenMap} rankColors={rankColorsProp} defaultColor={C.surface2} baseColor={C.surface2} outlineColor={C.border} strokeColor="rgba(0,0,0,0.35)" detailColor="rgba(0,0,0,0.25)" showLabels={false} />
                       <Text style={{ color: C.textMuted, fontSize: 10.5, fontWeight: '700', marginTop: 6 }}>{periodLabel.toUpperCase()}</Text>
                     </View>
                     <Ionicons name="arrow-forward" size={18} color={C.textMuted} style={{ marginBottom: 30 }} />
                     <View style={{ alignItems: 'center' }}>
-                      <MuscleBodyMap width={120} view={trendView} ranks={nowMap} rankColors={rankColorsProp} defaultColor={C.surface2} baseColor={C.surface2} outlineColor={C.border} strokeColor="rgba(0,0,0,0.35)" detailColor="rgba(0,0,0,0.25)" showLabels={false} />
+                      <MuscleBodyMap gender={user?.gender} width={120} view={trendView} ranks={nowMap} rankColors={rankColorsProp} defaultColor={C.surface2} baseColor={C.surface2} outlineColor={C.border} strokeColor="rgba(0,0,0,0.35)" detailColor="rgba(0,0,0,0.25)" showLabels={false} />
                       <Text style={{ color: C.lime, fontSize: 10.5, fontWeight: '800', marginTop: 6 }}>{t('ŞİMDİ')}</Text>
                     </View>
                   </View>

@@ -2,6 +2,8 @@ import React, { useId } from 'react';
 import Svg, { Defs, G, LinearGradient, Path, Stop, Text as SvgText } from 'react-native-svg';
 import type { PathProps } from 'react-native-svg';
 import i18n from '../lib/i18n';
+import { femaleBodyPath, FEMALE_HAIR } from './femaleBodyGeometry';
+import { normGender } from '../lib/rankLogic';
 import { RANKS } from '../lib/rankLogic';
 import { BASE_PATHS, MUSCLES, MUSCLE_NAMES } from './muscleBodyGeometry';
 
@@ -21,11 +23,8 @@ function mix(color: string, target: string, amount: number) {
   }).join('');
 }
 
-function Mirrored(props: PathProps) {
-  return <><Path {...props} /><Path {...props} transform={MIRROR} /></>;
-}
-
 type Props = {
+  gender?: string;
   width?: number;
   view?: 'front' | 'back' | 'both';
   ranks?: Record<string, string>;
@@ -42,7 +41,7 @@ type Props = {
 };
 
 export default function MuscleBodyMap({
-  width = 340, view = 'both', ranks = {}, rankColors = DEFAULT_RANK_COLORS,
+  gender, width = 340, view = 'both', ranks = {}, rankColors = DEFAULT_RANK_COLORS,
   defaultColor = '#26323F', baseColor = '#26323F', outlineColor = '#536575',
   strokeColor = 'rgba(0,0,0,0.35)', detailColor = 'rgba(0,0,0,0.25)',
   showLabels = true, labelColor = '#8a887f', selectedMuscle = null, onMusclePress,
@@ -62,31 +61,36 @@ export default function MuscleBodyMap({
   const colors = Object.entries(rankColors);
   const rankGradient = (key: string) => `rank-${colors.findIndex(([name]) => name === key)}`;
 
+  const female = normGender(gender) === 'female';
+  const BodyPath = (props: PathProps) => <Path {...props} d={female && typeof props.d === 'string' ? femaleBodyPath(props.d) : props.d} />;
+  const BodyPair = (props: PathProps) => <><BodyPath {...props} /><BodyPath {...props} transform={MIRROR} /></>;
   const renderBody = (side: 'front' | 'back', offset = 0) => (
     <G key={side} transform={offset ? `translate(${offset} 0)` : undefined}>
+      {female && <Path d={FEMALE_HAIR.back} fill={fill('head')} stroke={edge} strokeWidth={.6} pointerEvents="none" />}
       <G fill={fill('base')} stroke={outlineColor} strokeWidth={.65}>
-        <Mirrored d={BASE_PATHS.leg} /><Path d={BASE_PATHS.torso} />
-        <Mirrored d={BASE_PATHS.arm} /><Mirrored d={BASE_PATHS.hand} />
-        <Mirrored d={BASE_PATHS.foot} /><Path d={BASE_PATHS.head} fill={fill('head')} />
+        <BodyPair d={BASE_PATHS.leg} /><BodyPath d={BASE_PATHS.torso} />
+        <BodyPair d={BASE_PATHS.arm} /><BodyPair d={BASE_PATHS.hand} />
+        <BodyPair d={BASE_PATHS.foot} /><BodyPath d={BASE_PATHS.head} fill={fill('head')} />
       </G>
       <G fill="none" stroke="#DCEFFF" strokeOpacity={.18} strokeWidth={1} pointerEvents="none">
-        <Mirrored d="M128 526 L133 551 M121 572 L115 578 M28 302 L27 311 M34 300 L34 312 M39 298 L40 308" />
+        <BodyPair d="M128 526 L133 551 M121 572 L115 578 M28 302 L27 311 M34 300 L34 312 M39 298 L40 308" />
       </G>
       {side === 'front' ? <G pointerEvents="none">
-        <Path d="M141 45 Q148 36 160 36 L160 66 L150 71 Q143 59 141 45 Z" fill={fill('shine')} opacity={.5} />
-        <Path d="M144 55 Q153 58 157 55 M163 55 Q169 58 176 55 M160 55 L157 67 L163 67 M154 76 Q160 78 166 76" fill="none" stroke={dark} strokeWidth={1.1} opacity={.7} />
-        <Mirrored d="M145 90 L151 108" fill="none" stroke="#DCEFFF" strokeOpacity={.18} />
-        <Mirrored d="M120 430 Q129 422 138 431 L137 443 Q128 450 122 441 Z" fill={fill('head')} stroke={edge} strokeWidth={.5} />
-        <Mirrored d="M134 453 Q140 475 137 505 L136 544 L132 544 L129 507 Z" fill={fill('head')} />
-        <Mirrored d="M121 273 Q139 282 155 300 L153 308 Q134 290 117 286 Z" fill={fill('shine')} opacity={.4} />
+        <BodyPath d="M141 45 Q148 36 160 36 L160 66 L150 71 Q143 59 141 45 Z" fill={fill('shine')} opacity={.5} />
+        <BodyPath d="M144 55 Q153 58 157 55 M163 55 Q169 58 176 55 M160 55 L157 67 L163 67 M154 76 Q160 78 166 76" fill="none" stroke={dark} strokeWidth={1.1} opacity={.7} />
+        <BodyPair d="M145 90 L151 108" fill="none" stroke="#DCEFFF" strokeOpacity={.18} />
+        <BodyPair d="M120 430 Q129 422 138 431 L137 443 Q128 450 122 441 Z" fill={fill('head')} stroke={edge} strokeWidth={.5} />
+        <BodyPair d="M134 453 Q140 475 137 505 L136 544 L132 544 L129 507 Z" fill={fill('head')} />
+        <BodyPair d="M121 273 Q139 282 155 300 L153 308 Q134 290 117 286 Z" fill={fill('shine')} opacity={.4} />
       </G> : <G pointerEvents="none">
-        <Path d="M146 31 Q156 24 168 30 M147 73 Q160 83 173 73 M158 97 L158 206" fill="none" stroke="#DCEFFF" strokeOpacity={.2} strokeWidth={1.2} />
-        <Mirrored d="M130 506 Q131 532 135 550 L138 550 L139 515" fill="none" stroke={light} strokeWidth={1.5} opacity={.65} />
+        <BodyPath d="M146 31 Q156 24 168 30 M147 73 Q160 83 173 73 M158 97 L158 206" fill="none" stroke="#DCEFFF" strokeOpacity={.2} strokeWidth={1.2} />
+        <BodyPair d="M130 506 Q131 532 135 550 L138 550 L139 515" fill="none" stroke={light} strokeWidth={1.5} opacity={.65} />
       </G>}
+      {female && <G pointerEvents="none"><Path d={FEMALE_HAIR.locks} fill={fill('head')} stroke={edge} strokeWidth={.4} /><Path d={side === 'front' ? FEMALE_HAIR.front : FEMALE_HAIR.rear} fill={fill('head')} stroke={edge} strokeWidth={.6} /><Path d={FEMALE_HAIR.strands} fill="none" stroke={light} strokeOpacity={.35} strokeWidth={1} /></G>}
       {MUSCLES.filter(m => m.view === side).map((muscle, index) => {
         const color = rankColors[ranks[muscle.key]];
         const selected = selectedMuscle === muscle.key;
-        const Shape = muscle.paired ? Mirrored : Path;
+        const Shape = muscle.paired ? BodyPair : BodyPath;
         return <G key={`${muscle.key}-${index}`} onPress={onMusclePress ? () => onMusclePress(muscle.key) : undefined}
           accessibilityLabel={i18n.t(MUSCLE_NAMES[muscle.key])}>
           {selected && <Shape d={muscle.d} fill="none" stroke={color || edge} strokeWidth={5} strokeOpacity={.1} pointerEvents="none" />}

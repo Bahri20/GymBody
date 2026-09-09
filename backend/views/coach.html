@@ -567,10 +567,45 @@
   }
 
   // IDs are unique even when several student figures appear on the same page.
-  function mmRenderFigure(view, ranksMap){
+// Absolute M/L/Q/C paths only. Warp every control point together so hit areas,
+// contours and muscle details remain aligned with the female silhouette.
+function femaleBodyPath(d) {
+  let axis = 0;
+  let x = 0;
+  return d.replace(/-?\d*\.?\d+/g, value => {
+    if (axis++ % 2 === 0) { x = Number(value); return '@'; }
+    const y = Number(value);
+    const anchors = [[0, .94], [80, .94], [120, .82], [175, .84], [235, .84], [280, 1.16], [330, 1.17], [420, 1.02], [610, .96]];
+    let scale = .96;
+    for (let i = 1; i < anchors.length; i++) {
+      if (y <= anchors[i][0]) {
+        const [ya, a] = anchors[i - 1];
+        const [yb, b] = anchors[i];
+        scale = a + (b - a) * Math.max(0, (y - ya) / (yb - ya));
+        break;
+      }
+    }
+    // Only hips widen; forearms and hands keep their natural taper.
+    if (y > 235 && y < 420 && Math.abs(x - 160) > 75) scale = .9;
+    return `${(160 + (x - 160) * scale).toFixed(2)},${y}`;
+  }).replace(/@\s*/g, '');
+}
+
+// Long hair swept to the sides keeps the back's ranked muscles visible.
+const FEMALE_HAIR = {
+  locks: 'M137 73 Q128 100 111 145 Q101 177 103 214 L111 242 Q96 229 96 210 Q93 177 104 143 Q123 100 130 69 Z M183 73 Q192 100 209 145 Q219 177 217 214 L209 242 Q224 229 224 210 Q227 177 216 143 Q197 100 190 69 Z',
+  back: 'M135 34 C132 12 174 8 187 32 C198 55 187 86 198 111 Q209 137 202 171 Q193 190 193 213 Q177 203 183 174 Q194 150 181 118 L176 78 L144 78 Q137 102 132 128 Q120 153 127 176 Q120 171 117 154 Q112 132 124 106 Q134 83 130 62 Z',
+  front: 'M136 52 Q128 28 143 20 Q171 7 183 29 Q191 45 181 65 L176 42 Q163 44 152 30 Q145 47 136 52 Z',
+  rear: 'M136 30 Q159 12 183 32 L181 69 Q175 84 160 88 Q141 80 137 65 Z',
+  strands: 'M143 26 Q127 65 138 84 M178 31 Q192 70 183 100 Q177 129 195 153 Q196 179 189 197 M135 82 Q115 142 123 161',
+};
+
+  function mmRenderFigure(view, ranksMap, gender){
+    const female = ['female', 'kadın', 'kadin', 'woman', 'f'].includes(String(gender||'').trim().toLowerCase());
     const prefix = 'coach-body-' + (++mmFigureId) + '-';
     const fill = key => 'url(#'+prefix+key+')';
-    const path = (d, attrs='') => '<path d="'+d+'" '+attrs+'/>';
+    const rawPath = (d, attrs='') => '<path d="'+d+'" '+attrs+'/>';
+    const path = (d, attrs='') => rawPath(female ? femaleBodyPath(d) : d, attrs);
     const pair = (d, attrs='') => path(d,attrs)+path(d,attrs+' transform="translate(320 0) scale(-1 1)"');
     const gradient = (key, stops, x='90%', y='85%') => '<linearGradient id="'+prefix+key+'" x1="0%" y1="0%" x2="'+x+'" y2="'+y+'">'+stops.map(stop=>'<stop offset="'+stop[0]+'" stop-color="'+stop[1]+'" stop-opacity="'+(stop[2]===undefined?1:stop[2])+'"/>').join('')+'</linearGradient>';
     const baseColor='#171C26';
@@ -582,7 +617,9 @@
     s+=gradient('neutral',[[0,mmMix(base,'#111923',.6)],['26%',mmMix(base,'#DCEFFF',.27)],['47%',base],['100%',mmMix(base,'#111923',.7)]]);
     s+=gradient('shine',[[0,'#DCEFFF',.52],['50%','#DCEFFF',.03],['100%','#DCEFFF',0]],'85%','100%');
     MM_RANKS.forEach(r=>{s+=gradient(r.key,[[0,mmMix(r.color,'#101622',.65)],['26%',mmMix(r.color,'#FFFFFF',.27)],['47%',r.color],['76%',mmMix(r.color,'#111724',.32)],['100%',mmMix(r.color,'#0A101B',.7)]]);});
-    s+='</defs><g fill="'+fill('base')+'" stroke="rgba(255,255,255,.07)" stroke-width=".65">';
+    s+='</defs>';
+    if(female) s+=rawPath(FEMALE_HAIR.back,'fill="'+fill('head')+'" stroke="'+edge+'" stroke-width=".6"');
+    s+='<g fill="'+fill('base')+'" stroke="rgba(255,255,255,.07)" stroke-width=".65">';
     s+=pair(MM_BASE.leg)+path(MM_BASE.torso)+pair(MM_BASE.arm)+pair(MM_BASE.hand)+pair(MM_BASE.foot)+path(MM_BASE.head,'fill="'+fill('head')+'"')+'</g>';
     s+=pair('M128 526 L133 551 M121 572 L115 578 M28 302 L27 311 M34 300 L34 312 M39 298 L40 308','fill="none" stroke="#DCEFFF" stroke-opacity=".18"');
     if(view==='front'){
@@ -595,6 +632,11 @@
     } else {
       s+=path('M146 31 Q156 24 168 30 M147 73 Q160 83 173 73 M158 97 L158 206','fill="none" stroke="#DCEFFF" stroke-opacity=".2" stroke-width="1.2"');
       s+=pair('M130 506 Q131 532 135 550 L138 550 L139 515','fill="none" stroke="'+light+'" stroke-width="1.5" opacity=".65"');
+    }
+    if(female) {
+      s+=rawPath(FEMALE_HAIR.locks,'fill="'+fill('head')+'" stroke="'+edge+'" stroke-width=".4" pointer-events="none"');
+      s+=rawPath(view==='front'?FEMALE_HAIR.front:FEMALE_HAIR.rear,'fill="'+fill('head')+'" stroke="'+edge+'" stroke-width=".6" pointer-events="none"');
+      s+=rawPath(FEMALE_HAIR.strands,'fill="none" stroke="'+light+'" stroke-opacity=".35" pointer-events="none"');
     }
     MM_MUSCLES.filter(m=>m.view===view).forEach(m=>{
       const rank=MM_RANKS.find(r=>r.key===ranksMap[m.key]);
@@ -627,8 +669,8 @@
     let html = '<p class="muted" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">💪 Kas Haritası</p>';
     html += '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">';
     html += '<div style="display:flex;gap:10px;width:330px;max-width:100%">';
-    html += '<div style="text-align:center;flex:1;min-width:0">'+mmRenderFigure('front', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Ön</div></div>';
-    html += '<div style="text-align:center;flex:1;min-width:0">'+mmRenderFigure('back', ranksMap)+'<div class="muted" style="font-size:11px;margin-top:2px">Arka</div></div>';
+    html += '<div style="text-align:center;flex:1;min-width:0">'+mmRenderFigure('front', ranksMap, gender)+'<div class="muted" style="font-size:11px;margin-top:2px">Ön</div></div>';
+    html += '<div style="text-align:center;flex:1;min-width:0">'+mmRenderFigure('back', ranksMap, gender)+'<div class="muted" style="font-size:11px;margin-top:2px">Arka</div></div>';
     html += '</div>';
     html += mmRenderLegend();
     html += '<div style="flex:1;min-width:160px">';
