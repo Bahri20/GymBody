@@ -2575,11 +2575,21 @@ const pickAndUploadProfilePhoto = async () => {
         />
       )}
 
-      {/* ÜST BAŞLIK */}
+      {/* ÜST BAŞLIK — her sekme kendi bağlamını söyler, profil erişimi aynı yerde kalır. */}
       <View style={styles.topBar}>
-        <View>
-          <Text style={styles.topGreeting}>{t('Hoş geldin 👋')}</Text>
-          <Text style={styles.topName}>{user.name}</Text>
+        <View style={{ flex: 1, paddingRight: 14 }}>
+          <View style={styles.topEyebrowRow}>
+            <View style={styles.topEyebrowDot} />
+            <Text style={styles.topGreeting}>
+              {currentTab === 'gymBody' ? t('BUGÜN') : currentTab === 'analiz' ? t('İLERLEME') : currentTab === 'stats' ? t('PERFORMANS') : currentTab === 'profile' ? t('HESABIN') : t('KOÇLUK')}
+            </Text>
+          </View>
+          <Text style={styles.topName} numberOfLines={1}>
+            {currentTab === 'gymBody' ? user.name : currentTab === 'analiz' ? t('Analiz') : currentTab === 'stats' ? t('Max Güç') : currentTab === 'profile' ? t('Profil') : t('PT')}
+          </Text>
+          <Text style={styles.topContext} numberOfLines={1}>
+            {currentTab === 'gymBody' ? t('Hoş geldin') : currentTab === 'analiz' ? t('Gelişim ve beslenme takibi') : currentTab === 'stats' ? t('Kişisel güç seviyen') : currentTab === 'profile' ? (user.email || t('Hesap ve ölçülerin')) : t('Hocanla birlikte ilerle')}
+          </Text>
         </View>
         <TouchableOpacity activeOpacity={0.85} onPress={pickAndUploadProfilePhoto} style={styles.avatar}>
           {(user.profilePhoto || user.googlePhoto) ? (
@@ -2603,9 +2613,35 @@ const pickAndUploadProfilePhoto = async () => {
       /* GYMBODY EKRANI — sekme herkese açık; VIP duvarı sadece AI program
          üretiminde (fetchWeeklyPlan). Kütüphane, plan görüntüleme, PT sekmesi serbest. */
       <View>
-
-
         <View>
+
+        {/* HIZLI DURUM — ekran açıldığında program, seri ve ilerleme tek bakışta. */}
+        {(weeklyPlan || customPlanTotalEx > 0) && (() => {
+          const total = weeklyPlan?.totalDays || weeklyPlan?.workoutPlan?.length || customPlan.length || 1;
+          const current = weeklyPlan ? Math.min(weeklyPlan.currentDay || 1, total) : Math.min(customSelectedDay || 1, total);
+          const progress = Math.max(0, Math.min(1, current / total));
+          return (
+            <LinearGradient colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={lkStyles.statusRail}>
+              <View style={lkStyles.statusRailIcon}>
+                <Ionicons name={activeProgram === 'custom' ? 'construct' : 'sparkles'} size={17} color={activeProgram === 'custom' ? LK.accentFixed : LK.primaryFixed} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+                  <Text style={lkStyles.statusRailTitle} numberOfLines={1}>{activeProgram === 'custom' ? t('Kendi Programın') : t('AI Programı')}</Text>
+                  <View style={lkStyles.statusRailMetaRow}>
+                    <Text style={lkStyles.statusRailMeta}>{current}/{total}</Text>
+                    <View style={lkStyles.statusRailDivider} />
+                    <Ionicons name="flame" size={12} color={LK.accentFixed} />
+                    <Text style={lkStyles.statusRailMeta}>{userStats.streak || 0}</Text>
+                  </View>
+                </View>
+                <View style={lkStyles.statusTrack}>
+                  <View style={[lkStyles.statusFill, { width: `${progress * 100}%`, backgroundColor: activeProgram === 'custom' ? LK.accent : LK.primaryFixed }]} />
+                </View>
+              </View>
+            </LinearGradient>
+          );
+        })()}
 
         {/* MOLA PROMPT */}
         {showRestPrompt && weeklyPlan && !weeklyPlan.completedFully && (() => {
@@ -3253,17 +3289,19 @@ const pickAndUploadProfilePhoto = async () => {
       )}
       {/* ANALİZ iç switcher: Gelişim (foto) | Beslenme (kalori) */}
       {currentTab === 'analiz' && (
-        <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 12, marginBottom: 4, backgroundColor: AZ_DARK.surfaceContainer, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: AZ_DARK.glassBorderFaint }}>
+        <View style={styles.analysisSwitcherWrap}>
           <TouchableOpacity
-            style={[{ flex: 1, gap: 6, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 8, flexDirection: 'row' },
-              analizTab === 'gelisim' && { backgroundColor: AZ_DARK.lime }]}
+            activeOpacity={0.82}
+            style={[styles.analysisSwitcherButton,
+              analizTab === 'gelisim' && styles.analysisSwitcherButtonActive]}
             onPress={() => setAnalizTab('gelisim')}>
             <Ionicons name="camera-outline" size={16} color={analizTab === 'gelisim' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
             <Text style={{ fontWeight: '700', color: analizTab === 'gelisim' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>{t('Gelişim')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[{ flex: 1, gap: 6, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 8, flexDirection: 'row' },
-              analizTab === 'beslenme' && { backgroundColor: AZ_DARK.lime }]}
+            activeOpacity={0.82}
+            style={[styles.analysisSwitcherButton,
+              analizTab === 'beslenme' && styles.analysisSwitcherButtonActive]}
             onPress={() => setAnalizTab('beslenme')}>
             <Ionicons name="restaurant-outline" size={16} color={analizTab === 'beslenme' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant} />
             <Text style={{ fontWeight: '700', color: analizTab === 'beslenme' ? AZ_DARK.onLime : AZ_DARK.onSurfaceVariant, fontSize: 13 }}>{t('Beslenme')}</Text>
@@ -3286,10 +3324,10 @@ const pickAndUploadProfilePhoto = async () => {
           ListHeaderComponent={
             <View>
               {/* 📸 FOTOĞRAF EKLEME YERİ */}
-              <View style={{ marginBottom: 16 }}>
+              <LinearGradient colors={[AZ_DARK.glass, 'rgba(30,31,37,0.28)']} style={styles.analysisCaptureCard}>
               {!image ? (
                 <TouchableOpacity activeOpacity={0.85} onPress={() => askAndPickImage('progress')}>
-                  <View style={{ borderWidth: 2, borderStyle: 'dashed', borderColor: AZ_DARK.limeSoft30, borderRadius: 16, paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center', backgroundColor: 'rgba(30,31,37,0.3)' }}>
+                  <View style={styles.analysisCaptureEmpty}>
                     <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: AZ_DARK.limeSoft10, justifyContent: 'center', alignItems: 'center', marginBottom: 12,
                       shadowColor: AZ_DARK.lime, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 6 }}>
                       <Ionicons name="camera" size={26} color={AZ_DARK.lime} />
@@ -3323,7 +3361,7 @@ const pickAndUploadProfilePhoto = async () => {
                   )}
                 </View>
               )}
-              </View>
+              </LinearGradient>
 
               {/* 🖼️ GELİŞİM KARŞILAŞTIRMASI */}
               {!userStats.isVip ? (
@@ -3855,7 +3893,12 @@ const pickAndUploadProfilePhoto = async () => {
 
       {currentTab === 'stats' && (
         <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-          <Text style={[styles.statsSubtitle, { marginBottom: 16 }]}>{t("GymBody'ye kaydettiğin en yüksek ağırlıklar ve rankların.")}</Text>
+          <View style={styles.strengthIntroRow}>
+            <View style={styles.strengthIntroIcon}>
+              <Ionicons name="trophy" size={20} color={C.orange} />
+            </View>
+            <Text style={styles.strengthIntroText}>{t("GymBody'ye kaydettiğin en yüksek ağırlıklar ve rankların.")}</Text>
+          </View>
 
           {!userStats.isVip && (
             <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
@@ -3898,7 +3941,10 @@ const pickAndUploadProfilePhoto = async () => {
             const displayIdx = selectedMuscle ? computeMuscleRank(selectedMuscle, liftsData, bw, user?.gender) : bodyAvgIdx;
             const displayRank = displayIdx >= 0 ? RANKS[displayIdx] : null;
             return (
-              <View style={{ marginBottom: 12 }}>
+              <LinearGradient
+                colors={[displayRank ? displayRank.color + '18' : C.surface2, C.surface, C.bgAlt]}
+                start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                style={styles.muscleMapCard}>
                 <View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>{t('KAS HARİTASI')}</Text>
@@ -4005,7 +4051,7 @@ const pickAndUploadProfilePhoto = async () => {
                   )}
                   {!user?.weight && <Text style={{ color: C.orange, fontSize: 11, textAlign: 'center', marginTop: 8 }}>{t('Daha doğru rank için profilde kilonu gir')}</Text>}
                 </View>
-              </View>
+              </LinearGradient>
             );
           })()}
 
@@ -4292,7 +4338,15 @@ const pickAndUploadProfilePhoto = async () => {
       )}
       {currentTab === 'profile' && (
   <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-    <View style={styles.profileHero}>
+    <LinearGradient colors={[C.surface2, C.surface, C.bgAlt]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.profileHero}>
+      <View style={styles.profileHeroGlow} pointerEvents="none" />
+      <View style={styles.profileAvatarLarge}>
+        {(user.profilePhoto || user.googlePhoto) ? (
+          <Image source={{ uri: user.profilePhoto || user.googlePhoto }} style={styles.profileAvatarImage} />
+        ) : (
+          <Text style={styles.profileAvatarLetter}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
+        )}
+      </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <Text style={styles.profileName}>{user.name}</Text>
         {userStats.isVip && <Text style={{ fontSize: 22 }}>👑</Text>}
@@ -4341,7 +4395,7 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
         );
       })()}
-    </View>
+    </LinearGradient>
 
 {/* VIP KARTI */}
 {userStats.isVip ? (
@@ -6099,7 +6153,7 @@ const pickAndUploadProfilePhoto = async () => {
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => setChatVisible(true)}
-          style={{ position: 'absolute', bottom: 90, right: 20, width: 56, height: 56, borderRadius: 28, overflow: 'hidden', zIndex: 100 }}
+          style={{ position: 'absolute', bottom: 116 + (insets.bottom || 0), right: 20, width: 56, height: 56, borderRadius: 28, overflow: 'hidden', zIndex: 100 }}
         >
           <LinearGradient colors={[mascotFor(user?.gender).color, mascotFor(user?.gender).colorDark]} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             {/* Maskot — cinsiyete göre Gymbo ya da Momo, jenerik robot ikonunun yerine */}
@@ -7212,7 +7266,7 @@ const pickAndUploadProfilePhoto = async () => {
       )}
 
       {/* ALT TAB BAR */}
-      <View style={[styles.tabBarOuter, { paddingBottom: (insets.bottom || 8) + 4 }]}>
+      <View style={[styles.tabBarOuter, { paddingBottom: Math.max((insets.bottom || 8) - 4, 10) }]}>
         {TABS.map((tab) => {
           const active = currentTab === tab.key;
           if (tab.gym) {
@@ -7230,9 +7284,8 @@ const pickAndUploadProfilePhoto = async () => {
             );
           }
           return (
-            <TouchableOpacity key={tab.key} activeOpacity={0.85} style={styles.tabBtn}
+            <TouchableOpacity key={tab.key} activeOpacity={0.82} style={[styles.tabBtn, active && styles.tabBtnActive]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tab.key); }}>
-              {active && <View style={styles.tabActivePill} />}
               <View>
                 <Ionicons name={tab.icon} size={22} color={active ? C.orange : C.textSec} />
                 {tab.key === 'pt' && coachData.unread > 0 && (
@@ -7265,6 +7318,21 @@ const makeChartConfig = (C: Palette) => ({
 // Lumina Kinetic bileşen stilleri (GymBody ana sayfası + Kendi Programın).
 // Palete bağlı değil — bu ekranlar tek koyu temada tasarlandı.
 const lkStyles = StyleSheet.create({
+  statusRail: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18,
+    paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14,
+    borderWidth: 1, borderColor: LK.glassBorder,
+  },
+  statusRailIcon: {
+    width: 38, height: 38, borderRadius: 13, backgroundColor: LK.surfaceContainerHigh,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  statusRailTitle: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 13.5, flex: 1 },
+  statusRailMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statusRailDivider: { width: 3, height: 3, borderRadius: 2, backgroundColor: LK.outlineVariant, marginHorizontal: 2 },
+  statusRailMeta: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 11.5 },
+  statusTrack: { height: 4, borderRadius: 2, backgroundColor: LK.surfaceContainerHighest, marginTop: 8, overflow: 'hidden' },
+  statusFill: { height: 4, borderRadius: 2 },
   // Kütüphane / Kendi Programın: ne çerçeve ne gölge — sadece zemin tonu farkıyla ayrılıyorlar
   quickCard: {
     flex: 1, backgroundColor: LK.surfaceContainer, borderRadius: 18,
@@ -7453,27 +7521,32 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   miniBtnGhostText: { color: C.red, fontWeight: '700', fontSize: 14 },
 
   // ---- TOP BAR ----
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  topGreeting: { color: C.textSec, fontSize: 13 },
-  topName: { color: C.text, fontSize: 22, fontWeight: '800', marginTop: 2 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, minHeight: 66 },
+  topEyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  topEyebrowDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.lime,
+    shadowColor: C.lime, shadowOpacity: .8, shadowRadius: 7, shadowOffset: { width: 0, height: 0 } },
+  topGreeting: { color: C.lime, fontSize: 10.5, fontWeight: '800', letterSpacing: 1.7 },
+  topName: { color: C.text, fontSize: 25, fontWeight: '900', marginTop: 3, letterSpacing: -0.6 },
+  topContext: { color: C.textMuted, fontSize: 11.5, marginTop: 2 },
   avatar: { width: 46, height: 46, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
     shadowColor: C.lime, shadowOpacity: 0.45, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8 },
   avatarText: { color: '#0B0D12', fontWeight: '900', fontSize: 18 },
 
   // ---- BOTTOM TAB BAR ----
   tabBarOuter: {
-    flexDirection: 'row', alignItems: 'flex-end',
-    marginHorizontal: -16, paddingHorizontal: 8, paddingTop: 8,
-    backgroundColor: '#0A0A12',
-    borderTopWidth: 1, borderTopColor: 'rgba(255,159,28,0.18)',
-    shadowColor: '#FF9F1C', shadowOpacity: 0.12, shadowRadius: 24, shadowOffset: { width: 0, height: -6 }, elevation: 30,
+    flexDirection: 'row', alignItems: 'center',
+    marginHorizontal: -16, paddingHorizontal: 7, paddingTop: 7,
+    backgroundColor: 'rgba(18,21,28,0.98)',
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: -4 }, elevation: 30,
   },
-  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 6, gap: 3, minHeight: 56 },
+  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 4, gap: 2, minHeight: 48, borderRadius: 15 },
+  tabBtnActive: { backgroundColor: 'rgba(255,159,28,0.09)' },
   tabActivePill: { position: 'absolute', top: 0, width: 28, height: 3, borderRadius: 2, backgroundColor: C.orange },
   tabBtnText: { fontSize: 10, fontWeight: '600', color: C.textSec },
-  gymTabBtn: { flex: 1.3, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 6, gap: 3 },
+  gymTabBtn: { flex: 1.22, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 3, gap: 1 },
   gymTabCircle: {
-    width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', marginBottom: 2,
+    width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
     shadowColor: C.orange, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 12,
   },
 
@@ -7605,7 +7678,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   macroLabel2: { fontSize: 12, color: C.textMuted, marginTop: 3 },
 
   // ---- STATS ----
-  statsCard: { backgroundColor: C.surface, borderRadius: 20, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: C.border },
+  statsCard: { backgroundColor: C.surface, borderRadius: 22, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   statsTitle: { fontSize: 16, fontWeight: '800', color: C.text, marginBottom: 10 },
   statsSubtitle: { fontSize: 12.5, color: C.textMuted, marginBottom: 10, lineHeight: 17 },
   statsEmptyText: { fontSize: 13.5, color: C.textMuted, textAlign: 'center', paddingVertical: 6, lineHeight: 20 },
@@ -7616,11 +7689,34 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   pageDotActive: { backgroundColor: C.lime, width: 18 },
 
   // ---- PROFILE ----
-  profileHero: { alignItems: 'center', paddingVertical: 18, marginBottom: 8 },
+  profileHero: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 18, marginBottom: 14,
+    borderRadius: 26, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+  profileHeroGlow: { position: 'absolute', top: -68, width: 190, height: 150, borderRadius: 95,
+    backgroundColor: C.lime, opacity: .08, transform: [{ scaleX: 1.7 }] },
+  profileAvatarLarge: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.lime, borderWidth: 3, borderColor: C.surface2, marginBottom: 14,
+    shadowColor: C.lime, shadowOpacity: .26, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 8 },
+  profileAvatarImage: { width: 66, height: 66, borderRadius: 21 },
+  profileAvatarLetter: { color: '#0B0D12', fontWeight: '900', fontSize: 27 },
   profileAvatar: { width: 88, height: 88, borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 14, shadowColor: C.lime, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
   profileAvatarText: { color: '#0B0D12', fontWeight: '900', fontSize: 34 },
   profileName: { fontSize: 23, fontWeight: '800', color: C.text },
   profileEmail: { fontSize: 13.5, color: C.textMuted, marginTop: 4 },
+  analysisSwitcherWrap: { flexDirection: 'row', marginHorizontal: 16, marginTop: 8, marginBottom: 8,
+    backgroundColor: C.surface, borderRadius: 17, padding: 5, borderWidth: 1, borderColor: C.border },
+  analysisSwitcherButton: { flex: 1, gap: 7, paddingVertical: 11, alignItems: 'center', justifyContent: 'center',
+    borderRadius: 13, flexDirection: 'row' },
+  analysisSwitcherButtonActive: { backgroundColor: AZ_DARK.lime,
+    shadowColor: AZ_DARK.lime, shadowOpacity: .22, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 5 },
+  analysisCaptureCard: { borderRadius: 22, padding: 5, marginBottom: 16, borderWidth: 1, borderColor: AZ_DARK.glassBorder },
+  analysisCaptureEmpty: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: AZ_DARK.limeSoft30,
+    borderRadius: 18, paddingVertical: 34, paddingHorizontal: 20, alignItems: 'center' },
+  strengthIntroRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14,
+    backgroundColor: C.surface, borderRadius: 16, paddingVertical: 11, paddingHorizontal: 13, borderWidth: 1, borderColor: C.border },
+  strengthIntroIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: C.orange + '18',
+    alignItems: 'center', justifyContent: 'center' },
+  strengthIntroText: { flex: 1, color: C.textSec, fontSize: 12.5, lineHeight: 18 },
+  muscleMapCard: { marginBottom: 16, borderRadius: 26, padding: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
   statCardsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   statMiniCard: { flex: 1, backgroundColor: C.surface, borderRadius: 16, paddingVertical: 18, alignItems: 'center', borderWidth: 1, borderColor: C.border },
   statMiniValue: { fontSize: 20, fontWeight: '800', color: C.text, marginTop: 8 },
