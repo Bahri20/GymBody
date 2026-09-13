@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import useAppActivity from '../../hooks/useAppActivity';
 import ViewShot from 'react-native-view-shot';
 import { View, Text, StyleSheet, Alert, ActivityIndicator, FlatList, TextInput, TouchableOpacity, ScrollView, Dimensions, Modal, Image, KeyboardAvoidingView, Platform, Keyboard, PanResponder, Animated as RNAnimated, Easing, AccessibilityInfo, Share } from 'react-native';
 import * as Sharing from 'expo-sharing';
@@ -486,8 +487,8 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [monthlyDetailTier, setMonthlyDetailTier] = useState<string|null>(null);
   const [rankSentIds, setRankSentIds] = useState<string[]>([]);
-  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
+  const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [height, setHeight] = useState('');
@@ -982,6 +983,7 @@ export default function App() {
   const [newBadges, setNewBadges] = useState<{id: string; label: string}[]>([]);
 
   const [token, setToken] = useState<string | null>(null);
+  useAppActivity(token, API_URL);
   const [restoring, setRestoring] = useState(true); // açılışta otomatik giriş kontrolü
   const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
@@ -1951,25 +1953,6 @@ const handleCompleteDay = async (feedback?: string) => {
 
     setLoading(true);
     try {
-      if (isRegister) {
-        const payload: any = {
-          email: email.trim(),
-          password: password,
-          name: name.trim() || t('İsimsiz Sporcu'),
-          height: parseFloat(height) || 0,
-          weight: parseFloat(weight) || 0
-        };
-        if (referralCode.trim()) payload.referralCode = referralCode.trim();
-        const res = await axios.post(`${API_URL}/register`, payload);
-        const bonus = res.data.referralBonus;
-        const msg = bonus
-          ? t('Kayıt başarılı! {{coachName}} referansıyla %{{discountRate}} VIP indirimi kazandın! 🎉', { coachName: bonus.coachName, discountRate: bonus.discountRate })
-          : t('Kayıt başarılı kanka, şimdi giriş yapabilirsin!');
-        showToast(msg);
-        setIsRegister(false);
-        setReferralCode('');
-        setReferralBonus(null);
-      } else {
         const res = await axios.post(`${API_URL}/login`, {
           email: email.trim(),
           password: password
@@ -1978,14 +1961,13 @@ const handleCompleteDay = async (feedback?: string) => {
         setToken(res.data.token);
         await SecureStore.setItemAsync('userToken', res.data.token); // otomatik giriş için sakla
         registerPushToken(res.data.token);
-      }
     } catch (err: any) {
       console.log("🔥 AUTH HATASI:", err);
       const status = err.response?.status;
       const errorMsg = err.response?.data?.error || err.userMessage || err.message || t('Sunucuya bağlanılamadı kanka');
       // Giriş başarısız (hesap yok / silinmiş / şifre hatalı) → net, görünür uyarı
-      if (!isRegister && (status === 400 || status === 401)) {
-        Alert.alert(t('Giriş yapılamadı'), t('Böyle bir hesap bulunamadı veya şifre hatalı. Bilgileri kontrol et ya da yeni bir hesap oluştur.'));
+      if (status === 400 || status === 401) {
+        Alert.alert(t('Giriş yapılamadı'), t('Böyle bir hesap bulunamadı veya şifre hatalı. Bilgileri kontrol et ya da Google veya Apple ile devam et.'));
       } else {
         showToast(errorMsg, 'error');
       }
@@ -2297,6 +2279,7 @@ const pickAndUploadProfilePhoto = async () => {
           contentContainerStyle={styles.authScroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets
         >
           {/* Logo Rozeti */}
           <AnimatedLinearGradient
@@ -2309,101 +2292,12 @@ const pickAndUploadProfilePhoto = async () => {
           </AnimatedLinearGradient>
 
           <Text style={styles.authBrand}>GymBody<Text style={{ color: C.lime }}>AI</Text></Text>
-          <Text style={styles.authTitle}>{isRegister ? t('Aramıza Katıl') : t('Tekrar Hoş Geldin')}</Text>
+          <Text style={styles.authTitle}>{t('Her gün biraz daha güçlü.')}</Text>
           <Text style={styles.authSubtitle}>
-            {isRegister ? t('Hedeflerine giden yolculuk burada başlıyor.') : t('Formuna kaldığın yerden devam et.')}
+            {t('Antrenmanını planla. Gelişimini gör. Kendini aş.')}
           </Text>
 
           <View style={styles.authCard}>
-            {isRegister && (
-              <View style={styles.inputWrap}>
-                <Ionicons name="person-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.inputWithIcon}
-                  placeholder={t('İsim Soyisim')}
-                  placeholderTextColor={C.textMuted}
-                  value={name}
-                  onChangeText={setName}
-                />
-              </View>
-            )}
-
-            <View style={styles.inputWrap}>
-              <Ionicons name="mail-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
-              <TextInput
-                style={styles.inputWithIcon}
-                placeholder={t('E-posta')}
-                placeholderTextColor={C.textMuted}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <View style={styles.inputWrap}>
-              <Ionicons name="lock-closed-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
-              <TextInput
-                style={styles.inputWithIcon}
-                placeholder={t('Şifre')}
-                placeholderTextColor={C.textMuted}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-            </View>
-
-            {isRegister && (
-              <>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <View style={[styles.inputWrap, { flex: 0.48 }]}>
-                    <Ionicons name="resize-outline" size={18} color={C.textMuted} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.inputWithIcon}
-                      placeholder={t('Boy (cm)')}
-                      placeholderTextColor={C.textMuted}
-                      value={height}
-                      onChangeText={setHeight}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={[styles.inputWrap, { flex: 0.48 }]}>
-                    <Ionicons name="scale-outline" size={18} color={C.textMuted} style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.inputWithIcon}
-                      placeholder={t('Kilo (kg)')}
-                      placeholderTextColor={C.textMuted}
-                      value={weight}
-                      onChangeText={setWeight}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                </View>
-              </>
-            )}
-
-            {loading ? (
-              <ActivityIndicator size="large" color={C.lime} style={{ marginTop: 16 }} />
-            ) : (
-              <TouchableOpacity activeOpacity={0.85} onPress={handleAuth} style={{ marginTop: 6 }}>
-                <LinearGradient
-                  colors={[C.lime, C.limeDark]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.primaryBtn}
-                >
-                  <Text style={styles.primaryBtnText}>{isRegister ? t('KAYDOL') : t('GİRİŞ YAP')}</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#0B0D12" />
-                </LinearGradient>
-              </TouchableOpacity>
-            )}
-
-            {/* AYIRAÇ */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 18 }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: '#262C3A' }} />
-              <Text style={{ color: C.textMuted, marginHorizontal: 12, fontSize: 12 }}>{t('veya')}</Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: '#262C3A' }} />
-            </View>
 
             {/* GOOGLE İLE GİRİŞ */}
             <TouchableOpacity
@@ -2444,16 +2338,66 @@ const pickAndUploadProfilePhoto = async () => {
                 <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>{t('Apple ile devam et')}</Text>
               </TouchableOpacity>
             )}
+
+            <TouchableOpacity
+              onPress={() => setShowEmailLogin(!showEmailLogin)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showEmailLogin }}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 18, marginTop: 8 }}
+            >
+              <Ionicons name="mail-outline" size={18} color={C.textSec} />
+              <Text style={{ color: C.textSec, fontSize: 13, fontWeight: '600' }}>{t('Mevcut hesabınla giriş yap')}</Text>
+              <Ionicons name={showEmailLogin ? 'chevron-up' : 'chevron-down'} size={16} color={C.textSec} />
+            </TouchableOpacity>
+            {showEmailLogin && (
+              <View style={{ borderTopWidth: 1, borderTopColor: C.border, paddingTop: 18 }}>
+            <View style={styles.inputWrap}>
+              <Ionicons name="mail-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={styles.inputWithIcon}
+                placeholder={t('E-posta')}
+                placeholderTextColor={C.textMuted}
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.inputWrap}>
+              <Ionicons name="lock-closed-outline" size={20} color={C.textMuted} style={styles.inputIcon} />
+              <TextInput
+                style={styles.inputWithIcon}
+                placeholder={t('Şifre')}
+                placeholderTextColor={C.textMuted}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+              />
+            </View>
+
+
+            {loading ? (
+              <ActivityIndicator size="large" color={C.lime} style={{ marginTop: 16 }} />
+            ) : (
+              <TouchableOpacity activeOpacity={0.85} onPress={handleAuth} style={{ marginTop: 6 }}>
+                <LinearGradient
+                  colors={[C.lime, C.limeDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.primaryBtn}
+                >
+                  <Text style={styles.primaryBtnText}>{t('GİRİŞ YAP')}</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#0B0D12" />
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+
+
+              </View>
+            )}
           </View>
 
-          <TouchableOpacity onPress={() => setIsRegister(!isRegister)} style={{ marginTop: 22 }}>
-            <Text style={styles.switchText}>
-              {isRegister ? t('Zaten hesabım var · ') : t('Hesabın yok mu? ')}
-              <Text style={{ color: C.lime, fontWeight: '700' }}>
-                {isRegister ? t('Giriş Yap') : t('Yeni Hesap Aç')}
-              </Text>
-            </Text>
-          </TouchableOpacity>
         </ScrollView>
       </View>
     );
@@ -7530,17 +7474,17 @@ const makeStyles = (C: Palette) => StyleSheet.create({
 
   // ---- AUTH ----
   authRoot: { flex: 1, backgroundColor: C.bg },
-  authScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 26, paddingVertical: 60 },
+  authScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 64, maxWidth: 480, width: '100%', alignSelf: 'center' },
   logoBadge: {
-    width: 76, height: 76, borderRadius: 24, alignSelf: 'center',
+    width: 68, height: 68, borderRadius: 22, alignSelf: 'center',
     justifyContent: 'center', alignItems: 'center', marginBottom: 22,
     shadowColor: C.lime, shadowOpacity: 0.5, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 10,
   },
-  authBrand: { fontSize: 30, fontWeight: '900', textAlign: 'center', color: C.text, letterSpacing: 1 },
-  authTitle: { fontSize: 22, fontWeight: '800', textAlign: 'center', color: C.text, marginTop: 18 },
-  authSubtitle: { fontSize: 14, textAlign: 'center', color: C.textSec, marginTop: 6, marginBottom: 26, lineHeight: 20 },
+  authBrand: { fontSize: 22, fontWeight: '900', textAlign: 'center', color: C.text, letterSpacing: 0.5 },
+  authTitle: { fontSize: 38, lineHeight: 44, fontWeight: '800', textAlign: 'center', color: C.text, marginTop: 28, letterSpacing: -1.2 },
+  authSubtitle: { fontSize: 14, textAlign: 'center', color: C.textSec, marginTop: 14, marginBottom: 32, lineHeight: 22, paddingHorizontal: 16 },
   authCard: {
-    backgroundColor: C.surface, borderRadius: 22, padding: 18,
+    backgroundColor: C.surface, borderRadius: 26, padding: 20, paddingBottom: 6,
     borderWidth: 1, borderColor: C.border,
   },
   //TOKEN & STREAK KARTLARI

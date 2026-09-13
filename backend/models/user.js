@@ -17,6 +17,8 @@ const userSchema = new mongoose.Schema({
   tokens: { type: Number, default: 0 },
   streak: { type: Number, default: 0 },
   lastActivityDate: { type: Date },
+  // Last foreground app heartbeat; separate from workout/streak activity.
+  lastActiveAt: { type: Date, default: null },
   streakMilestonesClaimed: [{ type: Number }],
   beforeAfterClaimed: { type: Boolean, default: false },
   isVip: { type: Boolean, default: false },

@@ -951,6 +951,21 @@ app.delete('/delete-progress/:photoId', authMiddleware, async (req, res) => {
   }
 });
 // Otomatik giriş: token geçerliyse güncel kullanıcıyı döndür
+app.post('/activity', authMiddleware, async (req, res) => {
+  try {
+    // Server time, atomic throttle: concurrent devices cannot move time backwards.
+    const now = new Date();
+    await User.updateOne({
+      _id: req.userId,
+      $or: [{ lastActiveAt: null }, { lastActiveAt: { $lt: new Date(now.getTime() - 60000) } }],
+    }, { $max: { lastActiveAt: now } });
+    res.sendStatus(204);
+  } catch (err) {
+    console.error('Activity update failed:', err.message);
+    res.sendStatus(503);
+  }
+});
+
 app.get('/me', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');
