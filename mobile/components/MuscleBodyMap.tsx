@@ -90,10 +90,15 @@ export default function MuscleBodyMap({
       {MUSCLES.filter(m => m.view === side).map((muscle, index) => {
         const color = rankColors[ranks[muscle.key]];
         const selected = selectedMuscle === muscle.key;
+        const tierIndex = RANKS.findIndex(rank => rank.key === ranks[muscle.key]);
+        const glow = .045 + Math.max(0, tierIndex) * .015;
         const Shape = muscle.paired ? BodyPair : BodyPath;
         return <G key={`${muscle.key}-${index}`} onPress={onMusclePress ? () => onMusclePress(muscle.key) : undefined}
           accessibilityLabel={i18n.t(MUSCLE_NAMES[muscle.key])}>
-          {selected && <Shape d={muscle.d} fill="none" stroke={color || edge} strokeWidth={5} strokeOpacity={.1} pointerEvents="none" />}
+          {color && <G pointerEvents="none" fill="none" stroke={color} strokeLinejoin="round">
+            <Shape d={muscle.d} strokeWidth={7} strokeOpacity={glow * (selected ? 1.5 : 1)} />
+            <Shape d={muscle.d} strokeWidth={3.5} strokeOpacity={glow * (selected ? 2 : 1.4)} />
+          </G>}
           <Shape d={muscle.d} fill={fill(color ? rankGradient(ranks[muscle.key]) : 'neutral')}
             stroke={selected ? color || edge : color || strokeColor} strokeOpacity={selected ? 1 : .38} strokeWidth={selected ? 1.4 : .6} />
           <Shape d={muscle.d} fill="none" stroke={fill('shine')} strokeWidth={.9} pointerEvents="none" />

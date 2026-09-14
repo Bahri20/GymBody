@@ -8,8 +8,8 @@ const SIZE = 56;
 const KEY = 'mascot-position-v1';
 type Position = { side: 'left' | 'right'; fraction: number };
 
-export default function FloatingMascot({ source, color, onPress, label }: {
-  source: ImageSourcePropType; color: string; onPress: () => void; label: string;
+export default function FloatingMascot({ source, color, backgroundColor = '#202536', onPress, label }: {
+  source: ImageSourcePropType; color: string; backgroundColor?: string; onPress: () => void; label: string;
 }) {
   const insets = useSafeAreaInsets();
   const [layout, setLayout] = useState({ width: 0, height: 0 });
@@ -100,8 +100,8 @@ export default function FloatingMascot({ source, color, onPress, label }: {
         accessible accessibilityRole="button" accessibilityLabel={label}
         accessibilityActions={[{ name: 'activate' }]} onAccessibilityAction={() => onPress()}
         style={[offset.getLayout(), { position: 'absolute', width: SIZE, height: SIZE, borderRadius: SIZE / 2,
-          backgroundColor: color, alignItems: 'center', justifyContent: 'center', borderWidth: dragging ? 2 : 0,
-          borderColor: '#fff', transform: [{ scale: dragging ? 1.08 : 1 }],
+          backgroundColor, alignItems: 'center', justifyContent: 'center', borderWidth: dragging ? 2 : 1,
+          borderColor: dragging ? '#fff' : color + '55', transform: [{ scale: dragging ? 1.08 : 1 }],
           shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } }]}>
         <Image source={source} style={{ width: 44, height: 44 }} resizeMode="contain" />
       </Animated.View>}

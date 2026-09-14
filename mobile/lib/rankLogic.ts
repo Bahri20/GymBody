@@ -49,13 +49,14 @@ export const LIFTS: readonly Lift[] = [
 // tekrar-bazlı (kg değil) hareketler — computeRank'ta vücut ağırlığına bölünmez
 export const REP_BASED_LIFTS = new Set(['situp']);
 
+import { TIER_THEMES } from './tierTheme';
 export const RANKS = [
-  { key: 'bronz',  label: 'Bronz',  emoji: '🥉', color: '#CD7F32' },
-  { key: 'gumus',  label: 'Gümüş',  emoji: '⚪', color: '#C0C0C0' },
-  { key: 'altin',  label: 'Altın',  emoji: '🥇', color: '#FFD700' },
-  { key: 'platin', label: 'Platin', emoji: '💠', color: '#5BC8E0' },
-  { key: 'elmas',  label: 'Elmas',  emoji: '💎', color: '#9B6BFF' },
-  { key: 'efsane', label: 'Efsane', emoji: '🔥', color: '#EF4444' },
+  { key: 'bronz',  label: 'Bronz',  emoji: '🥉', color: TIER_THEMES.bronz.primaryColor },
+  { key: 'gumus',  label: 'Gümüş',  emoji: '⚪', color: TIER_THEMES.gumus.primaryColor },
+  { key: 'altin',  label: 'Altın',  emoji: '🥇', color: TIER_THEMES.altin.primaryColor },
+  { key: 'platin', label: 'Platin', emoji: '💠', color: TIER_THEMES.platin.primaryColor },
+  { key: 'elmas',  label: 'Elmas',  emoji: '💎', color: TIER_THEMES.elmas.primaryColor },
+  { key: 'efsane', label: 'Efsane', emoji: '🔥', color: TIER_THEMES.efsane.primaryColor },
 ] as const;
 
 // oran eşikleri [bronz, gümüş, altın, platin, elmas, efsane]

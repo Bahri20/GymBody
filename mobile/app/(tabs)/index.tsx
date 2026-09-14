@@ -23,6 +23,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Path, Ellipse, G, Circle, Defs, LinearGradient as SvgLinearGradient, RadialGradient, Stop, ClipPath, Rect } from 'react-native-svg';
 import MuscleBodyMap, { BODY_MAP_ASPECT_RATIO, MUSCLE_NAMES } from '../../components/MuscleBodyMap';
+import MuscleMapEffects from '../../components/MuscleMapEffects';
+import TierPreview from '../../components/TierPreview';
+import { getTierTheme } from '../../lib/tierTheme';
 import FloatingMascot from '../../components/FloatingMascot';
 import {
   LIFTS, REP_BASED_LIFTS, RANKS, STD, computeRank, normGender, genderKey,
@@ -173,6 +176,7 @@ const MASCOTS = {
   male: {
     key: 'male' as const,
     name: 'Gymbo',
+    backdrop: '#27213D',
     color: '#C6FF3D',
     colorDark: '#9FE000',
     onColor: '#0B0D12',
@@ -183,6 +187,7 @@ const MASCOTS = {
   female: {
     key: 'female' as const,
     name: 'Momo',
+    backdrop: '#152C43',
     color: '#FF9F1C',
     colorDark: '#E8890A',
     onColor: '#2A1500',
@@ -535,6 +540,7 @@ export default function App() {
   const nestedCarouselActive = useRef(false);
   const [gymTab, setGymTab] = useState<'program' | 'max'>('program');
   const [bodyMapView, setBodyMapView] = useState<'front' | 'back'>('front');
+  const [previewTier, setPreviewTier] = useState<number | null>(null);
   const [liftViewMode, setLiftViewMode] = useState<'cards' | 'list'>('list');
   // Satırdaki mini grafiğe dokununca açılan geçmiş paneli
   const [historyLiftKey, setHistoryLiftKey] = useState<string | null>(null);
@@ -2121,6 +2127,8 @@ const purchaseVip = async (packageId: string) => {
     }
     const pkg = offering.availablePackages.find(p => p.identifier === packageId);
     if (!pkg) { showToast(t('Paket bulunamadı'), 'error'); return; }
+    if (!user?._id) return;
+    await Purchases.logIn(String(user._id));
     const { customerInfo } = await Purchases.purchasePackage(pkg);
     if (customerInfo.entitlements.active['vip']) {
       await axios.post(`${API_URL}/revenuecat-webhook`, {
@@ -3930,11 +3938,12 @@ const pickAndUploadProfilePhoto = async () => {
             const selectedMuscleLabel = selectedMuscle ? t(MUSCLE_NAMES[selectedMuscle]) : null;
             const displayIdx = selectedMuscle ? computeMuscleRank(selectedMuscle, liftsData, bw, user?.gender) : bodyAvgIdx;
             const displayRank = displayIdx >= 0 ? RANKS[displayIdx] : null;
+            const tierTheme = getTierTheme(displayRank?.key);
             return (
               <LinearGradient
-                colors={[displayRank ? displayRank.color + '18' : C.surface2, C.surface, C.bgAlt]}
+                colors={[tierTheme?.backgroundGlow || C.surface2, C.surface, C.bgAlt]}
                 start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                style={styles.muscleMapCard}>
+                style={[styles.muscleMapCard, tierTheme ? { borderColor: tierTheme.primaryColor + '66' } : null]}>
                 <View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 1.2 }}>{t('KAS HARİTASI')}</Text>
@@ -3945,11 +3954,11 @@ const pickAndUploadProfilePhoto = async () => {
                     </TouchableOpacity>
                     <View style={{ flexDirection: 'row', backgroundColor: C.surface2, borderRadius: 20, padding: 3 }}>
                       <TouchableOpacity onPress={() => setBodyMapView('front')}
-                        style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: bodyMapView === 'front' ? C.orange : 'transparent' }}>
+                        style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: bodyMapView === 'front' ? tierTheme?.primaryColor || C.orange : 'transparent' }}>
                         <Text style={{ fontSize: 11.5, fontWeight: '800', color: bodyMapView === 'front' ? '#0B0D12' : C.textMuted }}>{t('Ön')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => setBodyMapView('back')}
-                        style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: bodyMapView === 'back' ? C.orange : 'transparent' }}>
+                        style={{ paddingVertical: 5, paddingHorizontal: 12, borderRadius: 16, backgroundColor: bodyMapView === 'back' ? tierTheme?.primaryColor || C.orange : 'transparent' }}>
                         <Text style={{ fontSize: 11.5, fontWeight: '800', color: bodyMapView === 'back' ? '#0B0D12' : C.textMuted }}>{t('Arka')}</Text>
                       </TouchableOpacity>
                     </View>
@@ -3964,7 +3973,9 @@ const pickAndUploadProfilePhoto = async () => {
                       const dotSize = 5 + i * 1.7;
                       return (
                         <TouchableOpacity key={r.key} accessibilityRole="button" accessibilityLabel={t(r.label)}
-                          onPress={() => Alert.alert(t(r.label), t('Kas renkleri kayıtlı hareketlerinin ortalama rankını gösterir. Gri bölgelerde henüz rank yok. Bir kasa dokunarak hareketlerini ve seviyesini görebilirsin.'))}
+                          onPressIn={() => setPreviewTier(i)}
+                          onPressOut={() => setPreviewTier(null)}
+                          accessibilityHint={t('Önizlemek için basılı tut')}
                           style={{ flex: 1, alignItems: 'center', gap: 4, paddingVertical: 6 }}>
                         <View style={{
                           width: isCurrent ? dotSize + 5 : dotSize, height: isCurrent ? dotSize + 5 : dotSize,
@@ -3980,25 +3991,9 @@ const pickAndUploadProfilePhoto = async () => {
                   {(() => {
                     const mapWidth = Math.min(190, Dimensions.get('window').width * 0.46);
                     const mapHeight = mapWidth * BODY_MAP_ASPECT_RATIO;
-                    // rank yükseldikçe arkadaki bloom büyür ve belirginleşir (bronz en soluk, efsane en parlak)
-                    const screenW = Dimensions.get('window').width;
-                    // Bloom artık kartla sınırlı değil — sayfa payının dışına taşıp kenarlarda sönümleniyor
-                    const glowSize = displayRank ? Math.min(screenW * 1.1, mapWidth * (1.9 + displayIdx * 0.18)) : 0;
-                    const glowCoreOpacity = displayRank ? 0.18 + displayIdx * 0.07 : 0;
                     return (
                       <View style={{ marginHorizontal: -16, alignItems: 'center', justifyContent: 'center' }}>
-                        {displayRank && (
-                          <Svg width={glowSize} height={glowSize} style={{ position: 'absolute', top: mapHeight / 2 - glowSize / 2, alignSelf: 'center' }} pointerEvents="none">
-                            <Defs>
-                              <RadialGradient id={`muscleGlow-${displayRank.key}`} cx="50%" cy="50%" r="50%">
-                                <Stop offset="0%" stopColor={displayRank.color} stopOpacity={glowCoreOpacity} />
-                                <Stop offset="45%" stopColor={displayRank.color} stopOpacity={glowCoreOpacity * 0.55} />
-                                <Stop offset="100%" stopColor={displayRank.color} stopOpacity={0} />
-                              </RadialGradient>
-                            </Defs>
-                            <Circle cx={glowSize / 2} cy={glowSize / 2} r={glowSize / 2} fill={`url(#muscleGlow-${displayRank.key})`} />
-                          </Svg>
-                        )}
+                        {tierTheme && <MuscleMapEffects width={mapWidth * 1.8} height={mapHeight} theme={tierTheme} />}
                         <View style={{ width: mapWidth, height: mapHeight }} {...muscleMapPanResponder.panHandlers}>
                         <MuscleBodyMap gender={user?.gender}
                           width={mapWidth}
@@ -4015,6 +4010,7 @@ const pickAndUploadProfilePhoto = async () => {
                           onMusclePress={(key) => setSelectedMuscle((prev) => (prev === key ? null : key))}
                         />
                         </View>
+                        {previewTier !== null && <TierPreview index={previewTier} gender={user?.gender} view={bodyMapView} />}
                       </View>
                     );
                   })()}
@@ -6158,7 +6154,7 @@ const pickAndUploadProfilePhoto = async () => {
       </Modal>
 
       {/* AI SOHBET MODAL */}
-      <FloatingMascot source={mascotFor(user?.gender).avatar} color={mascotFor(user?.gender).color}
+      <FloatingMascot source={mascotFor(user?.gender).avatar} color={mascotFor(user?.gender).color} backgroundColor={mascotFor(user?.gender).backdrop}
         label={t('AI sohbetini aç')} onPress={() => setChatVisible(true)} />
       <Modal visible={chatVisible} transparent animationType="slide" onRequestClose={() => { Keyboard.dismiss(); setChatVisible(false); }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
@@ -6166,7 +6162,7 @@ const pickAndUploadProfilePhoto = async () => {
           <View style={{ backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1, borderColor: C.border, maxHeight: '80%', minHeight: '60%', flexDirection: 'column' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: C.border }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: mascotFor(user?.gender).backdrop, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   <Image source={mascotFor(user?.gender).avatar}
                     style={{ width: 32, height: 32 }} resizeMode="contain" />
                 </View>
@@ -6182,8 +6178,10 @@ const pickAndUploadProfilePhoto = async () => {
             <ScrollView ref={chatScrollRef} style={{ flex: 1, padding: 16 }} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
               {chatMessages.length === 0 && (
                 <View style={{ alignItems: 'center', paddingTop: 20, gap: 8 }}>
-                  <Image source={mascotFor(user?.gender).wave}
-                    style={{ width: 130, height: 97 }} resizeMode="contain" />
+                  <View style={{ backgroundColor: mascotFor(user?.gender).backdrop, borderRadius: 28, paddingHorizontal: 14, paddingVertical: 8 }}>
+                    <Image source={mascotFor(user?.gender).wave}
+                      style={{ width: 130, height: 97 }} resizeMode="contain" />
+                  </View>
                   <Text style={{ color: C.textSec, textAlign: 'center', lineHeight: 20 }}>
                     {t('Selam, ben {{mascot}}! Antrenman, beslenme veya hedeflerin hakkında her şeyi sorabilirsin.', { mascot: mascotFor(user?.gender).name })}
                   </Text>
@@ -6929,7 +6927,14 @@ const pickAndUploadProfilePhoto = async () => {
                         <Ionicons name="barbell" size={15} color={rank.color} />
                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 3 }}>GYMBODY<Text style={{ color: C.lime }}>AI</Text></Text>
                       </View>
-                      <View style={{ marginTop: 14 }}>
+                      <Text style={{ color: '#FFFFFF', fontSize: 23, fontWeight: '900', marginTop: 18 }}>{t('Gücümün haritası')}</Text>
+                      <View style={{ marginTop: 14, width: 270 }}>
+                        <View pointerEvents="none" style={{ position: 'absolute', left: 0, width: 135, height: 250 }}>
+                          <MuscleMapEffects width={135} height={250} theme={getTierTheme(rank.key)!} animate={false} />
+                        </View>
+                        <View pointerEvents="none" style={{ position: 'absolute', left: 135, width: 135, height: 250 }}>
+                          <MuscleMapEffects width={135} height={250} theme={getTierTheme(rank.key)!} animate={false} />
+                        </View>
                         <MuscleBodyMap gender={user?.gender}
                           width={270}
                           view="both"
