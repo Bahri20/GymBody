@@ -35,6 +35,7 @@ const { GoogleGenAI } = require('@google/genai');
 const { OAuth2Client } = require('google-auth-library');
 const googleClient = new OAuth2Client();
 const axios = require('axios');
+const telegram = require('./services/telegram');
 
 // Ödüllü reklam: VIP hariç, günde max 3, her izleme 5 token (200'lük VIP'e reklamla kolay ulaşılamaz)
 const AD_DAILY_CAP = 3;
@@ -441,6 +442,8 @@ app.post('/register', async (req, res) => {
       coachVipGrantedBy: coachVipDays ? coach._id : undefined
     });
 
+    await telegram.notifySignup(newUser, 'E-posta');
+
     // Koçun referred listesine ekle
     if (coach) {
       await Coach.findByIdAndUpdate(coach._id, {
@@ -554,6 +557,7 @@ app.post('/google-login', async (req, res) => {
         isVip: true, vipExpiresAt,
       });
       isNew = true;
+      await telegram.notifySignup(user, 'Google');
       console.log("👤 Google ile yeni kullanıcı:", name);
     } else if (!user.googleId) {
       // Mevcut e-posta hesabını Google'a bağla
@@ -610,6 +614,7 @@ app.post('/apple-login', async (req, res) => {
         isVip: true, vipExpiresAt,
       });
       isNew = true;
+      await telegram.notifySignup(user, 'Apple');
       console.log("👤 Apple ile yeni kullanıcı:", name);
     } else if (!user.appleId) {
       user.appleId = appleId; // mevcut hesabı Apple'a bağla
@@ -2109,6 +2114,26 @@ app.post('/ai-chat', authMiddleware, async (req, res) => {
 
 // ==================== REVENUECAT IAP WEBHOOK ====================
 
+// Server-to-server events only; separate from the legacy mobile VIP sync route.
+app.post('/integrations/revenuecat', async (req, res) => {
+  if (!telegram.authorized(req.get('Authorization'), process.env.REVENUECAT_WEBHOOK_SECRET)) {
+    return res.status(401).json({ error: 'Yetkisiz.' });
+  }
+  const event = req.body?.event;
+  if (!event || typeof event.id !== 'string') return res.status(400).json({ error: 'Geçersiz olay.' });
+  if (!telegram.paidEvent(event)) return res.json({ ok: true, ignored: true });
+  try {
+    const ids = [event.app_user_id, event.original_app_user_id, ...(Array.isArray(event.aliases) ? event.aliases : [])]
+      .filter(id => typeof id === 'string' && /^[a-f0-9]{24}$/i.test(id));
+    const user = ids.length ? await User.findOne({ _id: { $in: ids } }, 'name') : null;
+    await telegram.deliverOnce(`purchase:${event.id}`, telegram.purchaseMessage(event, user));
+    res.json({ ok: true });
+  } catch {
+    console.warn('Telegram abonelik bildirimi başarısız; RevenueCat yeniden deneyecek');
+    res.status(503).json({ error: 'Bildirim geçici olarak gönderilemedi.' });
+  }
+});
+
 app.post('/revenuecat-webhook', authMiddleware, async (req, res) => {
   try {
     const { entitlement, expiresAt } = req.body;
@@ -3086,6 +3111,15 @@ app.post('/admin/login', async (req, res) => {
   }
 });
 
+app.post('/admin/telegram/test', adminMiddleware, async (req, res) => {
+  try {
+    await telegram.sendTelegram('✅ GymBody bildirim bağlantısı çalışıyor. Bu bir test mesajıdır.');
+    res.json({ ok: true });
+  } catch {
+    res.status(503).json({ error: 'Telegram ayarlarını ve bot sohbetini kontrol et.' });
+  }
+});
+
 function adminMiddleware(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: "Yetkisiz." });
@@ -3409,6 +3443,8 @@ async function runMonthlyBadgeJob() {
 // Cloud Run gibi istek dışında uyuyan ortamlarda node-cron çalışamaz;
 // orada DISABLE_NODE_CRON=1 verilir ve görevleri Cloud Scheduler tetikler.
 if (process.env.DISABLE_NODE_CRON !== '1') {
+  cron.schedule('*/5 * * * *', () => telegram.retryPending().catch(() => console.warn('Telegram tekrar gönderimi başarısız')));
+
   cron.schedule('0 20 * * *', () =>
     runStreakReminderJob().catch(err => console.error('Streak cron hatası:', err.message)),
     { timezone: 'Europe/Istanbul' });
@@ -3424,6 +3460,7 @@ if (process.env.DISABLE_NODE_CRON !== '1') {
 
 // Harici zamanlayıcı endpoint'i — sadece CRON_SECRET bilenler tetikleyebilir
 const CRON_JOBS = {
+  'telegram-notifications': telegram.retryPending,
   'streak-reminder': runStreakReminderJob,
   'weekly-summary': runWeeklySummaryJob,
   'monthly-badges': runMonthlyBadgeJob

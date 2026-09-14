@@ -7,77 +7,33 @@
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #f0f0f0; min-height: 100vh; }
-
-    .header { display: flex; align-items: center; justify-content: space-between; padding: 18px 32px; border-bottom: 1px solid #1e1e1e; }
-    .logo { font-size: 18px; font-weight: 800; }
-    .logo span { color: #f97316; }
-    .logo em { font-style: normal; font-size: 12px; background: #f97316; color: white; padding: 2px 7px; border-radius: 4px; margin-left: 8px; vertical-align: middle; }
-    .logout-btn { background: none; border: 1px solid #333; color: #aaa; padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; }
-    .logout-btn:hover { border-color: #f97316; color: #f97316; }
-
-    /* GİRİŞ */
-    #loginScreen { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 57px); }
-    .login-card { background: #161616; border: 1px solid #222; border-radius: 20px; padding: 40px; width: 100%; max-width: 380px; }
-    .login-card h2 { font-size: 20px; margin-bottom: 6px; }
-    .login-card p { color: #666; font-size: 13px; margin-bottom: 28px; }
-    label { display: block; font-size: 12px; color: #777; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
-    input, select { width: 100%; background: #111; border: 1px solid #222; border-radius: 10px; padding: 11px 14px; color: #f0f0f0; font-size: 14px; margin-bottom: 14px; outline: none; }
-    input:focus, select:focus { border-color: #f97316; }
-    .btn-primary { width: 100%; background: #f97316; color: white; border: none; border-radius: 10px; padding: 13px; font-size: 14px; font-weight: 700; cursor: pointer; }
-    .btn-primary:hover { opacity: 0.9; }
-    .err { color: #f87171; font-size: 12px; margin-top: -10px; margin-bottom: 12px; }
-
-    /* PANEL */
-    #panel { display: none; padding: 32px; max-width: 1200px; margin: 0 auto; }
-
-    /* HOCA EKLE KARTI */
-    .add-card { background: #161616; border: 1px solid #222; border-radius: 16px; padding: 28px; margin-bottom: 32px; }
-    .add-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
-    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
-    .form-group { display: flex; flex-direction: column; }
-    .form-group input, .form-group select { margin-bottom: 0; }
-    .btn-add { background: #f97316; color: white; border: none; border-radius: 10px; padding: 11px 24px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; align-self: flex-end; }
-    .btn-add:hover { opacity: 0.9; }
-
-    /* HOCA LİSTESİ */
-    .coaches-card { background: #161616; border: 1px solid #222; border-radius: 16px; overflow: hidden; }
-    .coaches-card-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid #1e1e1e; }
-    .coaches-card-header h3 { font-size: 16px; font-weight: 700; }
-    .count-badge { background: #1e1e1e; border: 1px solid #2a2a2a; color: #aaa; font-size: 12px; padding: 4px 10px; border-radius: 20px; }
-
-    table { width: 100%; border-collapse: collapse; }
-    th { background: #111; font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; padding: 11px 20px; text-align: left; }
-    td { padding: 14px 20px; font-size: 14px; border-top: 1px solid #1a1a1a; vertical-align: middle; }
-    tr:hover td { background: #161616; }
-
-    .code-chip { display: inline-block; background: #1e1e1e; border: 1px solid #2a2a2a; color: #f97316; font-weight: 700; font-size: 12px; padding: 3px 10px; border-radius: 6px; letter-spacing: 0.5px; }
-    .active-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4ade80; margin-right: 6px; }
-    .inactive-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #555; margin-right: 6px; }
-
-    .action-row { display: flex; gap: 8px; }
-    .btn-edit { background: none; border: 1px solid #333; color: #aaa; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-size: 12px; }
-    .btn-edit:hover { border-color: #f97316; color: #f97316; }
-    .btn-delete { background: none; border: 1px solid #333; color: #aaa; padding: 5px 12px; border-radius: 7px; cursor: pointer; font-size: 12px; }
-    .btn-delete:hover { border-color: #f87171; color: #f87171; }
-
-    .empty-state { text-align: center; padding: 48px; color: #444; font-size: 14px; }
-
-    /* MODAL */
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
-    .modal-overlay.show { display: flex; }
-    .modal { background: #161616; border: 1px solid #2a2a2a; border-radius: 16px; padding: 28px; width: 100%; max-width: 440px; }
-    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
-    .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
-    .btn-cancel { flex: 1; background: none; border: 1px solid #333; color: #aaa; border-radius: 10px; padding: 11px; cursor: pointer; font-size: 14px; }
-    .btn-save { flex: 2; background: #f97316; color: white; border: none; border-radius: 10px; padding: 11px; font-weight: 700; cursor: pointer; font-size: 14px; }
-
-    /* TOAST */
-    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 12px 18px; font-size: 14px; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none; z-index: 999; }
-    .toast.show { opacity: 1; transform: translateY(0); }
-    .toast.success { border-color: #4ade80; color: #4ade80; }
-    .toast.error { border-color: #f87171; color: #f87171; }
+    :root{color-scheme:dark;--bg:#0c1017;--surface:#141b25;--line:#273140;--muted:#a0adbf;--text:#edf2f8;--accent:#c6f56a}
+    *{box-sizing:border-box;margin:0;padding:0}html{scroll-behavior:smooth;scroll-padding-top:100px}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+    button,input,select{font:inherit}button,a,input,select{ -webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{opacity:.55;cursor:wait}
+    :focus-visible{outline:2px solid var(--accent);outline-offset:4px}a{color:inherit;text-decoration:none}
+    .header{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 4vw;background:#0c1017ed;backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+    .logo{font-size:21px;letter-spacing:-.7px;font-weight:850}.logo span{color:var(--accent)}.logo em{display:inline-block;font-style:normal;font-size:10px;letter-spacing:1.4px;color:var(--muted);margin-left:14px;border-left:1px solid var(--line);padding-left:14px;vertical-align:middle}
+    .logout-btn,.btn-edit,.btn-delete,.btn-cancel,.btn-secondary{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:9px 14px;font-size:13px;transition:background .15s,color .15s}
+    button:hover{filter:brightness(1.12)}.logout-btn:hover,.btn-edit:hover,.btn-secondary:hover{background:#263142;color:var(--text)}.btn-delete:hover{color:#ff9b9b;border-color:#ad5757}
+    #loginScreen{display:flex;align-items:center;justify-content:center;min-height:calc(100dvh - 80px);padding:28px;background:radial-gradient(ellipse at 50% 25%,#273b2838,transparent 60%)}
+    .login-card{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:40px;width:100%;max-width:420px;box-shadow:0 24px 70px #0004}.login-card h2{font-size:28px;letter-spacing:-1px;margin:16px 0 8px}.login-card p{color:var(--muted);font-size:14px;margin-bottom:28px}
+    .eyebrow{font-size:10px;color:var(--accent);font-weight:750;letter-spacing:2px;text-transform:uppercase}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:7px}input,select{width:100%;min-width:0;background:#0e141e;border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;margin-bottom:16px;outline:none}input::placeholder{color:#748297}input:focus,select:focus{border-color:var(--accent)}
+    .btn-primary,.btn-add,.btn-save{background:var(--accent);color:#18220d;border:0;border-radius:10px;padding:12px 20px;font-size:13px;font-weight:750}.btn-primary{width:100%}.btn-add{white-space:nowrap;align-self:flex-end}.err{color:#ff9b9b;font-size:13px;margin:0 0 12px}
+    #panel{display:none;padding:40px 4vw 70px;max-width:1480px;margin:auto}main{min-width:0}.panel-layout{display:grid;grid-template-columns:180px minmax(0,1fr);gap:36px}.sidebar{position:sticky;top:114px;align-self:start}.sidebar .eyebrow{color:#6f8097;padding:0 12px;margin-bottom:18px}.sidebar a{display:block;padding:11px 12px;border-radius:10px;color:var(--muted);font-size:13px;margin:4px 0}.sidebar a:hover{background:var(--surface);color:var(--accent)}.sidebar a:first-of-type{background:#c6f56a12;color:var(--accent)}.sidebar small{display:block;margin:32px 12px;color:#718095;font-size:11px;line-height:1.8}
+    .hero{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:26px}.hero h1{font-size:34px;font-weight:750;letter-spacing:-1.2px;margin:7px 0}.hero p{color:var(--muted);font-size:14px}.hero-actions{display:flex;gap:10px;align-items:center}.hero-actions a{display:inline-block}
+    .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:26px}.metric{background:linear-gradient(145deg,#1b2431,#141b25);border:1px solid var(--line);border-radius:16px;padding:20px}.metric span{display:block;color:var(--muted);font-size:12px}.metric strong{display:block;font-size:30px;font-weight:650;letter-spacing:-1px;margin:8px 0 3px}.metric small{color:#8190a4;font-size:11px}.metric:first-child strong{color:var(--accent)}
+    .add-card,.coaches-card{background:var(--surface);border:1px solid var(--line);border-radius:18px;margin-bottom:24px;min-width:0}.add-card{padding:24px}.add-card h3,.coaches-card-header h3{font-size:16px;font-weight:650;letter-spacing:-.2px}.add-card h3{margin-bottom:20px}.section-sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:18px}.form-group{display:flex;flex-direction:column}.form-group input,.form-group select{margin:0}.coaches-card{overflow:hidden}.coaches-card-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:22px 24px;border-bottom:1px solid var(--line)}.count-badge{background:#202b39;color:#b8c7da;font-size:11px;padding:5px 10px;border-radius:8px;white-space:nowrap}
+    .table-tools{display:flex;gap:10px;padding:16px 24px;background:#111923}.table-tools input,.table-tools select{margin:0}.table-tools input{flex:1}.table-tools select{width:145px}.table-scroll{overflow:auto;overscroll-behavior-x:contain}table{width:100%;border-collapse:collapse;white-space:nowrap}th{background:#111923;font-size:10px;font-weight:600;color:#8494aa;text-transform:uppercase;letter-spacing:.8px;padding:13px 18px;text-align:left}td{padding:18px;font-size:13px;border-top:1px solid #202a38;vertical-align:middle}tr:hover td{background:#1a2432}.person-email{font-size:11px;color:#91a1b8;margin-top:4px}.code-chip{display:inline-block;background:#c6f56a0c;border:1px solid #c6f56a20;color:#c6e89a;font-weight:600;font-size:11px;padding:4px 8px;border-radius:6px;letter-spacing:.3px}.active-dot,.inactive-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#7ce3a2;margin-right:6px}.inactive-dot{background:#64748b}.action-row{display:flex;gap:6px}.btn-edit,.btn-delete{font-size:11px;padding:7px 10px}.empty-state{text-align:center;padding:38px 20px;color:var(--muted);font-size:13px}
+    details>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:650}details>summary::-webkit-details-marker{display:none}details>summary:after{content:'+';font-size:22px;color:var(--accent)}details[open]>summary:after{content:'−'}details[open]>summary{margin-bottom:24px}
+    .notification-card{display:flex;align-items:center;justify-content:space-between;gap:20px;border-color:#3b4b36;background:linear-gradient(115deg,#1b2921,var(--surface))}.notification-card h3{margin-bottom:5px}.notification-card p{font-size:13px;color:var(--muted);max-width:500px}.notification-card button{flex-shrink:0}
+    .modal-overlay{display:none;position:fixed;inset:0;background:#050810bb;backdrop-filter:blur(8px);z-index:100;align-items:center;justify-content:center;padding:20px}.modal-overlay.show{display:flex}.modal{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:28px;width:100%;max-width:480px;max-height:90dvh;overflow:auto}.modal h3{font-size:20px;margin-bottom:22px}.modal-actions{display:flex;gap:10px;margin-top:20px}.btn-cancel{flex:1}.btn-save{flex:2}.toast{position:fixed;bottom:24px;right:24px;max-width:calc(100vw - 40px);background:#1b2635;border:1px solid var(--line);border-radius:12px;padding:14px 20px;font-size:13px;opacity:0;transform:translateY(10px);transition:all .2s;pointer-events:none;z-index:999}.toast.show{opacity:1;transform:translateY(0)}.toast.success{border-color:#7ce3a2;color:#a3edbd}.toast.error{border-color:#d66d79;color:#ffadb5}#supportThreads>div{background:#101822}#supportThreads input{margin:0}#supportThreads>div>div:first-child{flex-wrap:wrap}
+    @media(max-width:1100px){.panel-layout{grid-template-columns:1fr}.sidebar{display:flex;gap:6px;position:static;overflow:auto}.sidebar .eyebrow,.sidebar small{display:none}.sidebar a{white-space:nowrap}.hero h1{font-size:30px}}
+    @media(max-width:600px){.header{padding:16px 20px}.logo{font-size:19px}.logo em{font-size:9px;margin-left:8px;padding-left:8px}#panel{padding:16px 16px 40px}.panel-layout{gap:20px}.hero{align-items:flex-start;flex-direction:column}.hero h1{font-size:29px}.hero-actions{width:100%}.hero-actions .btn-add{flex:1;text-align:center}.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{padding:16px}.metric strong{font-size:27px}.add-card{padding:20px}.coaches-card-header,.table-tools{padding:16px}.form-grid{grid-template-columns:1fr}.notification-card{align-items:flex-start;flex-direction:column}.notification-card button{width:100%}.login-card{padding:28px}.modal-overlay{padding:10px}.modal{padding:22px}.table-tools select{width:115px}.sidebar a{padding:9px;font-size:12px}}
+    @media(max-width:600px){#coachSection table,#coachSection tbody,#coachSection tr{display:block;white-space:normal}#coachSection thead{display:none}#coachSection tr{padding:14px 16px;border-top:1px solid var(--line)}#coachSection tr[hidden]{display:none}#coachSection td{display:grid;grid-template-columns:85px minmax(0,1fr);gap:12px;border:0;padding:7px 0;overflow-wrap:anywhere}#coachSection td:before{content:attr(data-label);color:var(--muted);font-size:11px;font-weight:500}#coachSection td:first-child{display:block;padding-bottom:12px}#coachSection td:first-child:before{display:none}#coachSection .code-chip{justify-self:start}#coachSection td:nth-child(8){display:block}#coachSection td:nth-child(8):before{display:inline-block;width:97px}.table-tools select{width:132px}#promoSection .form-group:last-child label{display:none}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
   </style>
 </head>
 <body>
@@ -90,12 +46,11 @@
 <!-- GİRİŞ -->
 <div id="loginScreen">
   <div class="login-card">
-    <h2>🔐 Admin Girişi</h2>
-    <p>Sadece yetkili kişiler girebilir.</p>
-    <label>E-posta</label>
-    <input type="email" id="adminEmail" placeholder="admin@email.com" />
-    <label>Şifre</label>
-    <input type="password" id="adminPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" />
+    <div class="eyebrow">GYMBODY YÖNETİM</div><h2>Tekrar hoş geldin.</h2><p>Ekibini ve topluluğunu tek yerden yönet.</p>
+    <label for="adminEmail">E-posta</label>
+    <input autocomplete="username" type="email" id="adminEmail" placeholder="admin@email.com" />
+    <label for="adminPassword">Şifre</label>
+    <input autocomplete="current-password" type="password" id="adminPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()" />
     <div class="err" id="loginErr"></div>
     <button class="btn-primary" onclick="doLogin()">Giriş Yap</button>
   </div>
@@ -103,10 +58,20 @@
 
 <!-- PANEL -->
 <div id="panel">
+  <div class="panel-layout">
+    <nav class="sidebar" aria-label="Yönetim bölümleri"><div class="eyebrow">ÇALIŞMA ALANI</div><a href="#overview">Genel bakış</a><a href="#coachSection">Hocalar</a><a href="#promoSection">VIP kodları</a><a href="#supportSection">Destek kutusu</a><a href="#notifications">Bildirimler</a><small>GymBodyAI<br>Yönetim merkezi</small></nav>
+    <main>
+    <div class="hero" id="overview"><div><div class="eyebrow">KONTROL SENDE</div><h1>Yönetim merkezi</h1><p>Ekibin, kampanyaların ve gelen mesajların.</p></div><div class="hero-actions"><button class="btn-secondary" onclick="loadPanel()">Yenile</button><a class="btn-add" href="#addCoach" onclick="document.getElementById('addCoach').open=true">+ Hoca ekle</a></div></div>
+    <div class="metrics" aria-label="Yönetim özeti">
+      <div class="metric"><span>Kayıtlı hoca</span><strong id="statCoaches">—</strong><small>Ekibindeki tüm hocalar</small></div>
+      <div class="metric"><span>Aktif hoca</span><strong id="statActive">—</strong><small>Hesabı kullanıma açık</small></div>
+      <div class="metric"><span>Aktif VIP kodu</span><strong id="statPromos">—</strong><small>Kullanıma açık kampanyalar</small></div>
+      <div class="metric"><span>Okunmamış mesaj</span><strong id="statUnread">—</strong><small>Destek kutusunda bekleyen</small></div>
+    </div>
 
   <!-- HOCA EKLE -->
-  <div class="add-card">
-    <h3>➕ Yeni Hoca Ekle</h3>
+  <details class="add-card" id="addCoach">
+    <summary>Yeni hoca oluştur</summary>
     <div class="form-grid">
       <div class="form-group">
         <label>Ad Soyad</label>
@@ -150,19 +115,20 @@
         <button class="btn-add" onclick="addCoach()">Hoca Ekle</button>
       </div>
     </div>
-  </div>
+  </details>
 
   <!-- HOCA LİSTESİ -->
-  <div class="coaches-card">
+  <div class="coaches-card" id="coachSection">
     <div class="coaches-card-header">
-      <h3>Kayıtlı Hocalar</h3>
+      <div><h3>Hocalar</h3><p class="section-sub">Hesaplar, referanslar ve komisyonlar.</p></div>
       <span class="count-badge" id="coachCount">0 hoca</span>
     </div>
-    <table>
+    <div class="table-tools"><input id="coachSearch" type="search" aria-label="Hoca ara" placeholder="İsim, e-posta veya kod ara…" oninput="filterCoaches()"><select id="coachFilter" aria-label="Hoca durumu" onchange="filterCoaches()"><option value="all">Tüm durumlar</option><option value="active">Aktif</option><option value="inactive">Pasif</option></select></div>
+    <div class="table-scroll"><table>
       <thead>
         <tr>
           <th>Ad Soyad</th>
-          <th>Referral Kodu</th>
+          <th>Referans</th>
           <th>Salon</th>
           <th>Komisyon</th>
           <th>Hediye VIP</th>
@@ -173,13 +139,13 @@
         </tr>
       </thead>
       <tbody id="coachesBody"></tbody>
-    </table>
+    </table></div>
     <div class="empty-state" id="emptyState" style="display:none">Henüz hoca eklenmedi.</div>
   </div>
 
   <!-- PROMO KOD -->
-  <div class="add-card" style="margin-top:32px">
-    <h3>🎁 VIP Promo Kodları</h3>
+  <div class="add-card" id="promoSection">
+    <h3>VIP kampanya kodları</h3>
     <div class="form-grid" style="margin-bottom:20px">
       <div class="form-group">
         <label>Kod</label>
@@ -195,7 +161,7 @@
       </div>
     </div>
 
-    <table>
+    <div class="table-scroll"><table>
       <thead>
         <tr>
           <th>Kod</th>
@@ -206,21 +172,24 @@
         </tr>
       </thead>
       <tbody id="promosBody"></tbody>
-    </table>
+    </table></div>
     <div class="empty-state" id="promosEmpty" style="display:none">Henüz promo kod oluşturulmadı.</div>
   </div>
 
   <!-- HOCA MESAJLARI -->
-  <div class="add-card" style="margin-top:32px">
-    <h3>💬 Hoca Mesajları <span id="supportUnread" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 8px;font-size:12px;margin-left:6px"></span></h3>
+  <div class="add-card" id="supportSection">
+    <h3>Destek kutusu <span id="supportUnread" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 8px;font-size:12px;margin-left:6px"></span></h3>
     <div id="supportThreads" style="display:flex;flex-direction:column;gap:12px;margin-top:14px"></div>
     <div class="empty-state" id="supportEmpty" style="display:none">Henüz mesaj yok.</div>
+  </div>
+  <div class="add-card notification-card" id="notifications"><div><h3>Telegram bildirimleri</h3><p>Yeni üyeler ve ücretli abonelikler telefonuna gelsin. Bağlantıyı bir test mesajıyla kontrol et.</p></div><button id="telegramTest" class="btn-secondary" onclick="testTelegram()">Test mesajı gönder ↗</button></div>
+    </main>
   </div>
 </div>
 
 <!-- DÜZENLE MODAL -->
 <div class="modal-overlay" id="editModal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Hoca düzenle">
     <h3>✏️ Hoca Düzenle</h3>
     <input type="hidden" id="editId" />
     <label>Ad Soyad</label>
@@ -252,11 +221,13 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
   const API = window.location.origin;
   let token = localStorage.getItem('adminToken');
+  document.querySelectorAll('label').forEach(label => { const input = label.nextElementSibling; if (input?.id) label.htmlFor = input.id; });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
   if (token) loadPanel();
 
   async function doLogin() {
@@ -278,20 +249,25 @@
   }
 
   async function loadPanel() {
+    try {
     const [coachRes, promoRes] = await Promise.all([
       fetch(`${API}/admin/coaches`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${API}/admin/promos`, { headers: { Authorization: `Bearer ${token}` } })
     ]);
-    if (coachRes.status === 401) { logout(); return; }
+    if (coachRes.status === 401 || promoRes.status === 401) { logout(); return; }
+    if (!coachRes.ok || !promoRes.ok) throw new Error("load");
     const coaches = await coachRes.json();
     const promos = await promoRes.json();
     window.__coaches = coaches;   // referans kodu çakışma kontrolü için
     checkRefCode();
-    loadSupport();
+    loadSupport().catch(() => showToast("Destek kutusu yüklenemedi.", "error"));
 
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
     document.getElementById('logoutBtn').style.display = 'block';
+    document.getElementById('statCoaches').textContent = coaches.length;
+    document.getElementById('statActive').textContent = coaches.filter(c => c.isActive).length;
+    document.getElementById('statPromos').textContent = promos.filter(p => p.isActive).length;
     document.getElementById('coachCount').textContent = `${coaches.length} hoca`;
 
     const tbody = document.getElementById('coachesBody');
@@ -307,7 +283,7 @@
       promos.forEach(p => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><span class="code-chip">${p.code}</span></td>
+          <td><span class="code-chip">${esc(p.code)}</span></td>
           <td>${p.vipDays} gün</td>
           <td>${(p.usedBy || []).length} kişi</td>
           <td><span class="${p.isActive ? 'active-dot' : 'inactive-dot'}"></span>${p.isActive ? 'Aktif' : 'Pasif'}</td>
@@ -329,26 +305,57 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>
-            <div style="font-weight:600">${c.name}</div>
-            <div style="font-size:12px;color:#555">${c.email}</div>
+            <div style="font-weight:600">${esc(c.name)}</div>
+            <div class="person-email">${esc(c.email)}</div>
           </td>
-          <td><span class="code-chip">${c.referralCode}</span></td>
-          <td><span class="code-chip">${c.gymCode || '—'}</span></td>
+          <td><span class="code-chip">${esc(c.referralCode)}</span></td>
+          <td><span class="code-chip">${esc(c.gymCode || '—')}</span></td>
           <td>%${c.commissionRate}</td>
           <td>${c.freeVipDays ? `${c.freeVipDays} gün` : '—'}</td>
-          <td style="color:#4ade80;font-weight:700">${c.balance.toFixed(2)} ₺</td>
+          <td style="color:#4ade80;font-weight:700">${Number(c.balance || 0).toFixed(2)} ₺</td>
           <td>${(c.referredUsers || []).length}</td>
           <td><span class="${c.isActive ? 'active-dot' : 'inactive-dot'}"></span>${c.isActive ? 'Aktif' : 'Pasif'}</td>
           <td>
             <div class="action-row">
-              <button class="btn-edit" onclick="openEdit('${c._id}')">Düzenle</button>
-              <button class="btn-delete" onclick="deleteCoach('${c._id}', '${c.name}')">Sil</button>
+              <button class="btn-edit coach-edit">Düzenle</button>
+              <button class="btn-delete coach-delete">Sil</button>
             </div>
           </td>
         `;
+        [...tr.children].forEach((cell, index) => { cell.dataset.label = ['Hoca', 'Referans', 'Salon', 'Komisyon', 'Hediye VIP', 'Bakiye', 'Üye', 'Durum', 'İşlemler'][index]; });
+        tr.dataset.search = [c.name, c.email, c.referralCode, c.gymCode].join(' ').toLocaleLowerCase('tr');
+        tr.dataset.active = String(c.isActive);
+        tr.querySelector('.coach-edit').onclick = () => openEdit(c._id);
+        tr.querySelector('.coach-delete').onclick = () => deleteCoach(c._id, c.name);
         tbody.appendChild(tr);
       });
     }
+    filterCoaches();
+    } catch { showToast('Panel yüklenemedi. Yeniden deneyebilirsin.', 'error'); }
+  }
+
+  function filterCoaches() {
+    const query = document.getElementById('coachSearch').value.toLocaleLowerCase('tr').trim();
+    const status = document.getElementById('coachFilter').value;
+    let visible = 0;
+    document.querySelectorAll('#coachesBody tr').forEach(row => {
+      const matches = row.dataset.search.includes(query) && (status === 'all' || row.dataset.active === String(status === 'active'));
+      row.hidden = !matches; if (matches) visible++;
+    });
+    const empty = document.getElementById('emptyState');
+    empty.style.display = visible ? 'none' : 'block';
+    empty.textContent = (window.__coaches || []).length ? 'Aramana uygun hoca bulunamadı.' : 'İlk hocanı ekleyerek ekibini oluşturmaya başla.';
+  }
+  async function testTelegram() {
+    const button = document.getElementById('telegramTest');
+    button.disabled = true; button.textContent = 'Gönderiliyor…';
+    try {
+      const response = await fetch(`${API}/admin/telegram/test`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      if (response.status === 401) { logout(); return; }
+      if (!response.ok) throw new Error('send');
+      showToast('Test mesajı Telegram’a gönderildi.');
+    } catch { showToast('Mesaj gönderilemedi. Telegram ayarlarını kontrol et.', 'error'); }
+    finally { button.disabled = false; button.textContent = 'Test mesajı gönder ↗'; }
   }
 
   // Referans kodu yazılırken anında kontrol: kod linkte kullanıldığı için sunucudaki
@@ -383,6 +390,7 @@
     if (!r.ok) return;
     const threads = await r.json();
     const totalUnread = threads.reduce((a, t) => a + t.unread, 0);
+    document.getElementById('statUnread').textContent = totalUnread;
     const badge = document.getElementById('supportUnread');
     badge.textContent = totalUnread; badge.style.display = totalUnread ? 'inline-block' : 'none';
     empty.style.display = threads.length ? 'none' : 'block';
@@ -392,7 +400,7 @@
         return '<div style="align-self:'+(mine?'flex-end':'flex-start')+';max-width:78%;background:'+(mine?'rgba(74,222,128,.10)':'#1a1b21')+
           ';border:1px solid '+(mine?'rgba(74,222,128,.3)':'#2a2b33')+';border-radius:12px;padding:8px 12px">'+
           '<div style="font-size:13px;white-space:pre-wrap">'+esc(m.text)+'</div>'+
-          '<div style="font-size:10.5px;color:#777;margin-top:3px">'+(mine?'Sen':t.name)+' · '+
+          '<div style="font-size:10.5px;color:#777;margin-top:3px">'+(mine?'Sen':esc(t.name))+' · '+
           new Date(m.at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div></div>';
       }).join('');
       return '<div style="border:1px solid #2a2b33;border-radius:14px;padding:14px">'+
@@ -497,6 +505,7 @@
     document.getElementById('editNotes').value = c.notes || '';
     checkEditRefCode();
     document.getElementById('editModal').classList.add('show');
+    document.getElementById('editName').focus();
   }
 
   // Düzenlemede kod çakışması — kendisi hariç diğer hocalarla karşılaştırılıyor.
