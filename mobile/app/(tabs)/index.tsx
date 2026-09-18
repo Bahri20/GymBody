@@ -27,6 +27,7 @@ import MuscleMapEffects from '../../components/MuscleMapEffects';
 import TierPreview from '../../components/TierPreview';
 import { getTierTheme } from '../../lib/tierTheme';
 import FloatingMascot from '../../components/FloatingMascot';
+import NutritionJourney from '../../components/NutritionJourney';
 import {
   LIFTS, REP_BASED_LIFTS, RANKS, STD, computeRank, normGender, genderKey,
   MUSCLE_KEYS, MUSCLE_LIFT_MAP, estRankIndex, computeMuscleRank, computeBodyAverageRank, buildMuscleRanksMap,
@@ -1071,6 +1072,7 @@ export default function App() {
   const [mealImage, setMealImage] = useState<string | null>(null);
   const [mealResult, setMealResult] = useState<any>(null);
   const [mealLogs, setMealLogs] = useState<any[]>([]); // Günlük öğün kayıtları
+  const [mealScanCount, setMealScanCount] = useState(0);
 
   // Hedefler (Goals) state'leri
   const [goalAge, setGoalAge] = useState('');
@@ -1262,10 +1264,11 @@ useEffect(() => {
 }, [userStats.isVip, user?.lifts]);
   const fetchMealLogs = async () => {
     try {
-      const response = await axios.get(`${API_URL}/get-meal-logs`, {
+      const response = await axios.get(`${API_URL}/nutrition/logs?offset=${new Date().getTimezoneOffset()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setMealLogs(response.data);
+      setMealLogs(response.data.logs);
+      setMealScanCount(response.data.scanCount);
     } catch (error) { console.log("Öğün kayıtları çekilemedi"); }
   };
   const fetchUserStats = async () => {
@@ -2232,6 +2235,7 @@ const sendMealToAI = async (uri: string) => {
   let filename = uri.split('/').pop();
   formData.append('photo', { uri: uri, name: filename, type: 'image/jpeg' } as any);
   formData.append('note', mealNote);
+  formData.append('offset', String(new Date().getTimezoneOffset()));
 
   try {
     const response = await axios.post(`${API_URL}/analyze-meal`, formData, {
@@ -2251,6 +2255,7 @@ const sendMealToAI = async (uri: string) => {
     setLoading(false);
   }
 };
+
   // --- PROFİL FOTOĞRAFI: galeriden seç + yükle ---
 const pickAndUploadProfilePhoto = async () => {
   try {
@@ -2419,13 +2424,13 @@ const pickAndUploadProfilePhoto = async () => {
   // --- TÜRETİLMİŞ VERİLER (kullanıcı giriş yaptıysa hesaplanır) ---
   // Bugünün öğünleri & kalan tarama hakkı (günde 2)
   const todayKey = new Date().toDateString();
-  const todayLogs = mealLogs.filter((m) => new Date(m.date).toDateString() === todayKey);
-  const dailyMealRights = userStats.isVip ? 999 : Math.max(0, 2 - todayLogs.length);
+  const todayLogs = mealLogs.filter((m) => m.status !== 'planned' && new Date(m.date).toDateString() === todayKey);
+  const dailyMealRights = Math.max(0, (userStats.isVip ? 5 : 2) - mealScanCount);
   const todayCalories = todayLogs.reduce((s, m) => s + (m.calories || 0), 0);
 
   // Günlük toplamlar (haftalık grafik için gün gün topla)
   const dailyTotalsMap: Record<string, any> = {};
-  mealLogs.forEach((m) => {
+  mealLogs.filter(m => m.status !== 'planned').forEach((m) => {
     const d = new Date(m.date); d.setHours(0, 0, 0, 0);
     const k = String(d.getTime());
     if (!dailyTotalsMap[k]) dailyTotalsMap[k] = { date: d, calories: 0 };
@@ -2643,7 +2648,7 @@ const pickAndUploadProfilePhoto = async () => {
               </View>
 
               <Text style={styles.restDayTitle}>{t('Mola Günü 🌙')}</Text>
-              <Text style={styles.restDayQuote}>"{quote}"</Text>
+              <Text style={styles.restDayQuote}>{`“${quote}”`}</Text>
 
               {/* Yarınki antrenman önizleme */}
               {nextDay && (
@@ -3304,6 +3309,7 @@ const pickAndUploadProfilePhoto = async () => {
               </TouchableOpacity>
             </View>
           </LinearGradient>
+
         );
       })()}
       {currentTab === 'analiz' && analizTab === 'gelisim' && loading && gallery.length === 0 && (
@@ -3705,6 +3711,11 @@ const pickAndUploadProfilePhoto = async () => {
             </TouchableOpacity>
           </LinearGradient>
 
+          <NutritionJourney apiUrl={API_URL} token={token!} logs={mealLogs} latest={mealResult}
+            onChanged={fetchMealLogs} onError={message => showToast(message, 'error')}
+            onNestedTouch={active => { nestedCarouselActive.current = active; }}
+            calorieTarget={dailyTarget} proteinTarget={proteinTarget} />
+
           {mealImage && !mealResult && !loading && (
             <View style={{ marginTop: 16 }}>
               <Image source={{ uri: mealImage }} style={{ width: '100%', height: 190, borderRadius: 14, marginBottom: 14 }} />
@@ -3728,36 +3739,6 @@ const pickAndUploadProfilePhoto = async () => {
             <View style={{ marginVertical: 36, alignItems: 'center' }}>
               <ActivityIndicator size="large" color={AZ_DARK.lime} />
               <Text style={{ marginTop: 14, color: AZ_DARK.onSurfaceVariant, fontStyle: 'italic', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 }}>{t('Yapay zeka tabağı inceliyor, kalori hesabı yapılıyor...')}</Text>
-            </View>
-          )}
-
-          {mealResult && !loading && (
-            <View style={{ backgroundColor: AZ_DARK.glass, borderRadius: 22, padding: 18, marginBottom: 20, }}>
-              {mealImage && <Image source={{ uri: mealImage }} style={{ width: '100%', height: 190, borderRadius: 14, marginBottom: 14 }} />}
-              <Text style={{ fontSize: 22, fontWeight: '800', color: AZ_DARK.onSurface, textAlign: 'center' }}>{mealResult.mealName}</Text>
-              <Text style={{ fontSize: 13.5, color: AZ_DARK.onSurfaceVariant, textAlign: 'center', marginVertical: 10, lineHeight: 20 }}>{mealResult.description}</Text>
-
-              <View style={{ width: 110, height: 110, borderRadius: 55, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginVertical: 14, borderWidth: 1, borderColor: AZ_DARK.limeSoft30, backgroundColor: AZ_DARK.surfaceContainer }}>
-                <Text style={{ fontSize: 30, fontWeight: '900', color: AZ_DARK.lime }}>{mealResult.calories}</Text>
-                <Text style={{ fontSize: 11, color: AZ_DARK.onSurfaceVariant, fontWeight: '700', letterSpacing: 1 }}>KCAL</Text>
-              </View>
-
-              <View style={{ flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginTop: 8, borderTopWidth: 1, borderTopColor: AZ_DARK.glassBorder, paddingTop: 16 }}>
-                <View style={{ alignItems: 'center', flex: 1 }}>
-                  <Text style={{ fontSize: 19, fontWeight: '800', color: AZ_DARK.macroProtein }}>{mealResult.protein}g</Text>
-                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>{t('Protein')}</Text>
-                </View>
-                <View style={{ width: 1, height: 34, backgroundColor: AZ_DARK.glassBorder }} />
-                <View style={{ alignItems: 'center', flex: 1 }}>
-                  <Text style={{ fontSize: 19, fontWeight: '800', color: AZ_DARK.macroCarbs }}>{mealResult.carbs}g</Text>
-                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>{t('Karbonh.')}</Text>
-                </View>
-                <View style={{ width: 1, height: 34, backgroundColor: AZ_DARK.glassBorder }} />
-                <View style={{ alignItems: 'center', flex: 1 }}>
-                  <Text style={{ fontSize: 19, fontWeight: '800', color: AZ_DARK.macroFat }}>{mealResult.fat}g</Text>
-                  <Text style={{ fontSize: 12, color: AZ_DARK.onSurfaceVariant, marginTop: 3 }}>{t('Yağ')}</Text>
-                </View>
-              </View>
             </View>
           )}
 
@@ -3819,6 +3800,7 @@ const pickAndUploadProfilePhoto = async () => {
             <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12, marginTop: 14, textAlign: 'center' }}>
               {proteinTarget != null ? t('Hedefler kilona göre · Bugün {{count}} öğün tarandı', { count: todayLogs.length }) : t('Makro hedefleri için kilonu gir.')}
             </Text>
+
           </View>
 
           {/* BAZAL METABOLİZMA — sadece kalori analizi tabında */}

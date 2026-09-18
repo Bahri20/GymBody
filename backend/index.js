@@ -715,6 +715,7 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
       // 🔒 ANALİZ LİMİTİ — ücretsiz: haftada 1, VIP: günde max 3 (abuse/maliyet koruması)
     let canAnalyze = true;
     let limitReason = 'free'; // 'free' (haftalık) | 'vipDaily' (günlük VIP)
+    if (!user) return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
     const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
 
     if (!isVipActive) {
@@ -1361,10 +1362,9 @@ app.post('/analyze-meal', authMiddleware, upload.single('photo'), async (req, re
   try {
     if (!req.file) return res.status(400).json({ error: "Fotoğraf gelmedi!" });
 
-    // Günlük tarama limiti: 2 adet
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const todayCount = await MealLog.countDocuments({ userId: req.userId, date: { $gte: startOfDay } });
+    // Client timezone matches the diary's daily boundary.
+    const { start: startOfDay, end: endOfDay } = require('./lib/nutrition').dayRange(req.body.offset || 0);
+    const todayCount = await MealLog.countDocuments({ userId: req.userId, source: { $nin: ['repeat', 'plan'] }, date: { $gte: startOfDay, $lt: endOfDay } });
     const user = await User.findById(req.userId);
     const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
 
@@ -1414,19 +1414,35 @@ if (isVipActive && todayCount >= 5) {
 
     const mealData = JSON.parse(cleanJson);
 
-    // 📒 Öğünü kullanıcının günlüğüne kaydet (gün gün takip için)
-    const savedLog = await MealLog.create({
-      userId: req.userId,
-      mealName: mealData.mealName,
-      calories: mealData.calories ?? 0,
-      protein: mealData.protein ?? 0,
-      carbs: mealData.carbs ?? 0,
-      fat: mealData.fat ?? 0,
-      description: mealData.description
+    // Küçük yemek görselini günlüğe ekle; böylece günlük tabaklar kompakt bir
+    // görsel şeritte gösterilebilir. Orijinal yerine küçültülmüş JPEG saklanır.
+    const mealUpload = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: `fitness_app_meals/${req.userId}`, transformation: [{ width: 640, height: 480, crop: 'limit' }] },
+        (error, uploaded) => error ? reject(error) : resolve(uploaded)
+      ).end(resizedBuffer);
     });
 
+    let savedLog;
+    try {
+      savedLog = await MealLog.create({
+        userId: req.userId,
+        mealName: mealData.mealName,
+        calories: mealData.calories ?? 0,
+        protein: mealData.protein ?? 0,
+        carbs: mealData.carbs ?? 0,
+        fat: mealData.fat ?? 0,
+        description: mealData.description,
+        imageUrl: mealUpload.secure_url,
+        imagePublicId: mealUpload.public_id
+      });
+    } catch (dbError) {
+      await cloudinary.uploader.destroy(mealUpload.public_id).catch(() => {});
+      throw dbError;
+    }
+
     console.log("✅ AI Başarılı:", mealData.mealName);
-    res.json({ ...mealData, _id: savedLog._id, remainingRights: Math.max(0, 2 - (todayCount + 1)) });
+    res.json({ ...mealData, _id: savedLog._id, imageUrl: savedLog.imageUrl, date: savedLog.date, remainingRights: Math.max(0, 2 - (todayCount + 1)) });
   } catch (error) {
     console.error("🔥 AI Hatası:", error);
     res.status(500).json({ error: "Yapay zeka tabağı çözemedi kanka." });
@@ -1806,13 +1822,18 @@ app.post('/reset-plan', authMiddleware, async (req, res) => {
 // ================= ÖĞÜN GÜNLÜĞÜNÜ GETİR =================
 app.get('/get-meal-logs', authMiddleware, async (req, res) => {
   try {
-    const logs = await MealLog.find({ userId: req.userId }).sort({ date: -1 }); // yeniden eskiye
+    const logs = await MealLog.find({ userId: req.userId, deletedAt: null, status: { $ne: 'planned' } }).sort({ date: -1 }); // yeniden eskiye
     res.json(logs);
   } catch (err) {
     console.error("🔥 MealLog Listeleme Hatası:", err);
     res.status(500).json({ error: "Öğün kayıtları getirilemedi." });
   }
 });
+
+app.use('/nutrition', require('./routes/nutrition')({
+  auth: authMiddleware, aiLimiter, cloudinary, language: langDirective,
+  generate: async prompt => (await getGeminiModel().generateContent(prompt)).response.text(),
+}));
 app.post('/complete-day', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
@@ -1906,7 +1927,7 @@ app.get('/weekly-summary', authMiddleware, async (req, res) => {
     const ProgressPhoto = require('./models/ProgressPhoto');
 
     const [mealLogs, bodyStats, photos] = await Promise.all([
-      MealLog.find({ userId: req.userId, date: { $gte: toDateString(weekAgo) } }),
+      MealLog.find({ userId: req.userId, deletedAt: null, status: { $ne: 'planned' }, date: { $gte: toDateString(weekAgo) } }),
       BodyStat.find({ userId: req.userId, date: { $gte: weekAgo } }).sort({ date: 1 }),
       ProgressPhoto.find({ userId: req.userId, date: { $gte: weekAgo } }).sort({ date: 1 })
     ]);
@@ -3790,6 +3811,8 @@ app.delete('/account', authMiddleware, async (req, res) => {
     }
 
     const oid = new mongoose.Types.ObjectId(myId);
+    const mealImageIds = await MealLog.find({ userId: myId, imagePublicId: { $exists: true, $ne: '' } })
+      .distinct('imagePublicId');
     // İlişkili verileri temizle (her biri ayrı, hata olsa da devam)
     await Promise.allSettled([
       ProgressPhoto.deleteMany({ userId: myId }),
@@ -3800,10 +3823,12 @@ app.delete('/account', authMiddleware, async (req, res) => {
       Challenge.deleteMany({ $or: [{ challengerId: myId }, { respondentId: myId }] }).catch(() => {}),
       BodyStat.deleteMany({ userId: myId }).catch(() => {}),
       MealLog.deleteMany({ userId: myId }).catch(() => {}),
+      require('./models/NutritionOptions').deleteMany({ userId: myId }),
       User.updateMany({ blockedUsers: oid }, { $pull: { blockedUsers: oid } }),
     ]);
     // Cloudinary profil fotoğrafını sil (varsa)
     try { await cloudinary.uploader.destroy(`profile_photos/user_${myId}`); } catch {}
+    await Promise.allSettled(mealImageIds.map(publicId => cloudinary.uploader.destroy(publicId)));
 
     await User.findByIdAndDelete(myId);
     console.log(`🗑️ Hesap silindi: ${user.email || user.name} (${myId})`);
