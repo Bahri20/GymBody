@@ -4,6 +4,7 @@ const authMiddleware = require('./middleware/auth');
 const express = require('express');
 const multer = require('multer');
 const BodyStat = require('./models/BodyStat');
+const BodyAnalysisUsage = require('./models/BodyAnalysisUsage');
 const ExerciseGif = require('./models/ExerciseGif');
 const cors = require('cors');
 const path = require('path');
@@ -698,6 +699,7 @@ app.post('/upload-profile-photo', authMiddleware, upload.single('photo'), async 
 app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req, res) => {
   try {
     const { note } = req.body;
+    const savePhoto = req.body.savePhoto === 'true';
     const userId = req.userId;
     if (!req.file) return res.status(400).json({ error: "Fotoğraf gelmedi kanka!" });
     // Kullanıcının en güncel ölçülerini al
@@ -716,10 +718,13 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
     const isVipActive = user.isVip && (!user.vipExpiresAt || user.vipExpiresAt > new Date());
 
     if (!isVipActive) {
-      const lastAnalyzed = await ProgressPhoto.findOne({
-        userId,
-        bodyFatPercentage: { $ne: null }
-      }).sort({ date: -1 });
+      const [lastSaved, lastPrivate] = await Promise.all([
+        ProgressPhoto.findOne({ userId, bodyFatPercentage: { $ne: null } }).sort({ date: -1 }),
+        BodyAnalysisUsage.findOne({ userId }).sort({ date: -1 }),
+      ]);
+      const lastAnalyzed = [lastSaved, lastPrivate]
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
 
       if (lastAnalyzed) {
         const daysSince = (Date.now() - new Date(lastAnalyzed.date).getTime()) / (1000 * 60 * 60 * 24);
@@ -731,11 +736,11 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
       // VIP: günde en fazla 3 vücut analizi
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
-      const todayAnalyzed = await ProgressPhoto.countDocuments({
-        userId,
-        bodyFatPercentage: { $ne: null },
-        date: { $gte: startOfDay }
-      });
+      const [savedCount, privateCount] = await Promise.all([
+        ProgressPhoto.countDocuments({ userId, bodyFatPercentage: { $ne: null }, date: { $gte: startOfDay } }),
+        BodyAnalysisUsage.countDocuments({ userId, date: { $gte: startOfDay } }),
+      ]);
+      const todayAnalyzed = savedCount + privateCount;
       if (todayAnalyzed >= 3) {
         canAnalyze = false;
         limitReason = 'vipDaily';
@@ -830,36 +835,41 @@ const result = await generateWithRetry(model, prompt, imagePart);
       bodyFatPercentage = null;
     }
 
-// ☁️ CLOUDINARY YÜKLEME
-    const uploadStream = cloudinary.uploader.upload_stream(
-      { folder: `fitness_app_progress/${userId}` },
-      async (error, result) => {
-        if (error) {
-          console.error("🔥 Cloudinary Stream Hatası:", error);
-          return res.status(500).json({ error: "Cloudinary yüklemesi başarısız." });
-        }
+    // Varsayılan akışta kaynak fotoğraf yalnızca bellekte analiz edilir. Kullanıcı
+    // açıkça isterse Cloudinary'ye ve gelişim galerisine kaydedilir.
+    let newPhoto = null;
+    if (savePhoto) {
+      const uploaded = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          { folder: `fitness_app_progress/${userId}` },
+          (error, result) => error ? reject(error) : resolve(result)
+        ).end(req.file.buffer);
+      });
+      newPhoto = await ProgressPhoto.create({
+        userId,
+        url: uploaded.secure_url,
+        public_id: uploaded.public_id,
+        note: note || "Buz gibi idman bitti!",
+        bodyFatPercentage,
+        aiAnalysis
+      });
+    } else if (bodyFatPercentage !== null) {
+      await BodyAnalysisUsage.create({ userId, bodyFatPercentage });
+    }
 
-        try {
-          const newPhoto = await ProgressPhoto.create({
-            userId,
-            url: result.secure_url,
-            public_id: result.public_id,
-            note: note || "Buz gibi idman bitti!",
-            bodyFatPercentage,
-            aiAnalysis
-          });
-        if (bodyFatPercentage !== null) {
-          await BodyStat.create({
-            userId,
-            weight: userMeasurements.weight,
-            height: userMeasurements.height,
-            waist: userMeasurements.waist,
-            shoulder: userMeasurements.shoulder,
-            neck: userMeasurements.neck,
-            bodyFatPercentage
-          });
-        }
-// 🎯 STREAK & TOKEN GÜNCELLEME
+    if (bodyFatPercentage !== null) {
+      await BodyStat.create({
+        userId,
+        weight: userMeasurements.weight,
+        height: userMeasurements.height,
+        waist: userMeasurements.waist,
+        shoulder: userMeasurements.shoulder,
+        neck: userMeasurements.neck,
+        bodyFatPercentage
+      });
+    }
+
+    // 🎯 STREAK & TOKEN GÜNCELLEME
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const lastActivity = user.lastActivityDate ? new Date(user.lastActivityDate) : null;
     if (lastActivity) lastActivity.setHours(0, 0, 0, 0);
@@ -903,16 +913,13 @@ const result = await generateWithRetry(model, prompt, imagePart);
     await user.save();
 
 console.log(`🎯 Streak: ${user.streak}, Token kazanıldı: +${tokensEarned}, Toplam token: ${user.tokens}`);
-          console.log("✅ Fotoğraf ve analiz kaydedildi:", result.secure_url);
-          return res.json({ message: "Fotoğraf başarıyla buluta yüklendi kanka!", photo: newPhoto });
-        } catch (dbErr) {
-          console.error("🔥 DB Kayıt Hatası:", dbErr);
-          return res.status(500).json({ error: "Fotoğraf DB'ye kaydedilemedi." });
-        }
-      }
-    );
-
-    uploadStream.end(req.file.buffer);
+    console.log(savePhoto ? "✅ Fotoğraf ve analiz kaydedildi." : "✅ Analiz tamamlandı; kaynak fotoğraf saklanmadı.");
+    return res.json({
+      message: savePhoto ? "Analiz tamamlandı ve gelişim geçmişine kaydedildi." : "Analiz tamamlandı; fotoğraf saklanmadı.",
+      saved: savePhoto,
+      photo: newPhoto,
+      analysis: { bodyFatPercentage, aiAnalysis, date: new Date() }
+    });
 
   } catch (err) {
     console.error("🔥 Genel Yükleme Hatası:", err);
@@ -3786,6 +3793,7 @@ app.delete('/account', authMiddleware, async (req, res) => {
     // İlişkili verileri temizle (her biri ayrı, hata olsa da devam)
     await Promise.allSettled([
       ProgressPhoto.deleteMany({ userId: myId }),
+      BodyAnalysisUsage.deleteMany({ userId: myId }),
       Message.deleteMany({ $or: [{ senderId: oid }, { receiverId: oid }] }),
       Friendship.deleteMany({ $or: [{ requesterId: oid }, { recipientId: oid }] }),
       Report.deleteMany({ $or: [{ reporterId: oid }, { reportedId: oid }] }),

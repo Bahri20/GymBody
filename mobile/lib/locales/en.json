@@ -666,5 +666,14 @@
   "🔥 Doğru yoldasın!": "🔥 You're on the right track!",
   "🔥 Seri": "🔥 Streak",
   "🖼️ Galeriden Seç": "🖼️ Pick from Gallery",
-  "🤖 AI Koçun": "🤖 Your AI Coach"
+  "🤖 AI Koçun": "🤖 Your AI Coach",
+  "Gelişim geçmişime kaydet": "Save to my progress history",
+  "Kapalıyken fotoğraf analizden sonra saklanmaz.": "When off, the photo is not retained after analysis.",
+  "ANALİZ ET": "ANALYZE",
+  "Fotoğrafın sana özel": "Your photo stays private",
+  "Varsayılan olarak yalnızca analiz edilir ve saklanmaz. Yüzün veya görünüşün değerlendirilmez; gelişim geçmişine kaydetmeyi sen seçersin.": "By default, it is analyzed without being retained. Your face or appearance is not evaluated; you choose whether to save it to your progress history.",
+  "Son analiz sonucu": "Latest analysis result",
+  "Kaydetmediysen kaynak fotoğraf sunucuda tutulmadı.": "If you did not save it, the source photo was not retained on the server.",
+  "Analiz edildi ve gelişim geçmişine kaydedildi ✓": "Analyzed and saved to your progress history ✓",
+  "Analiz tamamlandı · Fotoğraf saklanmadı ✓": "Analysis complete · Photo not retained ✓"
 }

@@ -1019,6 +1019,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [gallery, setGallery] = useState<any[]>([]);
   const [note, setNote] = useState('');
+  const [saveProgressPhoto, setSaveProgressPhoto] = useState(false);
+  const [latestPrivateAnalysis, setLatestPrivateAnalysis] = useState<{ bodyFatPercentage: number | null; aiAnalysis: string } | null>(null);
 
   // Uygulama GymBody sekmesiyle açılır.
   const [currentTab, setCurrentTab] = useState('gymBody');
@@ -1991,19 +1993,23 @@ const handleCompleteDay = async (feedback?: string) => {
     formData.append('photo', { uri: image, name: filename, type: 'image/jpeg' } as any);
     formData.append('note', note);
     formData.append('userId', user._id);
+    formData.append('savePhoto', String(saveProgressPhoto));
 
     try {
       console.log("📤 Gelişim fotoğrafı backend'e basılıyor...");
-      await axios.post(`${API_URL}/upload-progress`, formData, {
+      const response = await axios.post(`${API_URL}/upload-progress`, formData, {
   headers: {
     'Content-Type': 'multipart/form-data',
     Authorization: `Bearer ${token}`
   },
 });
-      showToast(t('Fotoğraf kaydedildi ✓'));
+      setLatestPrivateAnalysis(response.data.analysis || null);
+      showToast(saveProgressPhoto ? t('Analiz edildi ve gelişim geçmişine kaydedildi ✓') : t('Analiz tamamlandı · Fotoğraf saklanmadı ✓'));
       setImage(null);
       setNote('');
-      fetchPhotos(); // Akışı yenilesin kanka
+      setSaveProgressPhoto(false);
+      if (response.data.saved) fetchPhotos();
+      fetchBodyStats();
     } catch (error) {
       console.log("🔥 FOTO YÜKLEME HATASI:", error);
       showToast(t('Fotoğraf yüklenemedi.'), 'error');
@@ -3351,13 +3357,27 @@ const pickAndUploadProfilePhoto = async () => {
                     onChangeText={setNote}
                     multiline
                   />
+                  <TouchableOpacity
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: saveProgressPhoto }}
+                    activeOpacity={0.82}
+                    onPress={() => setSaveProgressPhoto(value => !value)}
+                    style={{ marginTop: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: saveProgressPhoto ? AZ_DARK.limeSoft20 : AZ_DARK.glassBorder, backgroundColor: saveProgressPhoto ? AZ_DARK.limeSoft10 : AZ_DARK.surfaceContainer, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ width: 22, height: 22, borderRadius: 7, borderWidth: 1.5, borderColor: saveProgressPhoto ? AZ_DARK.lime : AZ_DARK.onSurfaceVariant, backgroundColor: saveProgressPhoto ? AZ_DARK.lime : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                      {saveProgressPhoto && <Ionicons name="checkmark" size={15} color={AZ_DARK.onLime} />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: AZ_DARK.onSurface, fontSize: 13, fontWeight: '700' }}>{t('Gelişim geçmişime kaydet')}</Text>
+                      <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11.5, marginTop: 2 }}>{t('Kapalıyken fotoğraf analizden sonra saklanmaz.')}</Text>
+                    </View>
+                  </TouchableOpacity>
                   {loading ? <ActivityIndicator size="large" color={AZ_DARK.lime} style={{ marginTop: 12 }} /> : (
                     <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 12}}>
                       <TouchableOpacity style={{ flex: 0.48, flexDirection: 'row', gap: 6, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: AZ_DARK.lime }} onPress={uploadImage}>
                         <Ionicons name="checkmark" size={18} color={AZ_DARK.onLime} />
-                        <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14 }}>{t('KAYDET')}</Text>
+                        <Text style={{ color: AZ_DARK.onLime, fontWeight: '800', fontSize: 14 }}>{t('ANALİZ ET')}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={{ flex: 0.48, flexDirection: 'row', gap: 6, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,180,171,0.12)', borderWidth: 1, borderColor: 'rgba(255,180,171,0.4)' }} onPress={() => setImage(null)}>
+                      <TouchableOpacity style={{ flex: 0.48, flexDirection: 'row', gap: 6, paddingVertical: 14, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,180,171,0.12)', borderWidth: 1, borderColor: 'rgba(255,180,171,0.4)' }} onPress={() => { setImage(null); setSaveProgressPhoto(false); }}>
                         <Ionicons name="close" size={18} color={AZ_DARK.red} />
                         <Text style={{ color: AZ_DARK.red, fontWeight: '800', fontSize: 14 }}>{t('İPTAL')}</Text>
                       </TouchableOpacity>
@@ -3365,7 +3385,30 @@ const pickAndUploadProfilePhoto = async () => {
                   )}
                 </View>
               )}
+              {!image && (
+                <View style={{ marginTop: 10, padding: 12, borderRadius: 14, backgroundColor: 'rgba(83,213,245,0.07)', borderWidth: 1, borderColor: 'rgba(83,213,245,0.18)', flexDirection: 'row', gap: 10 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(83,213,245,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="shield-checkmark" size={17} color="#7DDCF4" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 13 }}>{t('Fotoğrafın sana özel')}</Text>
+                    <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 11.5, lineHeight: 17, marginTop: 3 }}>{t('Varsayılan olarak yalnızca analiz edilir ve saklanmaz. Yüzün veya görünüşün değerlendirilmez; gelişim geçmişine kaydetmeyi sen seçersin.')}</Text>
+                  </View>
+                </View>
+              )}
               </LinearGradient>
+
+              {latestPrivateAnalysis && (
+                <View style={{ marginTop: 12, padding: 14, borderRadius: 16, backgroundColor: AZ_DARK.surfaceContainer, borderWidth: 1, borderColor: AZ_DARK.glassBorder }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <Ionicons name="sparkles" size={16} color={AZ_DARK.lime} />
+                    <Text style={{ color: AZ_DARK.onSurface, fontWeight: '800', fontSize: 14 }}>{t('Son analiz sonucu')}</Text>
+                    {latestPrivateAnalysis.bodyFatPercentage != null && <Text style={{ marginLeft: 'auto', color: AZ_DARK.lime, fontWeight: '900', fontSize: 16 }}>%{latestPrivateAnalysis.bodyFatPercentage}</Text>}
+                  </View>
+                  <Text style={{ color: AZ_DARK.onSurfaceVariant, fontSize: 12.5, lineHeight: 18 }}>{latestPrivateAnalysis.aiAnalysis}</Text>
+                  <Text style={{ color: '#7DDCF4', fontSize: 10.5, marginTop: 8 }}>{t('Kaydetmediysen kaynak fotoğraf sunucuda tutulmadı.')}</Text>
+                </View>
+              )}
 
               {/* 🖼️ GELİŞİM KARŞILAŞTIRMASI */}
               {!userStats.isVip ? (
