@@ -3824,6 +3824,7 @@ app.delete('/account', authMiddleware, async (req, res) => {
       BodyStat.deleteMany({ userId: myId }).catch(() => {}),
       MealLog.deleteMany({ userId: myId }).catch(() => {}),
       require('./models/NutritionOptions').deleteMany({ userId: myId }),
+      require('./models/NutritionPreferences').deleteMany({ userId: myId }),
       User.updateMany({ blockedUsers: oid }, { $pull: { blockedUsers: oid } }),
     ]);
     // Cloudinary profil fotoğrafını sil (varsa)

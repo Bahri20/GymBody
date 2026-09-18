@@ -19,6 +19,7 @@ const mealLogSchema = new mongoose.Schema({
   requestId: String,
   deletedAt: Date
 });
+mealLogSchema.index({ userId: 1, date: -1 });
 mealLogSchema.index({ userId: 1, requestId: 1 }, { unique: true, partialFilterExpression: { requestId: { $type: 'string' } } });
 
 module.exports = mongoose.model('MealLog', mealLogSchema);

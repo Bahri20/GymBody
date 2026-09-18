@@ -772,6 +772,28 @@ export default function App() {
   const [dayFeedbackText, setDayFeedbackText] = useState('');
   const [showRestPrompt, setShowRestPrompt] = useState(false);
   const [isRestDay, setIsRestDay] = useState(false);
+  const [nutritionWorkoutDate, setNutritionWorkoutDate] = useState('');
+  const [nutritionDismissedDate, setNutritionDismissedDate] = useState('');
+  useEffect(() => {
+    let active = true;
+    setNutritionWorkoutDate(''); setNutritionDismissedDate('');
+    if (user?._id) {
+      SecureStore.getItemAsync(`nutrition-workout-${user._id}`).then(value => {
+        if (!active || !value) return;
+        try { const saved = JSON.parse(value); setNutritionWorkoutDate(saved.date || ''); setNutritionDismissedDate(saved.dismissed || ''); } catch {}
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [user?._id]);
+  const markNutritionWorkout = () => {
+    const date = new Date().toDateString();
+    setNutritionWorkoutDate(date); setNutritionDismissedDate('');
+    if (user?._id) SecureStore.setItemAsync(`nutrition-workout-${user._id}`, JSON.stringify({ date, dismissed: '' })).catch(() => {});
+  };
+  const dismissNutritionWorkout = () => {
+    const date = new Date().toDateString(); setNutritionDismissedDate(date);
+    if (user?._id) SecureStore.setItemAsync(`nutrition-workout-${user._id}`, JSON.stringify({ date: nutritionWorkoutDate, dismissed: date })).catch(() => {});
+  };
 
   // Antrenman modu
   const [workoutActive, setWorkoutActive] = useState(false);
@@ -1942,6 +1964,7 @@ const handleCompleteDay = async (feedback?: string) => {
       headers: { Authorization: `Bearer ${token}` }
     });
     setWeeklyPlan(res.data.weeklyPlan);
+    markNutritionWorkout();
     setDayFeedbackText('');
     setDayFeedbackVisible(false);
     if (!res.data.isLastDay) setShowRestPrompt(true);
@@ -2561,6 +2584,18 @@ const pickAndUploadProfilePhoto = async () => {
       </View>}
 
       <Animated.View style={{ flex: 1 }} key={currentTab} entering={FadeIn.duration(300)}>
+      {(currentTab === 'gymBody' || currentTab === 'pt') && nutritionDismissedDate !== todayKey &&
+        (nutritionWorkoutDate === todayKey || (weeklyPlan?.lastDayCompletedAt && new Date(weeklyPlan.lastDayCompletedAt).toDateString() === todayKey)) && (
+        <View style={{ marginHorizontal: 16, marginBottom: 12, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(255,170,41,0.28)', backgroundColor: '#211E19', flexDirection: 'row', alignItems: 'center', padding: 13, gap: 10 }}>
+          <Ionicons name="restaurant-outline" size={23} color={C.orange} />
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => { setCurrentTab('analiz'); setAnalizTab('beslenme'); setMealTab('analiz'); fetchMealLogs(); }}>
+            <Text style={{ color: C.text, fontWeight: '800', fontSize: 14 }}>{t('Antrenman tamam. Sırada öğünün var.')}</Text>
+            <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 4 }}>{t('Tabaklarını kaydet, sıradaki öğününü planla.')} →</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={dismissNutritionWorkout} accessibilityLabel={t('Kapat')} style={{ padding: 5 }}><Ionicons name="close" size={19} color={C.textMuted} /></TouchableOpacity>
+        </View>
+      )}
+
       {currentTab === 'gymBody' && (
   <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
@@ -3711,11 +3746,6 @@ const pickAndUploadProfilePhoto = async () => {
             </TouchableOpacity>
           </LinearGradient>
 
-          <NutritionJourney apiUrl={API_URL} token={token!} logs={mealLogs} latest={mealResult}
-            onChanged={fetchMealLogs} onError={message => showToast(message, 'error')}
-            onNestedTouch={active => { nestedCarouselActive.current = active; }}
-            calorieTarget={dailyTarget} proteinTarget={proteinTarget} />
-
           {mealImage && !mealResult && !loading && (
             <View style={{ marginTop: 16 }}>
               <Image source={{ uri: mealImage }} style={{ width: '100%', height: 190, borderRadius: 14, marginBottom: 14 }} />
@@ -3741,6 +3771,11 @@ const pickAndUploadProfilePhoto = async () => {
               <Text style={{ marginTop: 14, color: AZ_DARK.onSurfaceVariant, fontStyle: 'italic', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 }}>{t('Yapay zeka tabağı inceliyor, kalori hesabı yapılıyor...')}</Text>
             </View>
           )}
+
+          <NutritionJourney apiUrl={API_URL} token={token!} logs={mealLogs} latest={mealResult}
+            onChanged={fetchMealLogs} onError={message => showToast(message, 'error')}
+            onNestedTouch={active => { nestedCarouselActive.current = active; }}
+            calorieTarget={dailyTarget} proteinTarget={proteinTarget} />
 
           {/* GÜNLÜK KALORİ HEDEFİ — halka + makro barları (Stitch tasarımı) */}
           <View style={styles.analysisCaloriesCard}>
@@ -5145,6 +5180,7 @@ const pickAndUploadProfilePhoto = async () => {
               startRest();
             } else {
               setWorkoutActive(false);
+              markNutritionWorkout();
               setWorkoutExIdx(0);
               setWorkoutSetIdx(0);
               setWorkoutWeights({});

@@ -6,6 +6,7 @@ import axios from 'axios';
 import * as Crypto from 'expo-crypto';
 import { useTranslation } from 'react-i18next';
 import { currentLang } from '../lib/i18n';
+import NutritionReview from './NutritionReview';
 
 type Meal = { _id: string; mealName: string; description?: string; imageUrl?: string; calories: number; protein: number; carbs: number; fat: number; date: string; status?: string; favorite?: boolean; portion?: number; revision?: number };
 type Props = { apiUrl: string; token: string; logs: Meal[]; latest: Meal | null; onChanged: () => Promise<void>; onError: (message: string) => void; onNestedTouch: (active: boolean) => void; calorieTarget: number | null; proteinTarget: number | null };
@@ -22,15 +23,26 @@ export default function NutritionJourney({ apiUrl, token, logs, latest, onChange
   const repeatKeys = useRef<Record<string, string>>({});
   const [avoidOpen, setAvoidOpen] = useState(false);
   const [avoid, setAvoid] = useState('');
+  const [kitchenOpen, setKitchenOpen] = useState(false);
+  const [preferences, setPreferences] = useState({ pantry: '', excluded: '', context: 'home', minutes: 15 });
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [prefsError, setPrefsError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    axios.get(`${apiUrl}/nutrition/preferences`, { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 })
+      .then(({ data }) => { if (active) { setPreferences(data); setPrefsLoaded(true); } })
+      .catch(() => { if (active) setPrefsError(true); });
+    return () => { active = false; };
+  }, [apiUrl, token]);
   const today = new Date().toDateString();
   const eaten = logs.filter(m => m.status !== 'planned');
   const todayMeals = eaten.filter(m => new Date(m.date).toDateString() === today);
   const planned = logs.filter(m => m.status === 'planned' && new Date(m.date).toDateString() === today);
-  const visible = filter === 'favorite' ? eaten.filter(m => m.favorite) : filter === 'recent' ? eaten : todayMeals;
+  const visible = filter === 'favorite' ? eaten.filter(m => m.favorite) : filter === 'recent' ? logs : todayMeals;
   const selected = logs.find(m => m._id === selectedId) || (latest?._id === selectedId ? latest : null);
   const headers = { Authorization: `Bearer ${token}`, 'x-lang': currentLang() };
-  const request = async (method: 'get' | 'post' | 'patch' | 'delete', path: string, data?: any) => (await axios({ method, url: `${apiUrl}/nutrition${path}`, headers, data, timeout: 90000 })).data;
-  useEffect(() => { if (latest?._id) { setSelectedId(latest._id); setDraft(null); setNote(''); } }, [latest?._id]);
+  const request = async (method: 'get' | 'post' | 'put' | 'patch' | 'delete', path: string, data?: any) => (await axios({ method, url: `${apiUrl}/nutrition${path}`, headers, data, timeout: 90000 })).data;
+  useEffect(() => { if (latest?._id) { setSelectedId(latest._id); setDraft(null); setNote(''); setOptions(null); } }, [latest?._id]);
   const run = async (fn: () => Promise<void>) => {
     if (lock.current) return;
     lock.current = true; setBusy(true);
@@ -63,6 +75,7 @@ export default function NutritionJourney({ apiUrl, token, logs, latest, onChange
           {meal.favorite && <View style={s.star}><Ionicons name="star" color={P.orange} size={13} /></View>}
           <Text numberOfLines={1} style={s.plateName}>{meal.mealName}</Text>
           <Text style={s.meta}>{Math.round(meal.calories)} kcal</Text>
+          {meal.status === 'planned' && <Text style={s.small}>{t('Planlandı')}</Text>}
           {filter === 'recent' && <Text style={s.small}>{new Date(meal.date).toLocaleDateString(currentLang())}</Text>}
         </TouchableOpacity>)}
       </ScrollView>
@@ -76,6 +89,23 @@ export default function NutritionJourney({ apiUrl, token, logs, latest, onChange
         <Text style={s.balance}>{calorieTarget == null ? '—' : Math.max(0, calorieTarget - todayMeals.reduce((a, m) => a + m.calories, 0))} <Text style={s.meta}>{t('kcal kaldı')}</Text></Text>
         <Text style={s.balance}>{proteinTarget == null ? '—' : Math.max(0, proteinTarget - todayMeals.reduce((a, m) => a + m.protein, 0)).toFixed(0)} <Text style={s.meta}>{t('g protein kaldı')}</Text></Text>
       </View>
+      <TouchableOpacity onPress={() => setKitchenOpen(v => !v)} style={[s.row, { paddingVertical: 12, borderTopWidth: 1, borderColor: P.border }]}>
+        <View style={{ flex: 1 }}><Text style={s.optionTitle}>{t('Mutfağına göre planla')}</Text><Text style={s.meta}>{t(preferences.context === 'outside' ? 'Dışarıdayım' : preferences.context === 'budget' ? 'Ekonomik olsun' : 'Evdeyim')} · {preferences.minutes} {t('dk')}</Text></View>
+        <Ionicons name={kitchenOpen ? 'chevron-up' : 'options-outline'} size={21} color={P.orange} />
+      </TouchableOpacity>
+      {kitchenOpen && <View style={s.option}>
+        {!prefsLoaded ? <View><Text style={s.body}>{t(prefsError ? 'Tercihler yüklenemedi.' : 'Yükleniyor...')}</Text>{prefsError && button('Tekrar dene', () => run(async () => { setPreferences(await request('get', '/preferences')); setPrefsLoaded(true); setPrefsError(false); }))}</View> : <>
+          <View style={[s.row, { justifyContent: 'flex-start' }]}>{[['home', 'Evdeyim'], ['outside', 'Dışarıdayım'], ['budget', 'Ekonomik olsun']].map(([key, label]) => <TouchableOpacity key={key} onPress={() => setPreferences({ ...preferences, context: key })} style={[s.chip, preferences.context === key && { backgroundColor: P.green }]}><Text style={{ color: preferences.context === key ? P.bg : P.text, fontSize: 12 }}>{t(label)}</Text></TouchableOpacity>)}</View>
+          <Text style={[s.eyebrow, { marginTop: 15 }]}>{t('EVDE NE VAR?')}</Text>
+          <TextInput multiline value={preferences.pantry} onChangeText={pantry => setPreferences({ ...preferences, pantry })} maxLength={1000} style={s.input} placeholder={t('Örn. yumurta, yoğurt, makarna, domates')} placeholderTextColor={P.muted} />
+          <Text style={s.eyebrow}>{t('YEMEDİĞİN MALZEMELER')}</Text>
+          <TextInput value={preferences.excluded} onChangeText={excluded => setPreferences({ ...preferences, excluded })} maxLength={600} style={s.input} placeholder={t('Önerilerde olmasın istediklerin')} placeholderTextColor={P.muted} />
+          <Text style={[s.eyebrow, { marginBottom: 9 }]}>{t('NE KADAR VAKTİN VAR?')}</Text>
+          <View style={s.row}>{[10, 15, 30, 60].map(minutes => <TouchableOpacity key={minutes} onPress={() => setPreferences({ ...preferences, minutes })} style={[s.portion, preferences.minutes === minutes && { backgroundColor: P.green }]}><Text style={{ color: preferences.minutes === minutes ? P.bg : P.text, fontSize: 12 }}>{minutes} {t('dk')}</Text></TouchableOpacity>)}</View>
+          {button('Tercihleri kaydet', () => run(async () => { const saved = await request('put', '/preferences', preferences); setPreferences(saved); setKitchenOpen(false); setOptions(null); }), true, 'checkmark')}
+          <Text style={s.small}>{t('Bu tercihler sonraki önerilerinde de hatırlanır.')}</Text>
+        </>}
+      </View>}
       {planned.map(meal => <View key={meal._id} style={s.option}>
         <Text style={s.eyebrow}>{t('PLANLANDI · HENÜZ YENMEDİ')}</Text><Text style={s.optionTitle}>{meal.mealName}</Text>{macros(meal)}
         <View style={[s.row, { marginTop: 10 }]}>{button('Bunu yedim', () => run(async () => { await request('post', `/meals/${meal._id}/eat`); await refresh(); }), true, 'checkmark')}{button('Detay', () => openMeal(meal))}</View>
@@ -94,15 +124,18 @@ export default function NutritionJourney({ apiUrl, token, logs, latest, onChange
         {avoidOpen && <View><TextInput value={avoid} onChangeText={setAvoid} maxLength={500} style={s.input} placeholder={t('Hangi malzeme yok?')} placeholderTextColor={P.muted} />{button('Alternatif bul', plan, true)}</View>}
       </View>}
     </View>
+    <NutritionReview apiUrl={apiUrl} token={token} revision={logs.map(m => `${m._id}:${m.revision || 0}`).join(',')}
+      onMeal={id => { const meal = logs.find(m => m._id === id); if (meal) openMeal(meal); }} />
     <Modal visible={!!selected} animationType="slide" onRequestClose={() => { if (!busy) setSelectedId(null); }}>
       <SafeAreaView style={{ flex: 1, backgroundColor: P.bg }}>
         <View style={[s.row, { padding: 18 }]}><Text style={s.title}>{t('Tabak detayı')}</Text><TouchableOpacity disabled={busy} onPress={() => setSelectedId(null)} accessibilityLabel={t('Kapat')} style={{ padding: 8 }}><Ionicons name="close" size={25} color={P.text} /></TouchableOpacity></View>
-        {selected && <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 18, paddingBottom: 40, gap: 14 }}>
+        {selected && <ScrollView automaticallyAdjustKeyboardInsets keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 18, paddingBottom: 40, gap: 14 }}>
           {selected.imageUrl && <Image source={{ uri: selected.imageUrl }} style={{ width: '100%', height: 190, borderRadius: 20 }} resizeMode="cover" />}
           <Text style={s.title}>{selected.mealName}</Text>{macros(selected)}<Text style={s.body}>{selected.description}</Text>
           <Text style={s.small}>{t('Besin değerleri tahminidir. Porsiyonu ve içeriği düzeltebilirsin.')}</Text>
           {busy && <ActivityIndicator color={P.green} />}
           <View style={s.row}>
+            {selected.status === 'planned' && button('Bunu yedim', () => run(async () => { await request('post', `/meals/${selected._id}/eat`); await refresh(); setSelectedId(null); }), true, 'checkmark')}
             {selected.status !== 'planned' && button('Aynısını yedim', () => run(async () => {
               const key = repeatKeys.current[selected._id] ||= Crypto.randomUUID();
               await request('post', `/meals/${selected._id}/repeat`, { requestId: key });

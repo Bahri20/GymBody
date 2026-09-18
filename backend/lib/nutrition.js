@@ -34,3 +34,24 @@ function targets(user) {
 }
 function parseAI(text) { return JSON.parse(text.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')); }
 module.exports = { FIELDS, mealValues, portionValues, dayRange, targets, parseAI };
+
+function weeklyReview(logs, offsetValue = 0, now = new Date()) {
+  const { start, offset } = dayRange(offsetValue, now);
+  const first = new Date(start.getTime() - 6 * 86400000);
+  const days = Array.from({ length: 7 }, (_, index) => ({ date: new Date(first.getTime() + index * 86400000 - offset * 60000).toISOString().slice(0, 10), count: 0 }));
+  const prior = new Set();
+  const foods = new Map();
+  for (const meal of logs) {
+    if (meal.deletedAt || meal.status === 'planned') continue;
+    const index = Math.floor((new Date(meal.date).getTime() - first.getTime()) / 86400000);
+    if (index >= -7 && index < 0) prior.add(index);
+    if (index < 0 || index >= 7 || !Number.isFinite(index)) continue;
+    days[index].count++;
+    const key = String(meal.mealName || '').trim().toLocaleLowerCase('tr');
+    if (!key) continue;
+    const entry = foods.get(key) || { name: meal.mealName, count: 0, mealId: String(meal._id), favorite: false };
+    entry.count++; entry.favorite ||= !!meal.favorite; foods.set(key, entry);
+  }
+  return { days, loggedDays: days.filter(d => d.count > 0).length, previousLoggedDays: prior.size, mealCount: days.reduce((a, d) => a + d.count, 0), topMeal: [...foods.values()].sort((a, b) => b.count - a.count)[0] || null };
+}
+module.exports.weeklyReview = weeklyReview;
