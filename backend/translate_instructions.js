@@ -9,7 +9,7 @@ const ExerciseGif = require('./models/ExerciseGif');
 
 const KEY = process.env.GEMINI_API_KEY;
 const BATCH = 12;                 // her çağrıda kaç egzersiz
-const MODEL = 'gemini-2.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 function gemini(prompt) {
   const body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });

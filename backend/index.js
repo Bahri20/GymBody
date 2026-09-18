@@ -36,6 +36,7 @@ const { OAuth2Client } = require('google-auth-library');
 const googleClient = new OAuth2Client();
 const axios = require('axios');
 const telegram = require('./services/telegram');
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 // Ödüllü reklam: VIP hariç, günde max 3, her izleme 5 token (200'lük VIP'e reklamla kolay ulaşılamaz)
 const AD_DAILY_CAP = 3;
@@ -267,7 +268,8 @@ function getVertexClient() {
   _vertexClient = new GoogleGenAI({
     vertexai: true,
     project: process.env.GCP_PROJECT_ID,
-    location: process.env.GCP_LOCATION || 'us-central1',
+    // Gemini 3.5 Flash-Lite is served from global/us/eu endpoints.
+    location: process.env.GEMINI_LOCATION || 'global',
     ...(credentials ? { googleAuthOptions: { credentials } } : {}),
     ...(httpOptions ? { httpOptions } : {}),
   });
@@ -281,7 +283,7 @@ function toParts(content) {
 }
 
 // Eski GoogleGenerativeAI().getGenerativeModel(...) yerine geçen fabrika
-function getGeminiModel({ model = 'gemini-2.5-flash', generationConfig } = {}) {
+function getGeminiModel({ model = GEMINI_MODEL, generationConfig } = {}) {
   const ai = getVertexClient();
   const config = generationConfig ? { ...generationConfig } : undefined;
   return {
@@ -746,7 +748,7 @@ app.post('/upload-progress', authMiddleware, upload.single('photo'), async (req,
     let aiAnalysis = "";
     if (canAnalyze) {
       try {
-        const model = getGeminiModel({ model: "gemini-2.5-flash" });
+        const model = getGeminiModel();
 
         const resizedBuffer = await sharp(req.file.buffer)
           .resize({ width: 800, withoutEnlargement: true })
@@ -1391,7 +1393,7 @@ if (isVipActive && todayCount >= 5) {
       {"mealName": "Yemeğin Adı", "calories": 500, "protein": 30, "carbs": 50, "fat": 15, "description": "Tavsiye mesajı"}
     `;
 
-    const model = getGeminiModel({ model: "gemini-2.5-flash" });
+    const model = getGeminiModel();
     const result = await model.generateContent([prompt, imagePart]);
     let responseText = result.response.text().trim();
     
@@ -1553,7 +1555,6 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     console.log("🤖 Yeni program üretiliyor...");
     // temperature yüksek → her üretimde farklı egzersiz varyasyonları (aynı program tekrarını önler)
     const model = getGeminiModel({
-      model: "gemini-2.5-flash",
       generationConfig: { temperature: 1.0 },
     });
 
@@ -2086,7 +2087,7 @@ app.post('/ai-chat', authMiddleware, async (req, res) => {
       }
     }
 
-    const model = getGeminiModel({ model: 'gemini-2.5-flash' });
+    const model = getGeminiModel();
 
     const chatLangText = reqLang(req) === 'en' ? 'Respond in English.' : 'Türkçe konuş.';
     const systemPrompt = `Sen GymBodyAI'ın kişisel fitness koçusun. Kullanıcı: ${user?.name || 'Sporcu'}, ${user?.weight || '?'}kg, ${user?.height || '?'}cm. Kısa, samimi, motive edici cevaplar ver. ${chatLangText} Fitness, beslenme, antrenman dışındaki konularda kibar şekilde konuyu yönlendir.`;
