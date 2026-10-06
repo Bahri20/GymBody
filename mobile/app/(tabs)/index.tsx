@@ -23,6 +23,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Path, Ellipse, G, Circle, Defs, LinearGradient as SvgLinearGradient, RadialGradient, Stop, ClipPath, Rect } from 'react-native-svg';
 import MuscleBodyMap, { BODY_MAP_ASPECT_RATIO, MUSCLE_NAMES } from '../../components/MuscleBodyMap';
+import { TRAINING_LOCATIONS, normalizeLocation, matchesTrainingLocation } from '../../lib/trainingLocation';
+import type { TrainingLocation } from '../../lib/trainingLocation';
+import VipBackdrop from '../../components/VipBackdrop';
+import ExerciseMuscles from '../../components/ExerciseMuscles';
+import LibraryMuscleArt from '../../components/LibraryMuscleArt';
 import MuscleMapEffects from '../../components/MuscleMapEffects';
 import TierPreview from '../../components/TierPreview';
 import { getTierTheme } from '../../lib/tierTheme';
@@ -550,12 +555,33 @@ export default function App() {
   const [trendPeriod, setTrendPeriod] = useState<'1m' | 'first'>('1m');
   const [trendView, setTrendView] = useState<'front' | 'back'>('front');
   const [gifModalUrl, setGifModalUrl] = useState<string | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [exercisePaused, setExercisePaused] = useState(false);
   const [gifFrame, setGifFrame] = useState(0); // 2 kareli statik görseli ard arda oynat (mini animasyon)
   // Egzersiz kütüphanesi
   const [libVisible, setLibVisible] = useState(false);
   const [libData, setLibData] = useState<Record<string, any[]>>({});
   const [libSearch, setLibSearch] = useState('');
   const [libGroup, setLibGroup] = useState('Tümü');
+  const [libBrowse, setLibBrowse] = useState(true);
+  const [libFavoritesOnly, setLibFavoritesOnly] = useState(false);
+  const [libLocation, setLibLocation] = useState<TrainingLocation>('gym');
+  const [locationSaving, setLocationSaving] = useState(false);
+  const locationLibrary = useMemo(() => Object.fromEntries(
+    Object.entries(libData).map(([group, exercises]) => [group, exercises.filter(exercise => matchesTrainingLocation(exercise, libLocation))])
+      .filter(([, exercises]) => (exercises as any[]).length > 0)
+  ) as Record<string, any[]>, [libData, libLocation]);
+  const saveTrainingLocation = async () => {
+    setLocationSaving(true);
+    try {
+      const { data } = await axios.put(`${API_URL}/update-profile`, { trainingLocation: libLocation }, { headers: { Authorization: `Bearer ${token}` } });
+      if (data.user?.onboardingData?.location !== libLocation) throw new Error('Location update unavailable');
+      setUser((previous: any) => ({ ...previous, onboardingData: data.user.onboardingData }));
+      showToast(t('Antrenman yerin kaydedildi. Yeni AI programlarında kullanılacak.'), 'success');
+    } catch { showToast(t('Antrenman yeri kaydedilemedi. Tekrar dene.'), 'error'); }
+    finally { setLocationSaving(false); }
+  };
+
   const [libDetail, setLibDetail] = useState<any>(null);
   const [libLoading, setLibLoading] = useState(false);
   // Kendi programın — kullanıcının kütüphaneden kurduğu plan (VIP gerekmez)
@@ -586,12 +612,12 @@ export default function App() {
   const plannerSnapshotRef = useRef<string>('');
   // Ücretsiz üyelikte kurulabilecek gün sayısı — sunucudan gelir (VIP: 7, ücretsiz: 2)
   const [customDayLimit, setCustomDayLimit] = useState(2);
+  useEffect(() => { setGifFrame(0); setExercisePaused(false); }, [gifModalUrl, libDetail]);
   useEffect(() => {
-    if (!gifModalUrl && !libDetail) return;
-    setGifFrame(0);
-    const id = setInterval(() => setGifFrame((f) => (f === 0 ? 1 : 0)), 650);
+    if ((!gifModalUrl && !libDetail) || reduceMotion || exercisePaused) return;
+    const id = setInterval(() => setGifFrame(f => (f === 0 ? 1 : 0)), 900);
     return () => clearInterval(id);
-  }, [gifModalUrl, libDetail]);
+  }, [gifModalUrl, libDetail, reduceMotion, exercisePaused]);
   // ─── KENDİ PROGRAMIN ───
   const fetchCustomPlan = async () => {
     if (!token) return;
@@ -680,6 +706,10 @@ export default function App() {
   // Bu yüzden planner'ı kapatıp kütüphaneyi açıyoruz, seçim bitince planner geri geliyor.
   const MODAL_SWAP_MS = 350;
   const openLibraryForPicking = (dayIndex: number) => {
+    setLibLocation(normalizeLocation(user?.onboardingData?.location));
+    setLibBrowse(true);
+    setLibFavoritesOnly(false);
+    setLibGroup('Tümü');
     setLibPickForDay(dayIndex);
     setLibSearch('');
     setLibDetail(null);
@@ -721,6 +751,11 @@ export default function App() {
   };
 
   const openLibrary = async () => {
+    setLibLocation(normalizeLocation(user?.onboardingData?.location));
+    setLibBrowse(true);
+    setLibFavoritesOnly(false);
+    setLibSearch('');
+    setLibGroup('Tümü');
     setLibVisible(true);
     // NOT: eskiden "zaten yüklendiyse tekrar çekme" vardı — bu, kütüphaneyi oturum
     // boyunca kalıcı olarak eskitiyordu (yeni eklenen egzersizler DB'de olsa da
@@ -1034,7 +1069,7 @@ export default function App() {
   const [mascotTakeover, setMascotTakeover] = useState<'male' | 'female' | null>(null);
   const takeoverAnim = useRef(new RNAnimated.Value(0)).current;
   const takeoverSwappedRef = useRef(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
+
 
 
   // Uygulama içi Genel State'ler
@@ -1254,7 +1289,7 @@ const completeOnboarding = async () => {
   } catch {}
   // Cinsiyet yerel kullanıcıya da işleniyor: rank ve analiz ekranları sunucuyu
   // tekrar beklemeden doğru eşiklerle çizilsin.
-  setUser((prev: any) => prev ? { ...prev, onboarded: true, gender: onboardingAnswers.gender || prev.gender } : prev);
+  setUser((prev: any) => prev ? { ...prev, onboarded: true, gender: onboardingAnswers.gender || prev.gender, onboardingData: { ...prev.onboardingData, location: onboardingAnswers.location } } : prev);
 
   // Onboarding bitince kullanıcı GymBody sekmesine bırakılıyor; programı orada
   // kendisi "PROGRAMIMI OLUŞTUR" ile başlatıyor. Otomatik üretmiyoruz: hedef/alerji
@@ -2181,7 +2216,7 @@ const purchaseVip = async (packageId: string) => {
   // --- KAMERA VEYA GALERİ SEÇİM ---
 const askAndPickImage = async (type: 'progress' | 'meal') => {
   if (type === 'meal' && dailyMealRights <= 0) {
-    return Alert.alert(t('Hakkın Bitti kanka!'), t('Bugünlük yemek tarama hakkın bitti. Geriye dönük sınırsız kayıt ve analiz için yakında VIP üye olabilirsin! 😉'));
+    return Alert.alert(t('Hakkın Bitti kanka!'), t(userStats.isVip ? 'Bugünlük 5 yemek tarama hakkın doldu. Yarın yeniden tarayabilirsin.' : 'Bugünlük 2 yemek tarama hakkın doldu. VIP ile günlük limitin 5 olur.'));
   }
 
   if (type === 'progress') {
@@ -2566,7 +2601,7 @@ const pickAndUploadProfilePhoto = async () => {
             {currentTab === 'gymBody' ? user.name : currentTab === 'analiz' ? t('Analiz') : currentTab === 'stats' ? t('Max Güç') : currentTab === 'profile' ? t('Profil') : t('PT')}
           </Text>
           <Text style={styles.topContext} numberOfLines={1}>
-            {currentTab === 'gymBody' ? t('Hoş geldin') : currentTab === 'analiz' ? t('Gelişim ve beslenme takibi') : currentTab === 'stats' ? t('Kişisel güç seviyen') : currentTab === 'profile' ? (user.email || t('Hesap ve ölçülerin')) : t('Hocanla birlikte ilerle')}
+            {currentTab === 'gymBody' ? t('Hoş geldin') : currentTab === 'analiz' ? t('Gelişim ve beslenme takibi') : currentTab === 'stats' ? t('Kişisel güç seviyen') : currentTab === 'profile' ? t('Hesap ve ölçülerin') : t('Hocanla birlikte ilerle')}
           </Text>
         </View>
         <TouchableOpacity activeOpacity={0.85} onPress={pickAndUploadProfilePhoto} style={styles.avatar}>
@@ -2604,36 +2639,6 @@ const pickAndUploadProfilePhoto = async () => {
          üretiminde (fetchWeeklyPlan). Kütüphane, plan görüntüleme, PT sekmesi serbest. */
       <View>
         <View>
-
-        {/* HIZLI DURUM — ekran açıldığında program, seri ve ilerleme tek bakışta. */}
-        {(weeklyPlan || customPlanTotalEx > 0) && (() => {
-          const isCustom = activeProgram === 'custom' && customPlanTotalEx > 0;
-          const total = isCustom ? (customPlan.length || 1) : (weeklyPlan?.totalDays || weeklyPlan?.workoutPlan?.length || 1);
-          const current = Math.min(isCustom ? (customSelectedDay || 1) : (weeklyPlan?.currentDay || 1), total);
-          const completed = weeklyPlan?.completedFully ? total : Math.min(total, weeklyPlan?.workoutPlan?.filter((day: any) => day.completed).length || 0);
-          const progress = Math.max(0, Math.min(1, completed / total));
-          return (
-            <LinearGradient colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={lkStyles.statusRail}>
-              <View style={lkStyles.statusRailIcon}>
-                <Ionicons name={activeProgram === 'custom' ? 'construct' : 'sparkles'} size={17} color={activeProgram === 'custom' ? LK.accentFixed : LK.primaryFixed} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
-                  <Text style={lkStyles.statusRailTitle} numberOfLines={1}>{activeProgram === 'custom' ? t('Kendi Programın') : t('AI Programı')}</Text>
-                  <View style={lkStyles.statusRailMetaRow}>
-                    <Text style={lkStyles.statusRailMeta}>{isCustom ? t('{{day}}. Gün', { day: current }) : t('{{done}}/{{total}} tamamlandı', { done: completed, total })}</Text>
-                    <View style={lkStyles.statusRailDivider} />
-                    <Ionicons name="flame" size={12} color={LK.accentFixed} />
-                    <Text style={lkStyles.statusRailMeta}>{userStats.streak || 0}</Text>
-                  </View>
-                </View>
-                {!isCustom && <View style={lkStyles.statusTrack}>
-                  <View style={[lkStyles.statusFill, { width: `${progress * 100}%`, backgroundColor: activeProgram === 'custom' ? LK.accent : LK.primaryFixed }]} />
-                </View>}
-              </View>
-            </LinearGradient>
-          );
-        })()}
 
         {/* MOLA PROMPT */}
         {showRestPrompt && weeklyPlan && !weeklyPlan.completedFully && (() => {
@@ -2712,7 +2717,7 @@ const pickAndUploadProfilePhoto = async () => {
         {/* FORM — kendi programı olan kullanıcıda tek satıra iner, dokununca açılır */}
         {!weeklyPlan && customPlanTotalEx > 0 && !aiFormExpanded && (
           <TouchableOpacity activeOpacity={0.85} onPress={() => setAiFormExpanded(true)}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: 'rgba(255,159,28,0.3)' }}>
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 16, marginBottom: 10 }}>
             <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(255,159,28,0.14)', alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="sparkles" size={19} color="#FF9F1C" />
             </View>
@@ -2820,50 +2825,86 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
         )}
 
-        {/* HIZLI ERİŞİM — kütüphane + kendi programın, yan yana (Lumina Kinetic) */}
-        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
-          <TouchableOpacity onPress={openLibrary} activeOpacity={0.85} style={lkStyles.quickCard}>
-            <View style={lkStyles.quickIcon}>
-              <Ionicons name="book-outline" size={20} color={LK.primaryFixed} />
+        {/* Görselli kütüphane girişi. */}
+        <View style={lkStyles.quickLinks}>
+          <TouchableOpacity onPress={openLibrary} accessibilityRole="button" accessibilityLabel={t('Hareket Kütüphanesi')} activeOpacity={0.7} style={lkStyles.libraryEntry}>
+            <View style={{ flex: 1, gap: 9 }}>
+              <Text style={lkStyles.libraryEntryTitle}>{t('Hareket Kütüphanesi')}</Text>
+              <Text style={[lkStyles.quickSub, { lineHeight: 18 }]}>{t('Çalışmak istediğin bölgeyi seç')}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <Ionicons name="barbell-outline" size={20} color={LK.primaryFixed} />
+                <Ionicons name="arrow-forward" size={22} color={LK.primaryFixed} />
+              </View>
             </View>
-            <Text style={lkStyles.quickTitle} numberOfLines={2}>{t('Hareket Kütüphanesi')}</Text>
-            <Text style={lkStyles.quickSub} numberOfLines={1}>{t('Hareketlerin yapılışına bak')}</Text>
+            <View pointerEvents="none" style={lkStyles.libraryEntryArt}>
+              <MuscleBodyMap gender={user?.gender} width={88} view="front" showLabels={false}
+                ranks={{ gogus: 'active', omuz: 'active', kuad: 'active' }}
+                rankColors={{ active: LK.primaryFixed }} defaultColor="#45504F" baseColor="#303A39" outlineColor="#67736D" />
+              <View style={{ marginLeft: -18, marginTop: 14 }}>
+                <MuscleBodyMap gender={user?.gender} width={76} view="back" showLabels={false}
+                  ranks={{ sirt: 'active', kalca: 'active', arkabacak: 'active' }}
+                  rankColors={{ active: LK.primaryFixed }} defaultColor="#45504F" baseColor="#303A39" outlineColor="#67736D" />
+              </View>
+            </View>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={openPlanner} activeOpacity={0.85}
-            style={lkStyles.quickCard}>
-            <View style={lkStyles.quickIcon}>
-              <Ionicons name="construct-outline" size={19} color={LK.accentFixed} />
-            </View>
-            <Text style={lkStyles.quickTitle} numberOfLines={2}>{t('Kendi Programın')}</Text>
-            <Text style={lkStyles.quickSub} numberOfLines={1}>
-              {customPlanTotalEx > 0
-                ? t('{{days}} gün · {{count}} hareket', { days: customPlan.length, count: customPlanTotalEx })
-                : t('Kütüphaneden seç, kur')}
-            </Text>
-          </TouchableOpacity>
         </View>
 
-        {/* PROGRAM ANAHTARI — iki program da varsa aralarında geçiş */}
-        {weeklyPlan && customPlanTotalEx > 0 && (
-          <View style={lkStyles.segment}>
-            {([
-              { key: 'ai' as const, label: t('AI Programı'), icon: 'sparkles' as const },
-              { key: 'custom' as const, label: t('Kendi Programın'), icon: 'construct' as const },
-            ]).map(opt => {
-              const on = activeProgram === opt.key;
-              return (
-                <TouchableOpacity key={opt.key} activeOpacity={0.85} onPress={() => setActiveProgram(opt.key)}
-                  style={[lkStyles.segmentBtn, on && { backgroundColor: opt.key === 'ai' ? LK.primaryContainer : LK.accent }]}>
-                  <Ionicons name={opt.icon} size={15}
-                    color={on ? (opt.key === 'ai' ? LK.onPrimaryContainer : LK.onAccent) : LK.onSurfaceVariant} />
-                  <Text numberOfLines={1}
-                    style={[lkStyles.segmentText, on && { fontFamily: LK.fontLabel, color: opt.key === 'ai' ? LK.onPrimaryContainer : LK.onAccent }]}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+        {/* Program seçimi ve takip bilgileri aynı bölümde. */}
+        {(() => {
+          const isCustom = !weeklyPlan || activeProgram === 'custom';
+          const total = weeklyPlan?.totalDays || weeklyPlan?.workoutPlan?.length || 1;
+          const completed = weeklyPlan?.completedFully ? total : Math.min(total, weeklyPlan?.workoutPlan?.filter((day: any) => day.completed).length || 0);
+          const options = [
+            ...(weeklyPlan ? [{ key: 'ai' as const, label: t('AI Programı'), icon: 'sparkles' as const }] : []),
+            { key: 'custom' as const, label: t('Kendi Programın'), icon: 'construct' as const },
+          ];
+          return <View style={{ marginBottom: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={[lkStyles.segment, { flex: 1, marginBottom: 0, gap: 12 }]}>
+                {options.map(opt => {
+                  const on = (isCustom ? 'custom' : 'ai') === opt.key;
+                  const accent = opt.key === 'ai' ? LK.primaryFixed : LK.accentFixed;
+                  return <TouchableOpacity key={opt.key} accessibilityRole="tab" accessibilityState={{ selected: on }}
+                    activeOpacity={0.85} onPress={() => setActiveProgram(opt.key)}
+                    style={[lkStyles.segmentBtn, { gap: 5 }, on && { borderBottomColor: accent }]}>
+                    <Ionicons name={opt.icon} size={14} color={on ? accent : LK.onSurfaceVariant} />
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}
+                      style={[lkStyles.segmentText, { flexShrink: 1 }, on && { color: accent, fontFamily: LK.fontLabel }]}>{opt.label}</Text>
+                  </TouchableOpacity>;
+                })}
+              </View>
+              <View accessibilityLabel={t('{{count}} günlük seri', { count: userStats.streak || 0 })}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 2 }}>
+                <Ionicons name="flame" size={19} color={LK.accentFixed} />
+                <Text style={{ color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 14 }}>{userStats.streak || 0}</Text>
+              </View>
+            </View>
+            {!isCustom && <View style={{ marginTop: 10 }}>
+              <Text style={lkStyles.statusRailMeta}>{t('{{done}}/{{total}} tamamlandı', { done: completed, total })}</Text>
+              <View style={lkStyles.statusTrack}>
+                <View style={[lkStyles.statusFill, { width: `${Math.max(0, Math.min(1, completed / total)) * 100}%`, backgroundColor: LK.primaryFixed }]} />
+              </View>
+            </View>}
+          </View>;
+        })()}
+
+        {(!weeklyPlan || activeProgram === 'custom') && (
+          <View style={{ marginBottom: 12 }}>
+          <TouchableOpacity onPress={openPlanner} activeOpacity={0.7} style={lkStyles.quickCard}>
+            <Ionicons name="construct-outline" size={23} color={LK.accentFixed} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={lkStyles.quickTitle}>{t(customPlanTotalEx > 0 ? 'Programı düzenle' : 'Program oluştur')}</Text>
+              <Text style={lkStyles.quickSub}>
+                {customPlanTotalEx > 0
+                  ? t('{{days}} gün · {{count}} hareket', { days: customPlan.length, count: customPlanTotalEx })
+                  : t('Kütüphaneden seç, kur')}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 5, maxWidth: 112 }}>
+              <Ionicons name={customPlanTotalEx > 0 ? 'create-outline' : 'add-circle-outline'} size={23} color={LK.accentFixed} />
+            </View>
+          </TouchableOpacity>
           </View>
         )}
 
@@ -2877,9 +2918,8 @@ const pickAndUploadProfilePhoto = async () => {
                   const on = d.dayNumber === customSelectedDay;
                   return (
                     <TouchableOpacity key={i} activeOpacity={0.85} onPress={() => setCustomSelectedDay(d.dayNumber)}
-                      style={[lkStyles.dayChip, on && { backgroundColor: LK.accent }]}>
-                      <Text style={[lkStyles.dayChipText, on && { color: LK.onAccent }]}>{t('{{day}}. Gün', { day: d.dayNumber })}</Text>
-                      {!!d.focus && <Text style={[lkStyles.dayChipSub, on && { color: LK.onAccent }]} numberOfLines={1}>{d.focus}</Text>}
+                      style={[lkStyles.dayChip, on && { borderBottomColor: LK.accentFixed }]}>
+                      <Text style={[lkStyles.dayChipText, on && { color: LK.accentFixed }]}>{t('{{day}}. Gün', { day: d.dayNumber })}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -2892,16 +2932,12 @@ const pickAndUploadProfilePhoto = async () => {
                   <View style={lkStyles.heroCard}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[lkStyles.heroEyebrow, { color: LK.accentFixed }]}>{t('{{day}}. GÜN', { day: day.dayNumber })}</Text>
                         <Text style={lkStyles.heroTitle}>{day.focus || t('Antrenman')}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12 }}>
                           <Ionicons name="barbell-outline" size={16} color={LK.onSurfaceVariant} />
                           <Text style={lkStyles.heroMeta}>{t('{{count}} hareket', { count: exs.length })}</Text>
                         </View>
                       </View>
-                      <TouchableOpacity activeOpacity={0.85} onPress={openPlanner} style={lkStyles.exIconBtn}>
-                        <Ionicons name="create-outline" size={18} color={LK.onSurface} />
-                      </TouchableOpacity>
                     </View>
                     <TouchableOpacity activeOpacity={0.88}
                       onPress={() => { setWorkoutSource('custom'); setCustomSelectedDay(day.dayNumber); setWorkoutExIdx(0); setWorkoutSetIdx(0); setRestSeconds(null); setWorkoutActive(true); ptLogIdRef.current = null; }}
@@ -2922,12 +2958,12 @@ const pickAndUploadProfilePhoto = async () => {
                   <>
                     <Text style={[lkStyles.sectionTitle, { marginTop: 24, marginBottom: 16 }]}>{t('Hareketler')}</Text>
                     {exs.map((ex: any, j: number) => (
-                      <LinearGradient key={j} colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={lkStyles.exRow}>
+                      <LinearGradient key={j} colors={[LK.bg, LK.bg]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={lkStyles.exRow}>
                         <View style={lkStyles.exThumb}>
                           {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={lkStyles.exName} numberOfLines={1}>{ex.name}</Text>
+                          <Text style={lkStyles.exName} numberOfLines={2}>{ex.name}</Text>
                           <Text style={lkStyles.exSets}>{ex.sets}</Text>
                         </View>
                         {ex.gifUrl && (
@@ -2945,7 +2981,7 @@ const pickAndUploadProfilePhoto = async () => {
         })()}
 
         {/* PLAN GÖSTERİMİ */}
-        {weeklyPlan && (customPlanTotalEx === 0 || activeProgram === 'ai') && !weeklyPlan.completedFully && !isRestDay && !showRestPrompt && !(!weeklyPlan.started && weeklyPlan.currentDay === 1 && !weeklyPlan.lastDayCompletedAt) && (() => {
+        {weeklyPlan && activeProgram === 'ai' && !weeklyPlan.completedFully && !isRestDay && !showRestPrompt && !(!weeklyPlan.started && weeklyPlan.currentDay === 1 && !weeklyPlan.lastDayCompletedAt) && (() => {
   const currentWorkoutDay = weeklyPlan.workoutPlan?.find((d: any) => d.dayNumber === weeklyPlan.currentDay);
   const currentNutritionDay = weeklyPlan.nutritionPlan?.find((d: any) => d.dayNumber === weeklyPlan.currentDay);
 
@@ -3000,12 +3036,12 @@ const pickAndUploadProfilePhoto = async () => {
             </TouchableOpacity>
           </View>
           {exs.map((ex: any, j: number) => (
-            <LinearGradient key={j} colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={lkStyles.exRow}>
+            <LinearGradient key={j} colors={[LK.bg, LK.bg]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={lkStyles.exRow}>
               <View style={lkStyles.exThumb}>
                 {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={lkStyles.exName} numberOfLines={1}>{ex.name}</Text>
+                <Text style={lkStyles.exName} numberOfLines={2}>{ex.name}</Text>
                 <Text style={lkStyles.exSets}>{ex.sets}</Text>
               </View>
               <TouchableOpacity activeOpacity={0.8} onPress={() => toggleFavExercise(ex.name)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={lkStyles.exIconBtnPlain}>
@@ -3320,7 +3356,7 @@ const pickAndUploadProfilePhoto = async () => {
               ] : [
                 { value: `${todayCalories}`, label: t('ALINAN KCAL') },
                 { value: remainingCalories != null ? `${remainingCalories}` : '--', label: t('KALAN KCAL') },
-                { value: userStats.isVip ? 'VIP' : `${dailyMealRights}`, label: t('TARAMA HAKKI') },
+                { value: `${dailyMealRights}`, label: t('TARAMA HAKKI') },
               ]).map((metric, index) => (
                 <View key={metric.label} style={[styles.analysisMetric, index > 0 && styles.analysisMetricBorder]}>
                   <Text style={[styles.analysisMetricValue, !isProgress && { color: C.orange }]} numberOfLines={1}>{metric.value}</Text>
@@ -3742,7 +3778,7 @@ const pickAndUploadProfilePhoto = async () => {
               onPress={() => askAndPickImage('meal')} disabled={loading}>
               <Ionicons name="scan" size={20} color={AZ_DARK.onLime} />
               <Text style={{ color: AZ_DARK.onLime, fontWeight: '900', fontSize: 14, letterSpacing: 0.4 }}>{t('TABAĞI TARA')}</Text>
-              {!userStats.isVip && <Text style={styles.analysisMealScannerRights}>{dailyMealRights}</Text>}
+              <Text style={styles.analysisMealScannerRights}>{dailyMealRights}</Text>
             </TouchableOpacity>
           </LinearGradient>
 
@@ -3960,7 +3996,7 @@ const pickAndUploadProfilePhoto = async () => {
 
           {!userStats.isVip && (
             <TouchableOpacity activeOpacity={0.85} onPress={() => setCurrentTab('profile')}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(255,159,28,0.1)', borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,159,28,0.3)' }}>
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14, marginBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border }}>
               <Ionicons name="lock-closed" size={18} color={C.orange} />
               <Text style={{ flex: 1, color: C.text, fontSize: 12.5, fontWeight: '600' }}>{t("Ağırlık girişi ve sıralama VIP'e özel. Görüntülemek serbest — kaydetmek için VIP ol.")}</Text>
               <Ionicons name="chevron-forward" size={16} color={C.orange} />
@@ -4185,7 +4221,7 @@ const pickAndUploadProfilePhoto = async () => {
               <TouchableOpacity key={lift.key} activeOpacity={0.75}
                 onPress={() => openLiftEntry(lift.key, best)}
                 style={{ width: Dimensions.get('window').width * 0.82, marginRight: 12, borderRadius: 22, overflow: 'hidden',
-                  shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 7 }}>
+                  borderWidth: StyleSheet.hairlineWidth, borderColor: C.border }}>
                 <LinearGradient colors={best > 0 ? [accentColor + '1A', LK.surfaceContainer] : [LK.glassTop, LK.glassBottom]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ padding: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <TouchableOpacity
@@ -4235,7 +4271,7 @@ const pickAndUploadProfilePhoto = async () => {
                 </View>
 
                 {best > 0 && !isRepBased && (
-                  <View style={{ marginTop: 12, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center' }}>
+                  <View style={{ marginTop: 12, paddingVertical: 16, paddingHorizontal: 12, alignItems: 'center' }}>
                     <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 9.5, letterSpacing: 1 }}>{t('TAHMİNİ 1RM')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, marginTop: 3 }}>
                       <Text style={{ color: accentColor, fontFamily: LK.fontHeadlineXl, fontSize: 20, letterSpacing: -0.4 }}>{estimated1RM}</Text>
@@ -4332,10 +4368,9 @@ const pickAndUploadProfilePhoto = async () => {
               })();
               return (
                 <TouchableOpacity key={lift.key} activeOpacity={0.85} onPress={() => openLiftEntry(lift.key, best)}
-                  style={{ marginBottom: 10, borderRadius: 18, overflow: 'hidden',
-                    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 5 }}>
-                  <LinearGradient colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13 }}>
+                  style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border }}>
+                  <LinearGradient colors={[C.bg, C.bg]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 18, paddingHorizontal: 2 }}>
                     {/* Hareket görseli / ikon */}
                     <TouchableOpacity disabled={!gifUrl} onPress={(e) => { e.stopPropagation(); if (gifUrl) setGifModalUrl(gifUrl); }}
                       style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: accentColor + '1A', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -4348,7 +4383,7 @@ const pickAndUploadProfilePhoto = async () => {
 
                     {/* Ad + "kas • ağırlık × tekrar" */}
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 13.5, letterSpacing: 0.2 }} numberOfLines={1}>{lift.label}</Text>
+                      <Text style={{ color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 15, lineHeight: 21 }} numberOfLines={2}>{lift.label}</Text>
                       <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 11.5, marginTop: 2 }} numberOfLines={1}>
                         {t(lift.muscle)}
                         {best > 0 && (
@@ -4392,23 +4427,24 @@ const pickAndUploadProfilePhoto = async () => {
       )}
       {currentTab === 'profile' && (
   <ScrollView style={{flex: 1}} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-    <LinearGradient colors={[C.surface2, C.surface, C.bgAlt]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.profileHero}>
-      <View style={styles.profileHeroGlow} pointerEvents="none" />
-      <View style={styles.profileAvatarLarge}>
-        {(user.profilePhoto || user.googlePhoto) ? (
-          <Image source={{ uri: user.profilePhoto || user.googlePhoto }} style={styles.profileAvatarImage} />
-        ) : (
-          <Text style={styles.profileAvatarLetter}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
-        )}
+    <View style={styles.profileHero}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 18 }}>
+        <View style={styles.profileAvatarLarge}>
+          {(user.profilePhoto || user.googlePhoto) ? (
+            <Image source={{ uri: user.profilePhoto || user.googlePhoto }} style={styles.profileAvatarImage} />
+          ) : (
+            <Text style={styles.profileAvatarLetter}>{(user.name?.[0] || 'S').toUpperCase()}</Text>
+          )}
+        </View>
+        <View style={{ flex: 1, gap: 5 }}>
+          <Text style={styles.profileName}>{user.name}</Text>
+          {!!user.email && <Text style={styles.profileEmail}>{user.email}</Text>}
+          {userStats.isVip && <Text style={{ color: C.orange, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>GymBody VIP</Text>}
+        </View>
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <Text style={styles.profileName}>{user.name}</Text>
-        {userStats.isVip && <Text style={{ fontSize: 22 }}>👑</Text>}
-      </View>
-      {!!user.email && <Text style={styles.profileEmail}>{user.email}</Text>}
 
       {/* Streak + Token inline */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24, marginTop: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24, marginTop: 22, paddingTop: 18, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border }}>
         <View style={{ alignItems: 'center' }}>
           <Text style={{ color: C.orange, fontWeight: '900', fontSize: 24 }}>{userStats.streak}</Text>
           <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('🔥 Seri')}</Text>
@@ -4439,8 +4475,7 @@ const pickAndUploadProfilePhoto = async () => {
         return (
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
             {earnedLifts.map(({ lift, rank }) => (
-              <View key={lift.key} style={{ flex: 1, alignItems: 'center', backgroundColor: C.surface2,
-                borderRadius: 14, paddingVertical: 10, borderWidth: 1, borderColor: C.border }}>
+              <View key={lift.key} style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}>
                 <RankBadgeSvg rankKey={rank!.key} color={rank!.color} size={44} />
                 <Text style={{ color: rank!.color, fontWeight: '800', fontSize: 11, marginTop: 4 }}>{t(rank!.label)}</Text>
                 <Text style={{ color: C.textMuted, fontSize: 10, marginTop: 2 }}>{lift.label}</Text>
@@ -4449,13 +4484,14 @@ const pickAndUploadProfilePhoto = async () => {
           </View>
         );
       })()}
-    </LinearGradient>
+    </View>
 
 {/* VIP KARTI */}
 {userStats.isVip ? (
   /* VIP kartı artık kapalı bir bilgi şeridi değil: dokununca planlar açılıyor,
      üyeliği bitmeden uzatmak isteyen için satın alma buradan yapılabiliyor. */
-  <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66', paddingVertical: 14 }]}>
+  <LinearGradient colors={['#1D1B18', '#11151A']} style={[styles.profileSection, { borderRadius: 22, borderBottomWidth: 0, padding: 18, marginBottom: 26, overflow: 'hidden' }]}>
+    <VipBackdrop />
     <TouchableOpacity activeOpacity={0.85} onPress={() => setVipExtendOpen(v => !v)}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
       <Ionicons name="star" size={22} color="#FF9F1C" />
@@ -4494,23 +4530,34 @@ const pickAndUploadProfilePhoto = async () => {
     )}
   </LinearGradient>
 ) : (
-  <LinearGradient colors={['#1A1530', C.surface]} style={[styles.statsCard, { borderColor: '#3A2E66', paddingBottom: 20 }]}>
+  <LinearGradient colors={['#1D1B18', '#11151A']} style={[styles.profileSection, { borderRadius: 22, borderBottomWidth: 0, padding: 18, marginBottom: 26, overflow: 'hidden' }]}>
+    <VipBackdrop />
     {/* Başlık */}
     <View style={{ alignItems: 'center', marginBottom: 16 }}>
       <View style={{ backgroundColor: '#FF9F1C22', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 4, marginBottom: 8 }}>
         <Text style={{ color: '#FF9F1C', fontWeight: '800', fontSize: 11, letterSpacing: 1.5 }}>GymBody VIP</Text>
       </View>
-      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 20 }}>{t('Tüm özelliklerin kilidi')}</Text>
-      <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' }}>{t('açılsın')}</Text>
+      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 20 }}>{t('Antrenmanını bir adım ileri taşı')}</Text>
+      <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 4, textAlign: 'center' }}>{t('Kişisel planlar, güç takibi ve daha fazla analiz')}</Text>
     </View>
 
     {/* Özellik listesi */}
-    {[t('Kişisel haftalık antrenman programı'), t('Kişisel beslenme planı'), t('Max Güç kayıt ve sıralama'), t('Sınırsız yağ oranı analizi'), t('Gelişim fotoğraf karşılaştırması')].map(f => (
-      <View key={f} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-        <Ionicons name="checkmark-circle" size={16} color="#FF9F1C" />
-        <Text style={{ color: C.textSec, fontSize: 13 }}>{f}</Text>
+    {([
+      { icon: 'sparkles-outline', title: 'Sana özel AI programları', detail: 'Antrenman ve beslenme planı oluştur' },
+      { icon: 'trophy-outline', title: 'Max Güç kayıt ve sıralama', detail: 'Ağırlıklarını kaydet, sikletindeki yerini gör' },
+      { icon: 'body-outline', title: 'Günde 3 vücut analizi', detail: 'Ücretsiz üyelikte haftada 1 analiz' },
+      { icon: 'scan-outline', title: 'Günde 5 yemek taraması', detail: 'Ücretsiz üyelikte günde 2 tarama' },
+      { icon: 'images-outline', title: 'Gelişim fotoğraf karşılaştırması', detail: 'İlk ve son fotoğrafını yan yana incele' },
+    ] as const).map(feature => (
+      <View key={feature.title} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 11 }}>
+        <Ionicons name={feature.icon} size={21} color={C.orange} style={{ marginTop: 2 }} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={{ color: C.text, fontWeight: '700', fontSize: 14 }}>{t(feature.title)}</Text>
+          <Text style={{ color: C.textMuted, fontSize: 12, lineHeight: 18 }}>{t(feature.detail)}</Text>
+        </View>
       </View>
     ))}
+    <Text style={{ color: C.textMuted, fontSize: 11, lineHeight: 17, marginTop: 8, marginBottom: 18 }}>{t('Hareket kütüphanesi, ev hareketleri ve favoriler ücretsiz.')}</Text>
 
     {/* Plan seçici kartlar */}
     {renderVipPlanPicker()}
@@ -4560,11 +4607,11 @@ const pickAndUploadProfilePhoto = async () => {
       const tierOrder = ['legend','elite','rising'];
       const grouped = tierOrder
         .map(t => ({ tier: t, count: monthly.filter(m => m.tier === t).length,
-                     months: monthly.filter(m => m.tier === t).map(m => { const mm = parseInt(m.period.split('-')[1]) - 1; return monthShort(mm); }) }))
+                     months: monthly.filter(m => m.tier === t).map(m => { const mm = parseInt(m.period.split('-')[1]) - 1; return monthShort(mm) + ' ' + m.period.split('-')[0]; }) }))
         .filter(g => g.count > 0);
 
       return (
-        <View style={[styles.statsCard, { marginHorizontal: 0 }]}>
+        <View style={[styles.profileSection, { marginHorizontal: 0 }]}>
           {/* ===== AYLIK ROZETLER (seviyelendirme) ===== */}
           {grouped.length > 0 && (
             <View style={{ marginBottom: 18 }}>
@@ -4572,32 +4619,25 @@ const pickAndUploadProfilePhoto = async () => {
                 <Text style={[styles.statsTitle, { flex: 1, marginBottom: 0 }]}>{t('Aylık Rozetler')}</Text>
                 <Text style={{ color: C.textMuted, fontSize: 11, fontWeight: '700' }}>{t('her ay performans')}</Text>
               </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+              <View>
                 {grouped.map(g => {
                   const meta = MONTH_TIERS[g.tier];
-                  const n = g.count;
-                  const glowRadius = 6 + n * 4;
-                  const glowOpacity = Math.min(0.35 + n * 0.18, 0.95);
-                  const borderWidth = 2 + Math.min(n, 3);
-                  const prestige = n >= 3;
                   return (
-                    <TouchableOpacity key={g.tier} activeOpacity={0.8} onPress={() => setMonthlyDetailTier(g.tier)} style={{ alignItems: 'center', width: 78 }}>
-                      <View style={{
-                        width: 64, height: 64, borderRadius: 32,
-                        backgroundColor: meta.color + (prestige ? '33' : '22'),
-                        borderWidth, borderColor: meta.color,
-                        alignItems: 'center', justifyContent: 'center',
-                        shadowColor: meta.color, shadowOpacity: glowOpacity, shadowRadius: glowRadius, shadowOffset: { width: 0, height: 0 }, elevation: 10,
-                      }}>
-                        <Text style={{ fontSize: 30 }}>{meta.emoji}</Text>
-                        {n > 1 && (
-                          <View style={{ position: 'absolute', bottom: -4, right: -4, backgroundColor: meta.color, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 2, borderColor: C.surface }}>
-                            <Text style={{ color: '#0B0D12', fontSize: 11, fontWeight: '900' }}>×{n}</Text>
-                          </View>
-                        )}
+                    <TouchableOpacity key={g.tier} accessibilityRole="button"
+                      accessibilityLabel={t('{{tier}} Rozeti', { tier: t(meta.label) }) + ', ' + t('{{count}} kez kazanıldı', { count: g.count })}
+                      activeOpacity={0.7} onPress={() => setMonthlyDetailTier(g.tier)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border }}>
+                      <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: meta.color + '14', borderWidth: 1, borderColor: meta.color + '55', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: 29 }}>{meta.emoji}</Text>
                       </View>
-                      <Text style={{ color: meta.color, fontSize: 12, fontWeight: '900', marginTop: 7 }}>{t(meta.label)}{prestige ? ' ✦' : ''}</Text>
-                      <Text style={{ color: C.textMuted, fontSize: 9, marginTop: 1, textAlign: 'center' }} numberOfLines={1}>{g.months.join(' · ')}</Text>
+                      <View style={{ flex: 1, gap: 5 }}>
+                        <Text style={{ color: C.text, fontSize: 16, fontWeight: '700' }}>{t(meta.label)}</Text>
+                        <Text style={{ color: C.textMuted, fontSize: 12, lineHeight: 18 }} numberOfLines={2}>{g.months.join(' · ')}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                        <Text style={{ color: meta.color, fontSize: 23, fontWeight: '800' }}>×{g.count}</Text>
+                        <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -4660,7 +4700,7 @@ const pickAndUploadProfilePhoto = async () => {
 
     {/* ARKADAŞLAR — ölçülerin üstünde, daha erişilebilir */}
     <TouchableOpacity onPress={() => { fetchFriends(); setFriendsVisible(true); }} activeOpacity={0.85}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 18, marginBottom: 12, borderWidth: 1, borderColor: C.border }}>
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 20, paddingHorizontal: 2, marginBottom: 24, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border }}>
       <Ionicons name="people" size={20} color={C.orange} />
       <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, flex: 1 }}>{t('Arkadaşlar')}</Text>
       {friends.reduce((acc, f) => acc + f.unread, 0) > 0 && (
@@ -4671,12 +4711,13 @@ const pickAndUploadProfilePhoto = async () => {
       <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
     </TouchableOpacity>
 
+    <Text style={styles.profileSectionTitle}>{t('Vücut ölçülerin')}</Text>
     {!isEditingProfile ? (
       <>
 
 
         {/* Özet — boy / kilo / VKİ */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 14, borderTopWidth: 1, borderColor: C.border }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 20 }}>
           <View style={{ alignItems: 'center' }}>
             <Text style={{ color: C.text, fontWeight: '900', fontSize: 20 }}>{user.height || '--'}</Text>
             <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 2 }}>{t('Boy (cm)')}</Text>
@@ -4746,7 +4787,7 @@ const pickAndUploadProfilePhoto = async () => {
 
         <TouchableOpacity
           activeOpacity={0.85}
-          style={[styles.editBtn, { marginBottom: 16 }]}
+          style={[styles.profileActionRow, { marginBottom: 24 }]}
           onPress={() => {
             setEditName(user.name || '');
             setEditHeight(user.height ? String(user.height) : '');
@@ -4759,7 +4800,7 @@ const pickAndUploadProfilePhoto = async () => {
         </TouchableOpacity>
       </>
     ) : (
-      <View style={styles.profileCard}>
+      <View style={styles.profileSection}>
         <TextInput
           style={styles.input}
           placeholder={t('İsim Soyisim')}
@@ -4808,7 +4849,7 @@ const pickAndUploadProfilePhoto = async () => {
 
     {/* HEDEF TAKİBİ */}
     {user.targetWeight && user.weight && (
-      <View style={[styles.statsCard, { marginHorizontal: 0 }]}>
+      <View style={[styles.profileSection, { marginHorizontal: 0 }]}>
         <Text style={styles.statsTitle}>{t('Hedefe İlerleme')}</Text>
         {(() => {
           const current = parseFloat(user.weight);
@@ -4838,7 +4879,7 @@ const pickAndUploadProfilePhoto = async () => {
     )}
 
     {/* DİL SEÇİMİ — Otomatik (cihaz) / Türkçe / English */}
-    <View style={[styles.statsCard, { marginHorizontal: 0, paddingVertical: 14 }]}>
+    <View style={[styles.profileSection, { marginHorizontal: 0, paddingVertical: 14 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <Ionicons name="language" size={18} color={C.lime} />
         <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{t('Dil')} / Language</Text>
@@ -4852,9 +4893,9 @@ const pickAndUploadProfilePhoto = async () => {
           const on = langPref === opt.key;
           return (
             <TouchableOpacity key={opt.key} activeOpacity={0.85} onPress={() => changeLangPref(opt.key)}
-              style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center',
-                backgroundColor: on ? C.lime : C.surface2, borderWidth: 1, borderColor: on ? C.lime : C.border }}>
-              <Text style={{ color: on ? '#0B1207' : C.textSec, fontWeight: '700', fontSize: 13 }}>{opt.label}</Text>
+              style={{ flex: 1, paddingVertical: 13, alignItems: 'center',
+                borderBottomWidth: 2, borderBottomColor: on ? C.lime : 'transparent' }}>
+              <Text style={{ color: on ? C.lime : C.textSec, fontWeight: '700', fontSize: 13 }}>{opt.label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -4866,10 +4907,10 @@ const pickAndUploadProfilePhoto = async () => {
 
     {/* GİZLİLİK LİNKLERİ */}
     <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 12, marginTop: 8 }}>
-      <TouchableOpacity onPress={() => setPrivacyModal('privacy')}>
+      <TouchableOpacity style={{ paddingVertical: 12 }} onPress={() => setPrivacyModal('privacy')}>
         <Text style={{ color: C.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>{t('Gizlilik Politikası')}</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={() => setPrivacyModal('terms')}>
+      <TouchableOpacity style={{ paddingVertical: 12 }} onPress={() => setPrivacyModal('terms')}>
         <Text style={{ color: C.textMuted, fontSize: 12, textDecorationLine: 'underline' }}>{t('Kullanım Koşulları')}</Text>
       </TouchableOpacity>
     </View>
@@ -4890,13 +4931,13 @@ const pickAndUploadProfilePhoto = async () => {
     </TouchableOpacity>
     )}
 
-    <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await SecureStore.deleteItemAsync('userToken'); setUser(null); setToken(null); }}>
+    <TouchableOpacity style={[styles.profileActionRow, { marginTop: 12 }]} onPress={async () => { await SecureStore.deleteItemAsync('userToken'); setUser(null); setToken(null); }}>
       <Ionicons name="log-out-outline" size={18} color={C.red} />
       <Text style={styles.logoutText}>{t('ÇIKIŞ YAP')}</Text>
     </TouchableOpacity>
 
     {/* HESABI SİL — App Store/Play zorunlu, kalıcı silme */}
-    <TouchableOpacity onPress={confirmDeleteAccount} style={{ alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
+    <TouchableOpacity onPress={confirmDeleteAccount} style={{ alignItems: 'center', paddingVertical: 16, marginBottom: 8 }}>
       <Text style={{ color: C.textMuted, fontSize: 13, textDecorationLine: 'underline' }}>{t('Hesabı Sil')}</Text>
     </TouchableOpacity>
   </ScrollView>
@@ -4906,7 +4947,7 @@ const pickAndUploadProfilePhoto = async () => {
       {/* AYLIK ROZET DETAY MODAL */}
       <Modal visible={!!monthlyDetailTier} transparent animationType="fade" onRequestClose={() => setMonthlyDetailTier(null)}>
         <TouchableOpacity activeOpacity={1} onPress={() => setMonthlyDetailTier(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 28 }}>
-          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: C.surface, borderRadius: 22, padding: 22, borderWidth: 1, borderColor: C.border }}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={{ backgroundColor: C.surface, borderRadius: 22, padding: 22, borderWidth: 1, borderColor: C.border, maxHeight: '85%' }}>
             {(() => {
               if (!monthlyDetailTier) return null;
               const meta = MONTH_TIERS[monthlyDetailTier];
@@ -4926,6 +4967,7 @@ const pickAndUploadProfilePhoto = async () => {
                     <Text style={{ color: meta.color, fontSize: 19, fontWeight: '900', marginTop: 12 }}>{t(meta.label)} ×{items.length}</Text>
                     <Text style={{ color: C.textMuted, fontSize: 12, marginTop: 2 }}>{t('{{count}} ay bu seviyeye ulaştın', { count: items.length })}</Text>
                   </View>
+                  <ScrollView showsVerticalScrollIndicator={false}>
                   {items.map((m, i) => {
                     const [yy, mm] = m.period.split('-');
                     return (
@@ -4939,6 +4981,7 @@ const pickAndUploadProfilePhoto = async () => {
                       </View>
                     );
                   })}
+                  </ScrollView>
                   <TouchableOpacity onPress={() => setMonthlyDetailTier(null)} style={{ marginTop: 18, backgroundColor: C.surface2, borderRadius: 14, paddingVertical: 13, alignItems: 'center' }}>
                     <Text style={{ color: C.text, fontWeight: '800', fontSize: 14 }}>{t('Kapat')}</Text>
                   </TouchableOpacity>
@@ -5389,7 +5432,7 @@ const pickAndUploadProfilePhoto = async () => {
           "seçim modu"nda açar (libPickForDay), böylece liste kodu tek yerde kalır. */}
       <Modal visible={plannerVisible} animationType="slide" onRequestClose={closePlanner}>
         <View style={{ flex: 1, backgroundColor: LK.bg }}>
-          <View style={lkStyles.plannerHeader}>
+          <View style={[lkStyles.plannerHeader, { paddingTop: insets.top + 12 }]}>
             <TouchableOpacity onPress={closePlanner} style={lkStyles.exIconBtnPlain}>
               <Ionicons name="close" size={24} color={LK.onSurface} />
             </TouchableOpacity>
@@ -5409,19 +5452,8 @@ const pickAndUploadProfilePhoto = async () => {
             </TouchableOpacity>
           </View>
 
-          {/* GÜN SEKMELERİ */}
-          <View style={{ paddingHorizontal: 16 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
-              {plannerDraft.map((d: any, i: number) => {
-                const on = i === plannerDay;
-                return (
-                  <TouchableOpacity key={i} onPress={() => setPlannerDay(i)}
-                    style={[lkStyles.dayChip, on && { backgroundColor: plannerAccent, borderColor: plannerAccent }]}>
-                    <Text style={[lkStyles.dayChipText, on && { color: plannerTarget === 'ai' ? LK.onPrimaryContainer : LK.onAccent }]}>{t('{{day}}. Gün', { day: i + 1 })}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-              {plannerDraft.length < 7 && (() => {
+          <View style={{ paddingHorizontal: 20, paddingBottom: 12, alignItems: 'flex-end' }}>
+              {plannerTarget === 'custom' && plannerDraft.length < 7 && (() => {
                 // Ücretsiz üyelikte 2 gün; 3. gün VIP'e özel
                 const locked = plannerDraft.length >= customDayLimit;
                 return (
@@ -5448,6 +5480,21 @@ const pickAndUploadProfilePhoto = async () => {
                   </TouchableOpacity>
                 );
               })()}
+          </View>
+
+          {/* GÜN SEKMELERİ */}
+          <View style={{ paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+              {plannerDraft.map((d: any, i: number) => {
+                const on = i === plannerDay;
+                return (
+                  <TouchableOpacity key={i} onPress={() => setPlannerDay(i)}
+                    style={[lkStyles.dayChip, on && { borderBottomColor: plannerAccentFixed }]}>
+                    <Text style={[lkStyles.dayChipText, on && { color: plannerAccentFixed }]}>{t('{{day}}. Gün', { day: i + 1 })}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+
             </ScrollView>
           </View>
 
@@ -5482,7 +5529,7 @@ const pickAndUploadProfilePhoto = async () => {
                 </View>
 
                 {exs.map((ex: any, j: number) => (
-                  <LinearGradient key={j} colors={[LK.glassTop, LK.glassBottom]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={lkStyles.exRow}>
+                  <LinearGradient key={j} colors={[LK.bg, LK.bg]} start={{ x: 0, y: 0 }} end={{ x: 0.6, y: 1 }} style={lkStyles.exRow}>
                     <View style={lkStyles.exThumb}>
                       {ex.gifUrl ? <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(ex.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
                     </View>
@@ -5557,14 +5604,14 @@ const pickAndUploadProfilePhoto = async () => {
         </View>
       </Modal>
 
-      <Modal visible={libVisible} animationType="slide" onRequestClose={() => { if (libDetail) setLibDetail(null); else closeLibrary(); }}>
+      <Modal visible={libVisible} animationType="slide" onRequestClose={() => { if (libDetail) setLibDetail(null); else if (!libBrowse) { setLibBrowse(true); setLibSearch(''); setLibFavoritesOnly(false); setLibGroup('Tümü'); } else closeLibrary(); }}>
         <View style={{ flex: 1, backgroundColor: C.bg }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 56, paddingHorizontal: 16, paddingBottom: 12, gap: 12 }}>
-            <TouchableOpacity onPress={() => { if (libDetail) setLibDetail(null); else closeLibrary(); }}>
-              <Ionicons name={libDetail ? 'arrow-back' : 'close'} size={26} color={C.text} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: insets.top + 12, paddingHorizontal: 16, paddingBottom: 12, gap: 12 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t(libDetail || !libBrowse ? 'Geri' : 'Kapat')} style={{ minWidth: 44, minHeight: 44, justifyContent: 'center' }} onPress={() => { if (libDetail) setLibDetail(null); else if (!libBrowse) { setLibBrowse(true); setLibSearch(''); setLibFavoritesOnly(false); setLibGroup('Tümü'); } else closeLibrary(); }}>
+              <Ionicons name={libDetail || !libBrowse ? 'arrow-back' : 'close'} size={26} color={C.text} />
             </TouchableOpacity>
             <Text numberOfLines={1} style={{ color: C.text, fontSize: 18, fontWeight: '800', flex: 1 }}>
-              {libDetail ? libDetail.name : (libPickForDay !== null ? t('Hareket Seç') : t('Hareket Kütüphanesi'))}
+              {libDetail ? t('Hareket detayı') : (!libBrowse && libFavoritesOnly ? t('Favorilerim') : !libBrowse && libGroup !== 'Tümü' ? t(libGroup) : (libPickForDay !== null ? t('Hareket Seç') : t('Hareket Kütüphanesi')))}
             </Text>
             {libPickForDay !== null && !libDetail && (
               <TouchableOpacity onPress={closeLibrary} style={{ backgroundColor: C.lime, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }}>
@@ -5579,57 +5626,102 @@ const pickAndUploadProfilePhoto = async () => {
           )}
 
           {libDetail ? (
-            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-              <View style={{ alignItems: 'center', backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 16 }}>
-                <ExpoImage
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 + insets.bottom }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 8, marginBottom: 18 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: C.text, fontSize: 27, lineHeight: 34, fontWeight: '800' }}>{libDetail.name}</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 13, lineHeight: 20, marginTop: 9 }}>
+                    {[libDetail.equipment, libDetail.level].filter(Boolean).map(value => t(value)).join(' · ')}
+                  </Text>
+                </View>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={t((user?.favoriteExercises || []).includes(libDetail.name) ? 'Favorilerden çıkar' : 'Favorilere ekle')}
+                  onPress={() => toggleFavExercise(libDetail.name)} style={{ width: 44, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name={(user?.favoriteExercises || []).includes(libDetail.name) ? 'star' : 'star-outline'} size={25} color={(user?.favoriteExercises || []).includes(libDetail.name) ? C.lime : C.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ alignItems: 'center', backgroundColor: C.surface, borderRadius: 20, overflow: 'hidden' }}>
+                {(libDetail.images?.length || libDetail.gifUrl) ? <ExpoImage
                   source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent((libDetail.images && libDetail.images.length ? libDetail.images[gifFrame % libDetail.images.length] : libDetail.gifUrl))}`, headers: { Authorization: `Bearer ${token}` } }}
-                  style={{ width: 260, height: 260, borderRadius: 12 }}
+                  style={{ width: '100%', aspectRatio: 1 }}
                   contentFit="contain"
-                  transition={250}
-                />
+                  autoplay={!reduceMotion && !exercisePaused}
+                  transition={reduceMotion ? 0 : 250}
+                /> : <View style={{ height: 180, justifyContent: 'center' }}><Ionicons name="barbell-outline" size={48} color={C.textMuted} /></View>}
               </View>
-              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-                {!!libDetail._group && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.lime, fontSize: 12, fontWeight: '600' }}>{t(libDetail._group)}</Text></View>}
-                {!!libDetail.equipment && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.textSec, fontSize: 12 }}>{libDetail.equipment}</Text></View>}
-                {!!libDetail.level && <View style={{ backgroundColor: C.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 11 }}><Text style={{ color: C.textSec, fontSize: 12 }}>{libDetail.level}</Text></View>}
-              </View>
-              <Text style={{ color: C.text, fontWeight: '700', fontSize: 15, marginBottom: 12 }}>{t('Yapılışı')}</Text>
-              {(libDetail.instructions || []).map((s: string, i: number) => (
-                <View key={i} style={{ flexDirection: 'row', gap: 10, marginBottom: 13 }}>
-                  <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: C.bg, fontWeight: '800', fontSize: 12 }}>{i + 1}</Text></View>
-                  <Text style={{ color: C.textSec, fontSize: 14, flex: 1, lineHeight: 21 }}>{s}</Text>
+              {libDetail.images?.length > 1 && <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+                <Text style={{ color: C.textMuted, fontSize: 12 }}>{t('Adım {{current}} / {{total}}', { current: gifFrame % libDetail.images.length + 1, total: libDetail.images.length })}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  {!reduceMotion && <TouchableOpacity accessibilityRole="button" onPress={() => setExercisePaused(value => !value)} style={{ minHeight: 44, justifyContent: 'center' }}>
+                    <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>{t(exercisePaused ? 'Oynat' : 'Duraklat')}</Text>
+                  </TouchableOpacity>}
+                  <TouchableOpacity accessibilityRole="button" onPress={() => { setExercisePaused(true); setGifFrame(value => (value + 1) % libDetail.images.length); }} style={{ minHeight: 44, justifyContent: 'center' }}>
+                    <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>{t('Sonraki adım')}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>}
+              {!!(libDetail.primaryMuscles?.length || libDetail.secondaryMuscles?.length || libDetail._group) && <ExerciseMuscles
+                primary={libDetail.primaryMuscles || []} secondary={libDetail.secondaryMuscles || []}
+                group={libDetail._group} gender={user?.gender} colors={C}
+              />}
+              <Text style={{ color: C.text, fontWeight: '700', fontSize: 21, marginTop: 26, marginBottom: 8 }}>{t('Yapılışı')}</Text>
+              {(libDetail.instructions || []).map((instruction: string, i: number) => (
+                <View key={i} style={{ flexDirection: 'row', gap: 16, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border }}>
+                  <Text style={{ width: 28, color: C.lime, fontWeight: '700', fontSize: 19, lineHeight: 25 }}>{String(i + 1).padStart(2, '0')}</Text>
+                  <Text style={{ color: C.textSec, fontSize: 15, flex: 1, lineHeight: 25 }}>{instruction}</Text>
                 </View>
               ))}
-              {!(libDetail.instructions || []).length && <Text style={{ color: C.textMuted, fontSize: 13 }}>{t('Bu hareket için talimat bulunmuyor.')}</Text>}
+              {!(libDetail.instructions || []).length && <Text style={{ color: C.textMuted, fontSize: 14, marginTop: 12 }}>{t('Bu hareket için talimat bulunmuyor.')}</Text>}
             </ScrollView>
           ) : (
             <>
+              <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
+                  {TRAINING_LOCATIONS.map(option => <TouchableOpacity key={option.key} disabled={locationSaving} accessibilityRole="tab" accessibilityState={{ selected: libLocation === option.key }}
+                    onPress={() => { setLibLocation(option.key); setLibGroup('Tümü'); setLibBrowse(true); setLibFavoritesOnly(false); setLibSearch(''); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: libLocation === option.key ? C.lime : 'transparent' }}>
+                    <Ionicons name={option.icon} size={17} color={libLocation === option.key ? C.lime : C.textMuted} />
+                    <Text style={{ color: libLocation === option.key ? C.text : C.textMuted, fontWeight: '600', fontSize: 12 }}>{t(option.label)}</Text>
+                  </TouchableOpacity>)}
+                </ScrollView>
+                {libLocation !== 'gym' && <Text style={{ color: C.textMuted, fontSize: 12, lineHeight: 18, marginTop: 8 }}>{t(libLocation === 'home_bare' ? 'Ek ekipman gerektirmeyen hareketler' : 'Vücut ağırlığı, dambıl ve bant hareketleri')}</Text>}
+                {libLocation !== normalizeLocation(user?.onboardingData?.location) && <TouchableOpacity disabled={locationSaving} onPress={saveTrainingLocation} style={{ paddingVertical: 10 }}>
+                  <Text style={{ color: C.lime, fontSize: 12, fontWeight: '700' }}>{t(locationSaving ? 'Kaydediliyor...' : 'Varsayılan antrenman yerim yap')}</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 4 }}>{t('Yeni AI programlarında kullanılır. Mevcut programın değişmez.')}</Text>
+                </TouchableOpacity>}
+              </View>
               <View style={{ paddingHorizontal: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface, borderRadius: 12, paddingHorizontal: 12, height: 44, marginBottom: 12 }}>
                   <Ionicons name="search" size={18} color={C.textMuted} />
-                  <TextInput value={libSearch} onChangeText={setLibSearch} placeholder={t('Hareket ara...')} placeholderTextColor={C.textMuted} style={{ flex: 1, color: C.text, fontSize: 15 }} />
+                  <TextInput value={libSearch} onChangeText={setLibSearch} placeholder={libGroup !== 'Tümü' ? t('{{group}} hareketlerinde ara...', { group: t(libGroup) }) : t('Hareket ara...')} placeholderTextColor={C.textMuted} style={{ flex: 1, color: C.text, fontSize: 15 }} />
                 </View>
-              </View>
-              <View style={{ marginBottom: 6 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 8 }}>
-                  <Text style={{ color: C.textSec, fontSize: 12, fontWeight: '700' }}>{t('Kas grupları')}</Text>
-                  <Text style={{ color: C.textMuted, fontSize: 11 }}>{t('Kaydır →')}</Text>
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-                  {['Tümü', ...Object.keys(libData)].map((g) => (
-                    <TouchableOpacity key={g} onPress={() => setLibGroup(g)} style={{ backgroundColor: libGroup === g ? C.lime : C.surface, borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14 }}>
-                      <Text style={{ color: libGroup === g ? C.bg : C.textSec, fontSize: 13, fontWeight: '600' }}>{t(g)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
               </View>
               {libLoading ? (
                 <ActivityIndicator color={C.lime} style={{ marginTop: 50 }} />
+              ) : libBrowse && !libSearch.trim() ? (
+                <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 + insets.bottom }}>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 6, marginBottom: 25 }}>
+                    {[false, true].map(favorites => <TouchableOpacity key={String(favorites)} onPress={() => { setLibBrowse(false); setLibFavoritesOnly(favorites); setLibGroup('Tümü'); }} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 14, backgroundColor: C.surface2 }}>
+                      <Ionicons name={favorites ? 'star-outline' : 'grid-outline'} size={17} color={C.lime} />
+                      <Text style={{ color: C.text, fontSize: 13, fontWeight: '700' }}>{t(favorites ? 'Favorilerim' : 'Tümü')}</Text>
+                    </TouchableOpacity>)}
+                  </View>
+                  <Text style={{ color: C.text, fontSize: 25, fontWeight: '800', marginBottom: 5 }}>{t('Kas grupları')}</Text>
+                  <Text style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>{t('Çalışmak istediğin bölgeyi seç')}</Text>
+                  {!Object.keys(locationLibrary).length && <Text style={{ color: C.textMuted, marginVertical: 20 }}>{t('Bu ortam için hareket bulunamadı.')}</Text>}
+                  {Object.entries(locationLibrary).map(([group, exercises]) => <TouchableOpacity key={group} accessibilityRole="button" onPress={() => { setLibGroup(group); setLibBrowse(false); setLibFavoritesOnly(false); }} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 116, borderBottomWidth: 1, borderBottomColor: C.border, gap: 19 }}>
+                    <View style={{ width: 100, height: 104, overflow: 'hidden', }}><LibraryMuscleArt group={group} accent={C.lime} gender={user?.gender} /></View>
+                    <View style={{ flex: 1 }}><Text style={{ color: C.text, fontSize: 19, fontWeight: '700' }}>{t(group)}</Text><Text style={{ color: C.textMuted, fontSize: 12, marginTop: 7 }}>{t('{{count}} hareket', { count: (exercises as any[]).length })}</Text></View>
+                    <Ionicons name="chevron-forward" color={C.lime} size={20} />
+                  </TouchableOpacity>)}
+                </ScrollView>
               ) : (() => {
                 const favSet = new Set<string>(user?.favoriteExercises || []);
-                const allExercises = Object.entries(libData).flatMap(([g, arr]) => (arr as any[]).map((x) => ({ ...x, _group: g })));
+                // A category owns its exercise list; search and favorites stay in that category.
+                const categoryExercises = libGroup === 'Tümü'
+                  ? Object.entries(locationLibrary).flatMap(([group, exercises]) => exercises.map(x => ({ ...x, _group: group })))
+                  : (locationLibrary[libGroup] || []).map(x => ({ ...x, _group: libGroup }));
                 const q = libSearch.toLowerCase().trim();
-                const filtered = allExercises.filter((x) => (libGroup === 'Tümü' || x._group === libGroup) && (!q || x.name.toLowerCase().includes(q)));
+                const filtered = categoryExercises.filter(x => (!libFavoritesOnly || favSet.has(x.name)) && (!q || x.name.toLowerCase().includes(q)));
                 const favExercises = filtered.filter((x) => favSet.has(x.name));
                 const otherExercises = filtered.filter((x) => !favSet.has(x.name));
                 // Seçim modunda karta dokunmak hareketi güne ekler; normal modda detayı açar.
@@ -5657,55 +5749,60 @@ const pickAndUploadProfilePhoto = async () => {
                   ));
                   showToast(t('{{name}} eklendi', { name: item.name }), 'success');
                 };
-                const renderCard = (item: any, extraStyle?: any) => {
+                const renderExerciseRow = (item: any) => {
                   const picked = pickedNames.has(item.name);
+                  const favorite = favSet.has(item.name);
                   return (
-                  <TouchableOpacity key={item.name} onPress={() => (libPickForDay !== null ? pickExercise(item) : setLibDetail(item))} activeOpacity={0.85} style={[{ flex: 1, maxWidth: '48%', backgroundColor: C.surface, borderRadius: 12, marginBottom: 10, overflow: 'hidden', borderWidth: picked ? 2 : 0, borderColor: picked ? C.lime : 'transparent' }, extraStyle]}>
-                    <View>
-                      <ExpoImage source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(item.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }} style={{ width: '100%', height: 110, backgroundColor: C.surface2 }} contentFit="cover" />
-                      {/* Programa eklendi işareti — tekrar dokunmak çıkarır */}
-                      {picked && (
-                        <View style={{ position: 'absolute', top: 6, left: 6, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: C.lime, borderRadius: 11, paddingHorizontal: 7, paddingVertical: 3 }}>
-                          <Ionicons name="checkmark" size={12} color="#0B1207" />
-                          <Text style={{ color: '#0B1207', fontSize: 10, fontWeight: '900' }}>{t('EKLİ')}</Text>
-                        </View>
-                      )}
+                    <View key={item.name} style={{ flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border, paddingVertical: 14, gap: 6 }}>
                       <TouchableOpacity
-                        onPress={(e) => { e.stopPropagation(); toggleFavExercise(item.name); }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}
+                        accessibilityRole="button"
+                        accessibilityState={libPickForDay !== null ? { selected: picked } : undefined}
+                        onPress={() => (libPickForDay !== null ? pickExercise(item) : setLibDetail(item))}
+                        activeOpacity={0.7}
+                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16 }}
                       >
-                        <Ionicons name={favSet.has(item.name) ? 'star' : 'star-outline'} size={15} color={favSet.has(item.name) ? C.lime : '#fff'} />
+                        <View style={{ width: 82, height: 82, borderRadius: 14, overflow: 'hidden', backgroundColor: C.surface2 }}>
+                          {item.gifUrl ? <ExpoImage
+                            source={{ uri: `${API_URL}/gif-proxy?url=${encodeURIComponent(item.gifUrl)}`, headers: { Authorization: `Bearer ${token}` } }}
+                            style={{ width: '100%', height: '100%' }} contentFit="contain"
+                          /> : <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="barbell-outline" size={28} color={C.textMuted} /></View>}
+                          {picked && <View style={{ position: 'absolute', bottom: 5, right: 5, width: 23, height: 23, borderRadius: 12, backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name="checkmark" size={16} color="#0B1207" />
+                          </View>}
+                        </View>
+                        <View style={{ flex: 1, gap: 6 }}>
+                          <Text style={{ color: C.text, fontSize: 15, lineHeight: 21, fontWeight: '600' }}>{item.name}</Text>
+                          {!!item.equipment && <Text style={{ color: C.textMuted, fontSize: 12, lineHeight: 17 }}>{item.equipment}</Text>}
+                          {picked && <Text style={{ color: C.lime, fontSize: 10, fontWeight: '800', letterSpacing: 0.7 }}>{t('EKLİ')}</Text>}
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityLabel={t(favorite ? 'Favorilerden çıkar' : 'Favorilere ekle') + ': ' + item.name}
+                        accessibilityState={{ selected: favorite }}
+                        onPress={() => toggleFavExercise(item.name)}
+                        style={{ width: 44, height: 48, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Ionicons name={favorite ? 'star' : 'star-outline'} size={23} color={favorite ? C.lime : C.textMuted} />
                       </TouchableOpacity>
                     </View>
-                    <View style={{ padding: 9 }}>
-                      <Text numberOfLines={2} style={{ color: C.text, fontSize: 13, fontWeight: '600' }}>{item.name}</Text>
-                      {!!item.equipment && <Text style={{ color: C.textMuted, fontSize: 11, marginTop: 3 }}>{item.equipment}</Text>}
-                    </View>
-                  </TouchableOpacity>
                   );
                 };
                 return (
                   <FlatList
+                    key={'rows-' + libLocation + libGroup + (libFavoritesOnly ? '-favorites' : '')}
                     data={otherExercises}
                     keyExtractor={(it: any) => it.name}
-                    numColumns={2}
-                    contentContainerStyle={{ padding: 16, paddingBottom: 32 + insets.bottom }}
-                    columnWrapperStyle={{ gap: 10 }}
-                    renderItem={({ item }: any) => renderCard(item)}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 + insets.bottom }}
+                    renderItem={({ item }: any) => renderExerciseRow(item)}
                     ListHeaderComponent={favExercises.length ? (
                       <View style={{ marginBottom: 6 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 }}>
                           <Ionicons name="star" size={17} color={C.lime} />
                           <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{t('Favorilerim')} · {favExercises.length}</Text>
                         </View>
-                        {Array.from({ length: Math.ceil(favExercises.length / 2) }, (_, row) => (
-                          <View key={row} style={{ flexDirection: 'row', gap: 10 }}>
-                            {favExercises.slice(row * 2, row * 2 + 2).map((item) => renderCard(item))}
-                          </View>
-                        ))}
-                        <View style={{ height: 1, backgroundColor: C.surface2, marginVertical: 14 }} />
-                        {otherExercises.length > 0 && <Text style={{ color: C.textSec, fontWeight: '700', marginBottom: 10 }}>{t('Diğer hareketler')} · {otherExercises.length}</Text>}
+                        {favExercises.map(item => renderExerciseRow(item))}
+                        {otherExercises.length > 0 && <Text style={{ color: C.textSec, fontWeight: '700', marginTop: 24, marginBottom: 4 }}>{t('Diğer hareketler')} · {otherExercises.length}</Text>}
                       </View>
                     ) : null}
                     ListEmptyComponent={filtered.length === 0 ? <Text style={{ color: C.textMuted, fontSize: 13, textAlign: 'center', marginTop: 40 }}>{t('Eşleşen hareket yok.')}</Text> : null}
@@ -7331,32 +7428,18 @@ const pickAndUploadProfilePhoto = async () => {
       <View style={[styles.tabBarOuter, { paddingBottom: Math.max((insets.bottom || 8) - 4, 10) }]}>
         {TABS.map((tab) => {
           const active = currentTab === tab.key;
-          if (tab.gym) {
-            return (
-              <TouchableOpacity key={tab.key} activeOpacity={0.85} style={styles.gymTabBtn}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setCurrentTab(tab.key); }}>
-                <LinearGradient
-                  colors={active ? [C.orange, '#E07800'] : ['#252525', '#1C1C1C']}
-                  style={styles.gymTabCircle}
-                >
-                  <Ionicons name={tab.icon} size={26} color={active ? '#0B0D12' : C.orange} />
-                </LinearGradient>
-                <Text style={[styles.tabBtnText, { marginTop: 4 }, active && { color: C.orange, fontWeight: '700' }]}>{t(tab.label)}</Text>
-              </TouchableOpacity>
-            );
-          }
           return (
-            <TouchableOpacity key={tab.key} activeOpacity={0.82} style={[styles.tabBtn, active && styles.tabBtnActive]}
+            <TouchableOpacity key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={t(tab.label)} activeOpacity={0.82} style={[styles.tabBtn, active && styles.tabBtnActive]}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCurrentTab(tab.key); }}>
-              <View>
-                <Ionicons name={tab.icon} size={22} color={active ? C.orange : C.textSec} />
+              <View style={styles.tabIconWrap}>
+                <Ionicons name={tab.icon} size={24} color={active ? C.lime : C.textMuted} />
                 {tab.key === 'pt' && coachData.unread > 0 && (
                   <View style={{ position: 'absolute', top: -5, right: -9, backgroundColor: '#EF4444', borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 1.5, borderColor: C.bg }}>
                     <Text style={{ color: '#fff', fontSize: 10, fontWeight: '900' }}>{coachData.unread > 9 ? '9+' : coachData.unread}</Text>
                   </View>
                 )}
               </View>
-              <Text style={[styles.tabBtnText, active && { color: C.orange, fontWeight: '700' }]}>{t(tab.label)}</Text>
+              <Text style={[styles.tabBtnText, active && { color: C.lime, fontWeight: '700' }]}>{t(tab.label)}</Text>
             </TouchableOpacity>
           );
         })}
@@ -7380,38 +7463,33 @@ const makeChartConfig = (C: Palette) => ({
 // Lumina Kinetic bileşen stilleri (GymBody ana sayfası + Kendi Programın).
 // Palete bağlı değil — bu ekranlar tek koyu temada tasarlandı.
 const lkStyles = StyleSheet.create({
-  statusRail: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18,
-    paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14,
-    borderWidth: 1, borderColor: LK.glassBorder,
-  },
-  statusRailIcon: {
-    width: 38, height: 38, borderRadius: 13, backgroundColor: LK.surfaceContainerHigh,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  statusRailTitle: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 13.5, flex: 1 },
-  statusRailMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statusRailDivider: { width: 3, height: 3, borderRadius: 2, backgroundColor: LK.outlineVariant, marginHorizontal: 2 },
   statusRailMeta: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 11.5 },
   statusTrack: { height: 4, borderRadius: 2, backgroundColor: LK.surfaceContainerHighest, marginTop: 8, overflow: 'hidden' },
   statusFill: { height: 4, borderRadius: 2 },
-  // Kütüphane / Kendi Programın: ne çerçeve ne gölge — sadece zemin tonu farkıyla ayrılıyorlar
+  libraryEntry: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 14, minHeight: 192,
+  },
+  libraryEntryTitle: {
+    color: LK.onSurface, fontFamily: LK.fontHeadlineSemi, fontSize: 24, lineHeight: 29,
+  },
+  libraryEntryArt: {
+    width: 146, height: 174, flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
+  },
+  quickLinks: {
+    paddingVertical: 8, marginBottom: 24,
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: LK.glassBorder,
+  },
   quickCard: {
-    flex: 1, backgroundColor: LK.surfaceContainer, borderRadius: 18,
-    paddingHorizontal: 14, paddingVertical: 12, gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 16,
+    paddingVertical: 16, paddingHorizontal: 2,
   },
-  quickIcon: {
-    width: 34, height: 34, borderRadius: 10, backgroundColor: LK.surfaceContainerHigh,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  quickTitle: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.5 },
+  quickTitle: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 16 },
   quickSub: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12 },
 
-  // Hero — bugünkü antrenman
-  // Hero de düz: çerçeve/gölge yok, hızlı erişim kartlarıyla aynı zemin tonu
+  // Bugünkü antrenman başlığı sayfanın ortak zemininde.
   heroCard: {
-    backgroundColor: LK.surfaceContainer, borderRadius: 28,
-    paddingHorizontal: 24, paddingVertical: 20, marginBottom: 4,
+    paddingHorizontal: 2, paddingTop: 12, paddingBottom: 24, marginBottom: 4,
   },
   heroEyebrow: {
     color: LK.primaryFixed, fontFamily: LK.fontLabel, fontSize: 14,
@@ -7430,7 +7508,6 @@ const lkStyles = StyleSheet.create({
   primaryPill: {
     marginTop: 24, backgroundColor: LK.primaryContainer, borderRadius: 999, paddingVertical: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 6,
   },
   primaryPillText: { color: LK.onPrimaryContainer, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.5 },
   ghostPill: {
@@ -7449,14 +7526,11 @@ const lkStyles = StyleSheet.create({
   // Bölüm başlığı
   sectionTitle: { color: LK.onSurface, fontFamily: LK.fontHeadlineSemi, fontSize: 20, flex: 1 },
 
-  // Hareket satırı
-  // Kenarda keskin çizgi yok: yumuşak gölge/ışıma ile sınır bulanıklaşıyor,
-  // kartlar zeminden yükseliyormuş gibi duruyor ("kutu" hissini kaldırır).
+  // Ortak zeminde hareket satırları.
   exRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 10,
-    borderRadius: 20, padding: 12,
-    shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 16,
+    paddingVertical: 16, paddingHorizontal: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: LK.glassBorder,
   },
   exThumb: { width: 64, height: 64, borderRadius: 12, backgroundColor: LK.surfaceContainer, overflow: 'hidden' },
   exName: { color: LK.onSurface, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4 },
@@ -7469,14 +7543,12 @@ const lkStyles = StyleSheet.create({
 
   // Program anahtarı (AI ↔ kendi programın)
   segment: {
-    flexDirection: 'row', backgroundColor: LK.surfaceContainerLow, borderRadius: 999,
-    padding: 4, gap: 4, marginBottom: 16,
-    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    flexDirection: 'row', gap: 20, marginBottom: 20,
+    borderBottomWidth: 1, borderBottomColor: LK.glassBorder,
   },
   segmentBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 10, borderRadius: 999,
+    paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   segmentBtnOn: { backgroundColor: LK.primaryContainer },
   segmentText: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 12.5 },
@@ -7484,15 +7556,10 @@ const lkStyles = StyleSheet.create({
 
   // Gün çipleri (kendi programın)
   dayChip: {
-    paddingHorizontal: 20, paddingVertical: 10, borderRadius: 999,
-    backgroundColor: LK.surfaceContainer,
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
-  dayChipOn: {
-    backgroundColor: LK.primaryContainer, borderColor: LK.primaryContainer,
-    shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4,
-  },
+  dayChipOn: { borderBottomColor: LK.primaryFixed },
   dayChipText: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 14, letterSpacing: 0.4 },
   dayChipTextOn: { color: LK.onPrimaryContainer },
   dayChipSub: { color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 11, marginTop: 1 },
@@ -7597,20 +7664,14 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   // ---- BOTTOM TAB BAR ----
   tabBarOuter: {
     flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: -16, paddingHorizontal: 7, paddingTop: 7,
-    backgroundColor: 'rgba(18,21,28,0.98)',
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
-    shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: -4 }, elevation: 30,
+    marginHorizontal: -16, paddingHorizontal: 8, paddingTop: 8,
+    backgroundColor: C.bg,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border,
   },
-  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 4, gap: 2, minHeight: 48, borderRadius: 15 },
-  tabBtnActive: { backgroundColor: 'rgba(255,159,28,0.09)' },
-  tabActivePill: { position: 'absolute', top: 0, width: 28, height: 3, borderRadius: 2, backgroundColor: C.orange },
-  tabBtnText: { fontSize: 10, fontWeight: '600', color: C.textSec },
-  gymTabBtn: { flex: 1.22, alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 3, gap: 1 },
-  gymTabCircle: {
-    width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-    shadowColor: C.orange, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 12,
-  },
+  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, gap: 4, minHeight: 58, borderTopWidth: 2, borderTopColor: 'transparent' },
+  tabBtnActive: { borderTopColor: C.lime },
+  tabIconWrap: { height: 27, justifyContent: 'center', alignItems: 'center' },
+  tabBtnText: { fontSize: 10, fontWeight: '600', color: C.textMuted },
 
   // ---- UPLOAD ----
   uploadCard: { marginBottom: 16 },
@@ -7751,14 +7812,19 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   pageDotActive: { backgroundColor: C.lime, width: 18 },
 
   // ---- PROFILE ----
-  profileHero: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 18, marginBottom: 14,
-    borderRadius: 26, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
-  profileHeroGlow: { position: 'absolute', top: -68, width: 190, height: 150, borderRadius: 95,
-    backgroundColor: C.lime, opacity: .08, transform: [{ scaleX: 1.7 }] },
-  profileAvatarLarge: { width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: C.lime, borderWidth: 3, borderColor: C.surface2, marginBottom: 14,
-    shadowColor: C.lime, shadowOpacity: .26, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 8 },
-  profileAvatarImage: { width: 66, height: 66, borderRadius: 21 },
+  profileHero: { paddingVertical: 14, paddingHorizontal: 2, marginBottom: 26 },
+  profileSection: {
+    paddingVertical: 20, paddingHorizontal: 2, marginBottom: 24,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
+  },
+  profileSectionTitle: { color: C.text, fontSize: 21, fontWeight: '700', marginBottom: 8 },
+  profileActionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 17, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.border,
+  },
+  profileAvatarLarge: { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.lime, overflow: 'hidden' },
+  profileAvatarImage: { width: 76, height: 76, borderRadius: 38 },
   profileAvatarLetter: { color: '#0B0D12', fontWeight: '900', fontSize: 27 },
   profileAvatar: { width: 88, height: 88, borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 14, shadowColor: C.lime, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
   profileAvatarText: { color: '#0B0D12', fontWeight: '900', fontSize: 34 },
@@ -7884,11 +7950,11 @@ const makeStyles = (C: Palette) => StyleSheet.create({
     flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center' },
   analysisGoalSaveText: { color: '#0B0D12', fontWeight: '900', fontSize: 13, letterSpacing: .45 },
   strengthIntroRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14,
-    backgroundColor: C.surface, borderRadius: 16, paddingVertical: 11, paddingHorizontal: 13, borderWidth: 1, borderColor: C.border },
-  strengthIntroIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: C.orange + '18',
+    paddingVertical: 8, paddingHorizontal: 2 },
+  strengthIntroIcon: { width: 28, height: 32,
     alignItems: 'center', justifyContent: 'center' },
   strengthIntroText: { flex: 1, color: C.textSec, fontSize: 12.5, lineHeight: 18 },
-  muscleMapCard: { marginBottom: 16, borderRadius: 26, padding: 16, borderWidth: 1, borderColor: C.border, overflow: 'hidden' },
+  muscleMapCard: { marginBottom: 24, borderRadius: 20, paddingVertical: 20, paddingHorizontal: 10, overflow: 'hidden' },
   statCardsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   statMiniCard: { flex: 1, backgroundColor: C.surface, borderRadius: 16, paddingVertical: 18, alignItems: 'center', borderWidth: 1, borderColor: C.border },
   statMiniValue: { fontSize: 20, fontWeight: '800', color: C.text, marginTop: 8 },

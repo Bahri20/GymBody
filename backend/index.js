@@ -648,6 +648,13 @@ app.put('/update-profile', authMiddleware, async (req, res) => {
       if (g) update.gender = g; else delete update.gender;
     }
 
+    if (req.body.trainingLocation !== undefined) {
+      if (!['gym', 'home_equipped', 'home_bare'].includes(req.body.trainingLocation)) {
+        return res.status(400).json({ error: 'Geçersiz antrenman yeri.' });
+      }
+      update['onboardingData.location'] = req.body.trainingLocation;
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       req.userId,
       update,
@@ -832,7 +839,7 @@ const result = await generateWithRetry(model, prompt, imagePart);
     } else {
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + 7);
-      aiAnalysis = `Ücretsiz analiz hakkın bu hafta kullanıldı. Sınırsız analiz için VIP'e geçebilirsin! Bir dahaki ücretsiz analiz: ${nextDate.toLocaleDateString('tr-TR')}`;
+      aiAnalysis = `Ücretsiz analiz hakkın bu hafta kullanıldı. VIP ile günde 3 analiz yapabilirsin! Bir dahaki ücretsiz analiz: ${nextDate.toLocaleDateString('tr-TR')}`;
       bodyFatPercentage = null;
     }
 
@@ -1598,17 +1605,18 @@ app.post('/get-weekly-plan', authMiddleware, async (req, res) => {
     // GIF'i olan egzersizleri çek — AI sadece bunlardan seçecek (constrained generation)
     const allExercises = await ExerciseGif.find({}, 'name bodyPart gifUrl equipment animated');
     // Kullanıcının ekipmanına göre filtrele → isabetli program + prompt şişmez
-    const EQUIP_BY_LOCATION = {
-      home_bare: new Set(['body only']),
-      home_equipped: new Set(['body only', 'dumbbell', 'bands', 'kettlebell']),
-      // gym / tanımsız: tüm ekipman
-    };
-    const allowedEquip = EQUIP_BY_LOCATION[od.location] || null;
-    let availableExercises = allExercises.filter(e =>
-      !allowedEquip || !e.equipment || allowedEquip.has((e.equipment || '').toLowerCase())
-    );
-    // güvenlik: filtre havuzu çok küçülttüyse (eksik metadata) tümüne düş
-    if (availableExercises.length < 24) availableExercises = allExercises;
+    const homeMode = ['home_bare', 'home_equipped'].includes(od.location);
+    const allowedEquip = new Set(od.location === 'home_equipped'
+      ? ['body only', 'none', 'bodyweight', 'dumbbell', 'bands', 'resistance band']
+      : ['body only', 'none', 'bodyweight']);
+    const availableExercises = allExercises.filter(e => !homeMode || (
+      allowedEquip.has((e.equipment || '').toLowerCase().trim()) &&
+      !/bench|pull.?up|chin.?up|dip|hanging|hyperextension|roman chair|glute.ham|partner|suspension|smith|machine|cable|barbell|box jump|incline|decline|preacher|seated|exercise ball|feet elevated|step.up|pullover|dumbbell fly|tate press|gorilla|body tricep press|towel|off of a dumbbell/.test((e.name || '').toLowerCase())
+    ));
+    // Ev havuzu küçük olsa da salon ekipmanına geri dönme.
+    if (!availableExercises.length) {
+      return res.status(422).json({ error: 'Bu antrenman yeri için uygun hareket bulunamadı.' });
+    }
     // Kas grubuna göre grupla + her grubu karıştır → AI dengeli ve çeşitli seçsin
     const favSet = new Set(user.favoriteExercises || []);
     const byGroup = {};

@@ -46,6 +46,13 @@ const userSchema = new mongoose.Schema({
   // Güç sıralaması — temel bileşik hareketlerde max ağırlık (PR) ve geçmiş
   // lifts: { bench: { best: 80, history: [{ weight, date }] }, squat: {...}, ... }
   lifts: { type: mongoose.Schema.Types.Mixed, default: {} },
+  onboardingData: {
+    goal: String,
+    experience: String,
+    daysPerWeek: Number,
+    location: { type: String, enum: ['gym', 'home_equipped', 'home_bare'] },
+    restrictions: String,
+  },
   onboarded: { type: Boolean, default: false }, // ilk giriş karşılama modalı gösterildi mi
   adRewardsToday: { type: Number, default: 0 }, // bugün izlenen ödüllü reklam sayısı
   adRewardDate: { type: String }, // YYYY-MM-DD (gün değişince sıfırlanır)
