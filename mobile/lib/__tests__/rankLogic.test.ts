@@ -1,13 +1,13 @@
 import {
   LIFTS, RANKS, STD, REP_BASED_LIFTS, computeRank,
   MUSCLE_KEYS, MUSCLE_LIFT_MAP, computeMuscleRank, computeBodyAverageRank, buildMuscleRanksMap,
-  bestForPeriod,
+  bestForPeriod, rankScore, computeMuscleRankForPeriod, REP_FOCUSED_LIFTS, legendMinReps, repBonusThreshold,
 } from '../rankLogic';
 
 describe('computeRank', () => {
   it('eşik altında -1 (henüz bronz değil) döner', () => {
-    // bench erkek bronz eşiği 0.50 — 80kg vücutta 39kg bunun altında
-    expect(computeRank('bench', 39, 80, 'male').rankIndex).toBe(-1);
+    // 95 kg referansında Bronz sınırının hemen altı.
+    expect(computeRank('bench', STD.bench.erkek[0] * 95 - 0.01, 95, 'male').rankIndex).toBe(-1);
   });
 
   it('her rank eşiğinde doğru index döner (bench, erkek)', () => {
@@ -64,32 +64,31 @@ describe('LIFTS / MUSCLE_LIFT_MAP bütünlüğü', () => {
 });
 
 describe('computeMuscleRank — ortalama mantığı', () => {
-  it('iki hareket de aynı rank\'taysa kas o rank olur', () => {
+  it('kartlardaki tekrar katkılı rankların ortalamasını alır', () => {
     const bw = 80;
-    // ohp thresholds erkek platin(idx3)=0.80..<1.00 -> 70kg (0.875) platin
-    // lateral thresholds erkek platin(idx3)=0.16..<0.20 -> 14kg (0.175) platin
-    const lifts = { ohp: { best: 70, reps: 6 }, lateral: { best: 14, reps: 10 } };
-    expect(computeRank('ohp', 70, bw, 'male').rankIndex).toBe(3); // platin
-    expect(computeRank('lateral', 14, bw, 'male').rankIndex).toBe(3); // platin
-    expect(computeMuscleRank('omuz', lifts, bw, 'male')).toBe(3); // platin
+    const lifts = { ohp: { best: 75, reps: 6 }, lateral: { best: 16, reps: 10 } };
+    expect(computeRank('ohp', 75, bw, 'male', 6).rankIndex).toBe(3);
+    expect(computeRank('lateral', 16, bw, 'male', 10).rankIndex).toBe(3);
+    expect(computeMuscleRank('omuz', lifts, bw, 'male')).toBe(3);
   });
 
   it('biri Platin biri Elmas ise kas ortalamaya (en yakın rank\'a) yuvarlanır', () => {
     const bw = 80;
     // curl platin(idx3)=0.60..<0.75 -> 50kg (0.625) platin
     // dumbbellcurl elmas(idx4)=0.40..<0.48 -> 34kg (0.425) elmas
-    const lifts = { curl: { best: 50, reps: 1 }, dumbbellcurl: { best: 34, reps: 1 } };
+    const lifts = { curl: { best: 50, reps: 1 }, dumbbellcurl: { best: 30, reps: 1 } };
     expect(computeRank('curl', 50, bw, 'male').rankIndex).toBe(3); // platin
-    expect(computeRank('dumbbellcurl', 34, bw, 'male').rankIndex).toBe(4); // elmas
+    expect(computeRank('dumbbellcurl', 30, bw, 'male').rankIndex).toBe(4); // elmas
     expect(computeMuscleRank('biceps', lifts, bw, 'male')).toBe(4); // round((3+4)/2)=4 -> elmas
   });
 
-  it('REGRESYON: tekrar sayısı (Epley) kas rank\'ını kart\'takinden farklı yönde etkilemez', () => {
-    const bw = 80;
-    // aynı ham ağırlık, farklı tekrar sayıları — muscle rank aynı kalmalı (kart'ta gösterilenle tutarlı)
-    const singleRep = computeMuscleRank('omuz', { ohp: { best: 70, reps: 1 } }, bw, 'male');
-    const sixReps = computeMuscleRank('omuz', { ohp: { best: 70, reps: 6 } }, bw, 'male');
-    expect(singleRep).toBe(sixReps);
+  it('tekrarlar rankı yükseltirken kart, kas ve geçmiş görünümü aynı kalır', () => {
+    const lifts = { bench: { best: 80, reps: 4 } };
+    expect(computeRank('bench', 80, 95, 'male', 1).rankIndex).toBe(1);
+    expect(computeRank('bench', 80, 95, 'male', 4).rankIndex).toBe(2);
+    expect(computeMuscleRank('gogus', lifts, 95, 'male')).toBe(2);
+    expect(computeMuscleRankForPeriod('gogus', lifts, 95, 'male', 'now')).toBe(2);
+    expect(buildMuscleRanksMap(lifts, 95, 'male').gogus).toBe('altin');
   });
 
   it('hiç veri yoksa -1 döner (harita default gri)', () => {
@@ -165,5 +164,116 @@ describe('bestForPeriod', () => {
     const result = bestForPeriod('bench', liftData, '1m');
     // en güncel kayıt (bugün) 30 günden yeni olduğu için havuzda olmamalı
     expect(result.best).not.toBe(100);
+  });
+});
+
+describe('sınırlı tekrar katkısı', () => {
+  it('1 tekrarı değiştirmez, 6 tekrarda %10, 11+ tekrarda en fazla %20 ekler', () => {
+    expect(rankScore('bench', 100, 1)).toBe(100);
+    expect(rankScore('bench', 100, 6)).toBeCloseTo(110);
+    expect(rankScore('bench', 100, 11)).toBe(120);
+    expect(rankScore('bench', 100, 50)).toBe(120);
+    expect(rankScore('bench', 50, 50)).toBeLessThan(rankScore('bench', 100, 1));
+  });
+  it('eksik veya geçersiz tekrarı tek tekrar kabul eder, sıfır ağırlığa puan vermez', () => {
+    for (const reps of [undefined, NaN, Infinity, -5, 0]) {
+      expect(rankScore('bench', 100, reps)).toBe(100);
+    }
+    expect(rankScore('bench', 0, 30)).toBe(0);
+  });
+  it('Sit-Up tekrar sayısına ikinci bir tekrar bonusu eklemez', () => {
+    expect(computeRank('situp', 60, 95, 'male', 30)).toEqual(computeRank('situp', 60, 95, 'male', 1));
+  });
+  it('sonraki kilo hedefi aynı tekrar sayısıyla gerçekten sonraki ranka ulaştırır', () => {
+    const current = computeRank('bench', 80, 95, 'male', 4);
+    expect(current.nextWeight).toBe(99);
+    expect(computeRank('bench', current.nextWeight!, 95, 'male', 4).rankIndex).toBe(3);
+    expect(computeRank('bench', current.nextWeight! - 1, 95, 'male', 4).rankIndex).toBe(2);
+  });
+  it('geçmiş performansı da sınırlı puanla karşılaştırır', () => {
+    const lift = { history: [
+      { weight: 50, reps: 50, date: '2020-01-01' },
+      { weight: 70, reps: 1, date: '2020-02-01' },
+    ] };
+    expect(bestForPeriod('bench', lift, '1m')).toEqual({ best: 70, reps: 1 });
+  });
+});
+
+describe('mobil / backend / koç hesap uyumu', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const vm = require('vm');
+  const backend = fs.readFileSync(path.resolve(__dirname, '../../../backend/index.js'), 'utf8');
+  const coach = fs.readFileSync(path.resolve(__dirname, '../../../backend/views/coach.html'), 'utf8');
+  // Sunucu/DOM başlatmadan gerçek üretim hesaplarını çalıştır.
+  const serverRank = vm.runInNewContext(backend.slice(backend.indexOf('const MUSCLE_STD'), backend.indexOf("const mongoose = require")) + '; liftRankIndex');
+  const coachRank = vm.runInNewContext(coach.slice(coach.indexOf('const MM_STD'), coach.indexOf('const MM_MUSCLES')) + '; mmRankIndex');
+  it('tüm hareketlerde, cinsiyetlerde ve tekrar değerlerinde aynı sınıfı verir', () => {
+    for (const lift of LIFTS) for (const gender of ['male', 'female', 'Kadın', 'f']) {
+      for (const bw of [60, 85, 90, 95, 100, 110]) for (const reps of [1, 4, 6, 10, 11, 12, 30, 50]) for (const weight of [0, 15, 40, 90, 100, 200]) {
+        const args = [lift.key, weight, bw, gender, reps] as const;
+        const expected = computeRank(...args).rankIndex;
+        expect(serverRank(...args)).toBe(expected);
+        expect(coachRank(...args)).toBe(expected);
+      }
+    }
+  });
+});
+
+
+describe('95 kg referans kalibrasyonu', () => {
+  it('normal hareketlerin Efsane eşikleri kullanıcının verdiği kilolarla aynıdır', () => {
+    const targets: Record<string, number> = { bench:150, squat:240, deadlift:300, ohp:140, curl:80, lateral:30, inclinebench:140, cablecrossover:90, dumbbellcurl:40, hammercurl:50, reversecurl:50, situp:100, legext:150, tricepext:50, hipthrust:250, glutebridge:220, rdl:220, calfraise:50 };
+    for (const [key, weight] of Object.entries(targets)) {
+      expect(computeRank(key, weight, 95, 'male', 1).rankIndex).toBe(5);
+      expect(computeRank(key, weight - 0.01, 95, 'male', 1).rankIndex).toBe(4);
+    }
+  });
+  it('100 kg özel hareketlerinde 1–10 tekrar Elmas, 11 tekrar Efsane', () => {
+    for (const key of REP_FOCUSED_LIFTS) {
+      for (const reps of [1, 6, 10]) expect(computeRank(key, 100, 95, 'male', reps).rankIndex).toBe(4);
+      expect(computeRank(key, 100, 95, 'male', 11).rankIndex).toBe(5);
+      expect(computeRank(key, 200, 95, 'male', 1).rankIndex).toBe(4);
+      expect(computeRank(key, 100, 95, 'male', 1).nextReps).toBe(11);
+    }
+  });
+  it('hafif sıklette hem Elmas kilosu hem Efsane tekrar şartı düşer', () => {
+    for (const key of REP_FOCUSED_LIFTS) for (const [bw, reps] of [[85, 9], [90, 10], [95, 11], [100, 12]]) {
+      const weight = Math.min(bw, 95) / 95 * 100;
+      expect(legendMinReps(key, bw)).toBe(reps);
+      expect(repBonusThreshold(key, bw, 'male')).toBeCloseTo(weight);
+      expect(computeRank(key, weight, bw, 'male', 1).rankIndex).toBe(4);
+      expect(computeRank(key, weight, bw, 'male', reps - 1).rankIndex).toBe(4);
+      expect(computeRank(key, weight, bw, 'male', reps).rankIndex).toBe(5);
+    }
+  });
+  it('özel katkı yalnızca kişiye ait Elmas yükünde başlar', () => {
+    expect(rankScore('latpull', 99, 6, 95, 'male')).toBeCloseTo(108.9);
+    expect(rankScore('latpull', 100, 6, 95, 'male')).toBe(120);
+    expect(rankScore('latpull', 100, 50, 95, 'male')).toBe(140);
+    expect(rankScore('bench', 100, 50, 95, 'male')).toBe(120);
+  });
+  it('tekrar kilidi varken daha fazla kilo hedefi yerine doğru kilo × tekrar hedefi döner', () => {
+    const r = computeRank('latpull', 100, 100, 'male', 11);
+    expect(r.rankIndex).toBe(4);
+    expect(r.nextWeight).toBeNull();
+    expect(r.nextReps).toBe(12);
+    expect(r.nextTargetWeight).toBe(100);
+    expect(r.nextTargetReps).toBe(12);
+  });
+  it('tüm kilo/tekrar önerileri vaat edilen sonraki ranka ulaştırır', () => {
+    for (const lift of LIFTS) for (const bw of [60, 90, 95, 100, 110]) for (const gender of ['male', 'female']) for (const reps of [1, 6, 10, 11, 12]) {
+      const weight = 50;
+      const r = computeRank(lift.key, weight, bw, gender, reps);
+      if (r.nextTargetWeight !== null) expect(computeRank(lift.key, r.nextTargetWeight, bw, gender, r.nextTargetReps).rankIndex).toBeGreaterThan(r.rankIndex);
+      if (r.nextReps !== null) expect(computeRank(lift.key, weight, bw, gender, r.nextReps).rankIndex).toBeGreaterThan(r.rankIndex);
+    }
+  });
+  it('aynı puanda daha fazla tekrar gerektiren eski Efsane kaydını seçer', () => {
+    const data = { history: [
+      { weight:100, reps:11, date:'2020-01-01' },
+      { weight:100, reps:12, date:'2020-02-01' },
+    ] };
+    expect(bestForPeriod('latpull', data, '1m', 100, 'male').reps).toBe(12);
   });
 });

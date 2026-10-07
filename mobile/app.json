@@ -2,7 +2,7 @@
   "expo": {
     "name": "GymBodyAI",
     "slug": "mobile",
-    "version": "1.3.2",
+    "version": "1.3.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "gymbodyai",
@@ -81,7 +81,17 @@
             "enableShrinkResourcesInReleaseBuilds": true
           }
         }
-      ]
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Paylaşımına eklemek istediğin fotoğraf veya videoyu seçebilmen için izin gerekiyor.",
+          "savePhotosPermission": "Hazırladığın fotoğraf ve videoları galerine kaydetmek için izin gerekiyor.",
+          "granularPermissions": [],
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

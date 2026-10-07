@@ -1,0 +1,1 @@
+{"platforms":["apple","android"],"apple":{"modules":["RankVideoModule"]},"android":{"modules":["expo.modules.rankvideo.RankVideoModule"]}}

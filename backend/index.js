@@ -59,31 +59,31 @@ const MUSCLE_RANKS = [
   { key: 'platin', label: 'Platin' }, { key: 'elmas',  label: 'Elmas' }, { key: 'efsane', label: 'Efsane' },
 ];
 const MUSCLE_STD = {
-  bench: { erkek: [0.50, 0.75, 1.00, 1.25, 1.50, 1.80], kadin: [0.30, 0.45, 0.60, 0.80, 1.00, 1.20] },
-  squat: { erkek: [0.75, 1.00, 1.50, 1.75, 2.25, 2.60], kadin: [0.50, 0.75, 1.00, 1.25, 1.60, 1.90] },
-  deadlift: { erkek: [1.00, 1.25, 1.75, 2.25, 2.75, 3.10], kadin: [0.60, 0.90, 1.25, 1.60, 2.00, 2.30] },
-  ohp: { erkek: [0.35, 0.50, 0.65, 0.80, 1.00, 1.15], kadin: [0.20, 0.30, 0.45, 0.55, 0.70, 0.85] },
-  latpull: { erkek: [0.50, 0.65, 0.80, 1.00, 1.20, 1.40], kadin: [0.30, 0.45, 0.60, 0.75, 0.90, 1.05] },
-  curl: { erkek: [0.25, 0.35, 0.45, 0.60, 0.75, 0.90], kadin: [0.15, 0.22, 0.30, 0.40, 0.50, 0.60] },
-  lateral: { erkek: [0.06, 0.09, 0.12, 0.16, 0.20, 0.25], kadin: [0.04, 0.06, 0.09, 0.12, 0.15, 0.18] },
-  inclinebench: { erkek: [0.40, 0.60, 0.85, 1.05, 1.25, 1.50], kadin: [0.25, 0.38, 0.55, 0.70, 0.85, 1.00] },
-  cablecrossover: { erkek: [0.15, 0.25, 0.35, 0.45, 0.55, 0.65], kadin: [0.10, 0.16, 0.22, 0.29, 0.36, 0.43] },
-  dumbbellcurl: { erkek: [0.12, 0.18, 0.24, 0.32, 0.40, 0.48], kadin: [0.08, 0.11, 0.16, 0.20, 0.25, 0.30] },
-  hammercurl: { erkek: [0.13, 0.19, 0.26, 0.34, 0.42, 0.50], kadin: [0.08, 0.12, 0.17, 0.21, 0.26, 0.31] },
-  reversecurl: { erkek: [0.15, 0.22, 0.30, 0.40, 0.50, 0.60], kadin: [0.10, 0.14, 0.19, 0.25, 0.31, 0.37] },
-  cablecrunch: { erkek: [0.30, 0.45, 0.60, 0.80, 1.00, 1.20], kadin: [0.20, 0.30, 0.40, 0.52, 0.65, 0.78] },
+  bench: { erkek: [41.5 / 95, 62.5 / 95, 83.5 / 95, 104 / 95, 125 / 95, 150 / 95], kadin: [25 / 95, 37.5 / 95, 50 / 95, 66.5 / 95, 83.5 / 95, 100 / 95] },
+  squat: { erkek: [69 / 95, 92.5 / 95, 138.5 / 95, 161.5 / 95, 207.5 / 95, 240 / 95], kadin: [46 / 95, 69.5 / 95, 92.5 / 95, 115.5 / 95, 147.5 / 95, 175.5 / 95] },
+  deadlift: { erkek: [97 / 95, 121 / 95, 169.5 / 95, 217.5 / 95, 266 / 95, 300 / 95], kadin: [58 / 95, 87 / 95, 121 / 95, 154.5 / 95, 193.5 / 95, 222.5 / 95] },
+  ohp: { erkek: [42.5 / 95, 61 / 95, 79 / 95, 97.5 / 95, 121.5 / 95, 140 / 95], kadin: [24.5 / 95, 36.5 / 95, 54.5 / 95, 67 / 95, 85 / 95, 103.5 / 95] },
+  latpull: { erkek: [41.5 / 95, 54 / 95, 66.5 / 95, 83.5 / 95, 100 / 95, 140 / 95], kadin: [25 / 95, 37.5 / 95, 50 / 95, 62.5 / 95, 75 / 95, 105 / 95] },
+  curl: { erkek: [22 / 95, 31 / 95, 40 / 95, 53.5 / 95, 66.5 / 95, 80 / 95], kadin: [13 / 95, 19.5 / 95, 26.5 / 95, 35.5 / 95, 44.5 / 95, 53.5 / 95] },
+  lateral: { erkek: [7 / 95, 11 / 95, 14.5 / 95, 19 / 95, 24 / 95, 30 / 95], kadin: [4.5 / 95, 7.5 / 95, 11 / 95, 14 / 95, 18 / 95, 21.5 / 95] },
+  inclinebench: { erkek: [37.5 / 95, 56 / 95, 79.5 / 95, 98 / 95, 116.5 / 95, 140 / 95], kadin: [23.5 / 95, 35.5 / 95, 51.5 / 95, 65.5 / 95, 79 / 95, 93.5 / 95] },
+  cablecrossover: { erkek: [21 / 95, 34.5 / 95, 48.5 / 95, 62.5 / 95, 76 / 95, 90 / 95], kadin: [14 / 95, 22 / 95, 30.5 / 95, 40.5 / 95, 49.5 / 95, 59.5 / 95] },
+  dumbbellcurl: { erkek: [10 / 95, 15 / 95, 20 / 95, 26.5 / 95, 33.5 / 95, 40 / 95], kadin: [6.5 / 95, 9 / 95, 13.5 / 95, 16.5 / 95, 21 / 95, 25 / 95] },
+  hammercurl: { erkek: [13 / 95, 19 / 95, 26 / 95, 34 / 95, 42 / 95, 50 / 95], kadin: [8 / 95, 12 / 95, 17 / 95, 21 / 95, 26 / 95, 31 / 95] },
+  reversecurl: { erkek: [12.5 / 95, 18.5 / 95, 25 / 95, 33.5 / 95, 41.5 / 95, 50 / 95], kadin: [8.5 / 95, 12 / 95, 16 / 95, 21 / 95, 25.5 / 95, 31 / 95] },
+  cablecrunch: { erkek: [30 / 95, 45 / 95, 60 / 95, 80 / 95, 100 / 95, 140 / 95], kadin: [20 / 95, 30 / 95, 40 / 95, 52 / 95, 65 / 95, 91 / 95] },
   situp: { erkek: [15, 25, 40, 60, 80, 100], kadin: [12, 20, 32, 48, 65, 85] },
-  legext: { erkek: [0.40, 0.60, 0.85, 1.10, 1.40, 1.70], kadin: [0.28, 0.42, 0.60, 0.78, 1.00, 1.20] },
-  tricepext: { erkek: [0.10, 0.15, 0.20, 0.27, 0.34, 0.41], kadin: [0.06, 0.09, 0.13, 0.17, 0.21, 0.26] },
-  triceppushdown: { erkek: [0.25, 0.38, 0.52, 0.68, 0.85, 1.02], kadin: [0.16, 0.24, 0.33, 0.43, 0.54, 0.65] },
-  seatedrow: { erkek: [0.50, 0.70, 0.90, 1.15, 1.40, 1.65], kadin: [0.32, 0.45, 0.60, 0.77, 0.94, 1.11] },
-  barbellrow: { erkek: [0.45, 0.65, 0.90, 1.15, 1.40, 1.65], kadin: [0.28, 0.41, 0.57, 0.73, 0.89, 1.05] },
-  shrug: { erkek: [0.75, 1.00, 1.50, 2.00, 2.50, 3.00], kadin: [0.50, 0.65, 1.00, 1.35, 1.70, 2.00] },
-  hipthrust: { erkek: [0.75, 1.10, 1.60, 2.10, 2.60, 3.10], kadin: [0.60, 0.90, 1.35, 1.80, 2.30, 2.80] },
-  glutebridge: { erkek: [0.65, 0.95, 1.40, 1.85, 2.30, 2.75], kadin: [0.50, 0.75, 1.15, 1.55, 1.95, 2.40] },
-  rdl: { erkek: [0.75, 1.00, 1.40, 1.80, 2.20, 2.60], kadin: [0.45, 0.68, 0.95, 1.25, 1.55, 1.85] },
-  legcurl: { erkek: [0.30, 0.45, 0.60, 0.80, 1.00, 1.20], kadin: [0.20, 0.30, 0.42, 0.55, 0.68, 0.82] },
-  calfraise: { erkek: [0.25, 0.40, 0.60, 0.85, 1.10, 1.35], kadin: [0.16, 0.26, 0.40, 0.56, 0.72, 0.88] },
+  legext: { erkek: [35.5 / 95, 53 / 95, 75 / 95, 97 / 95, 123.5 / 95, 150 / 95], kadin: [25 / 95, 37 / 95, 53 / 95, 69 / 95, 88 / 95, 106 / 95] },
+  tricepext: { erkek: [12 / 95, 18.5 / 95, 24.5 / 95, 33 / 95, 41.5 / 95, 50 / 95], kadin: [7 / 95, 11 / 95, 16 / 95, 21 / 95, 25.5 / 95, 31.5 / 95] },
+  triceppushdown: { erkek: [29.5 / 95, 44.5 / 95, 61 / 95, 80 / 95, 100 / 95, 140 / 95], kadin: [19 / 95, 28 / 95, 38.5 / 95, 50.5 / 95, 63.5 / 95, 88.9 / 95] },
+  seatedrow: { erkek: [35.5 / 95, 50 / 95, 64.5 / 95, 82 / 95, 100 / 95, 140 / 95], kadin: [22.5 / 95, 32 / 95, 43 / 95, 55 / 95, 67 / 95, 93.8 / 95] },
+  barbellrow: { erkek: [32 / 95, 46.5 / 95, 64.5 / 95, 82 / 95, 100 / 95, 140 / 95], kadin: [20 / 95, 29.5 / 95, 41 / 95, 52 / 95, 63.5 / 95, 88.9 / 95] },
+  shrug: { erkek: [30 / 95, 40 / 95, 60 / 95, 80 / 95, 100 / 95, 140 / 95], kadin: [20 / 95, 26 / 95, 40 / 95, 54 / 95, 68 / 95, 95.2 / 95] },
+  hipthrust: { erkek: [60.5 / 95, 88.5 / 95, 129 / 95, 169.5 / 95, 209.5 / 95, 250 / 95], kadin: [48.5 / 95, 72.5 / 95, 109 / 95, 145.5 / 95, 185.5 / 95, 226 / 95] },
+  glutebridge: { erkek: [52 / 95, 76 / 95, 112 / 95, 148 / 95, 184 / 95, 220 / 95], kadin: [40 / 95, 60 / 95, 92 / 95, 124 / 95, 156 / 95, 192 / 95] },
+  rdl: { erkek: [63.5 / 95, 84.5 / 95, 118.5 / 95, 152.5 / 95, 186 / 95, 220 / 95], kadin: [38 / 95, 57.5 / 95, 80.5 / 95, 106 / 95, 131 / 95, 156.5 / 95] },
+  legcurl: { erkek: [30 / 95, 45 / 95, 60 / 95, 80 / 95, 100 / 95, 140 / 95], kadin: [20 / 95, 30 / 95, 42 / 95, 55 / 95, 68 / 95, 95.2 / 95] },
+  calfraise: { erkek: [9.5 / 95, 15 / 95, 22 / 95, 31.5 / 95, 40.5 / 95, 50 / 95], kadin: [6 / 95, 10 / 95, 14.5 / 95, 21 / 95, 26.5 / 95, 32.5 / 95] },
 };
 const MUSCLE_REP_BASED = new Set(['situp']);
 const MUSCLE_LIFT_MAP = {
@@ -107,25 +107,44 @@ function normGender(g) {
 }
 const isFemaleGender = (g) => normGender(g) === 'female';
 
-function liftRankIndex(liftKey, best, bodyweight, gender) {
+// Mobil rankScore ile aynı: normal %2/%20; belirlenen hareketlerde 100 kg ve üstü %4/%40.
+// Bu puan bir 1RM tahmini değildir; Sit-Up doğrudan tekrar sayısıyla değerlendirilir.
+const liftRepFocused = new Set(['latpull', 'cablecrunch', 'triceppushdown', 'seatedrow', 'barbellrow', 'shrug', 'legcurl']);
+function liftRankScore(liftKey, best, reps = 1, bodyweight = 70, gender) {
+  const count = Number.isFinite(reps) ? Math.max(1, Math.floor(reps)) : 1;
+  const g = String(gender || '').trim().toLowerCase();
+  const female = ['female', 'kadın', 'kadin', 'woman', 'f'].includes(g);
+  const bw = bodyweight > 0 ? bodyweight : 70;
+  const threshold = liftRepFocused.has(liftKey) ? MUSCLE_STD[liftKey][female ? 'kadin' : 'erkek'][4] * Math.min(bw, 95) : Infinity;
+  const bonus = best + 1e-8 >= threshold ? 0.04 : 0.02;
+  const multiplier = MUSCLE_REP_BASED.has(liftKey) ? 1 : 1 + Math.min(count - 1, 10) * bonus;
+  return best * multiplier;
+}
+function liftRankIndex(liftKey, best, bodyweight, gender, reps = 1) {
   const std = MUSCLE_STD[liftKey];
   if (!std || !(best > 0)) return -1;
-  const th = std[isFemaleGender(gender) ? 'kadin' : 'erkek'];
-  const bw = MUSCLE_REP_BASED.has(liftKey) ? 1 : (bodyweight > 0 ? bodyweight : 70);
-  const ratio = best / bw;
+  const g = String(gender || '').trim().toLowerCase();
+  const female = ['female', 'kadın', 'kadin', 'woman', 'f'].includes(g);
+  const th = [...std[female ? 'kadin' : 'erkek']];
+  const userBw = bodyweight > 0 ? bodyweight : 70;
+  const focused = liftRepFocused.has(liftKey);
+  const bw = MUSCLE_REP_BASED.has(liftKey) ? 1 : (focused ? Math.min(userBw, 95) : userBw);
+  const ratio = liftRankScore(liftKey, best, reps, userBw, gender) / bw;
+  const requiredReps = Math.max(2, 11 + Math.ceil((userBw - 95) / 5));
+  if (focused) th[5] = th[4] * (1 + Math.min(requiredReps - 1, 10) * 0.04);
+  const count = Number.isFinite(reps) ? Math.max(1, Math.floor(reps)) : 1;
   let idx = -1;
-  for (let i = 0; i < th.length; i++) if (ratio >= th[i]) idx = i;
+  for (let i = 0; i < th.length; i++) if (ratio + 1e-10 >= th[i] && (i < 5 || !focused || count >= requiredReps)) idx = i;
   return idx;
 }
-// NOT: ham l.best kullanılır (Epley 1RM DEĞİL) — mobile app'teki hareket kartında gösterilen
-// rank ile birebir aynı olsun diye. Kas rank'ı bağlı hareketlerin ortalamasıdır (en yakın rank'a yuvarlanır).
+// Kas rankı, mobil kartlardaki tekrar katkılı hareket ranklarının ortalamasıdır.
 function muscleRankIndex(muscleKey, lifts, bodyweight, gender) {
   const keys = MUSCLE_LIFT_MAP[muscleKey] || [];
   const idxs = [];
   for (const k of keys) {
     const l = (lifts || {})[k];
     if (!l || !(l.best > 0)) continue;
-    const idx = liftRankIndex(k, l.best, bodyweight, gender);
+    const idx = liftRankIndex(k, l.best, bodyweight, gender, l.reps);
     if (idx >= 0) idxs.push(idx);
   }
   if (!idxs.length) return -1;
@@ -1023,7 +1042,7 @@ app.post('/update-lift', authMiddleware, async (req, res) => {
       rdl: 3.6, legcurl: 1.7, calfraise: 1.9,
     };
     const bw = (user.weight && user.weight > 0) ? user.weight : 70;
-    const cap = lift === 'situp' ? MAX_RATIO.situp : Math.round(bw * MAX_RATIO[lift]);
+    const cap = lift === 'situp' ? MAX_RATIO.situp : Math.ceil(Math.max(bw * MAX_RATIO[lift], bw * MUSCLE_STD[lift][isFemaleGender(user.gender) ? 'kadin' : 'erkek'][5]));
     if (w > cap) {
       const unit = lift === 'situp' ? 'tekrar' : 'kg';
       return res.status(400).json({ error: `Bu ${w} ${unit}, gerçekçi sınırın (~${cap} ${unit}) üstünde görünüyor. Doğru girdiysen yeni dünya rekorun olabilir 💪 — emin misen tekrar dene.` });
@@ -1032,7 +1051,11 @@ app.post('/update-lift', authMiddleware, async (req, res) => {
     const lifts = user.lifts || {};
     const entry = lifts[lift] || { best: 0, history: [] };
     entry.history = [...(entry.history || []), { weight: w, reps: r, date: new Date() }].slice(-60);
-    if (forceUpdate || w > (entry.best || 0)) { entry.best = w; entry.reps = r; }
+    const newRank = liftRankIndex(lift, w, user.weight, user.gender, r);
+    const oldRank = liftRankIndex(lift, entry.best || 0, user.weight, user.gender, entry.reps);
+    const newScore = liftRankScore(lift, w, r, user.weight, user.gender);
+    const oldScore = liftRankScore(lift, entry.best || 0, entry.reps, user.weight, user.gender);
+    if (forceUpdate || newRank > oldRank || (newRank === oldRank && (newScore > oldScore || (newScore === oldScore && r > (entry.reps || 1))))) { entry.best = w; entry.reps = r; }
     lifts[lift] = entry;
     user.lifts = lifts;
     user.markModified('lifts');

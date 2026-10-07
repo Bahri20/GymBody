@@ -32,9 +32,10 @@ import MuscleMapEffects from '../../components/MuscleMapEffects';
 import TierPreview from '../../components/TierPreview';
 import { getTierTheme } from '../../lib/tierTheme';
 import FloatingMascot from '../../components/FloatingMascot';
+import StrengthShareModal from '../../components/StrengthShareModal';
 import NutritionJourney from '../../components/NutritionJourney';
 import {
-  LIFTS, REP_BASED_LIFTS, RANKS, STD, computeRank, normGender, genderKey,
+  LIFTS, REP_BASED_LIFTS, RANKS, computeRank, rankScore, REP_FOCUSED_LIFTS, repBonusThreshold, legendMinReps, normGender,
   MUSCLE_KEYS, MUSCLE_LIFT_MAP, estRankIndex, computeMuscleRank, computeBodyAverageRank, buildMuscleRanksMap,
   bestForPeriod, computeMuscleRankForPeriod, buildMuscleRanksMapForPeriod,
 } from '../../lib/rankLogic';
@@ -1006,7 +1007,6 @@ export default function App() {
   const shareCardRef = useRef<ViewShot>(null);
   const liftShareRef = useRef<ViewShot>(null);
   const rankShareRef = useRef<ViewShot>(null);
-  const bodyShareRef = useRef<ViewShot>(null);
   const [shareBodyRank, setShareBodyRank] = useState(false); // vücut ortalaması rozeti paylaşım kartı
   const [badgesExpanded, setBadgesExpanded] = useState(false); // profilde rozet listesi açık mı
   const [vipExtendOpen, setVipExtendOpen] = useState(false);   // VIP kartında uzatma planları açık mı
@@ -1575,26 +1575,6 @@ const captureLiftShare = async () => {
     showToast(err?.message || t('Paylaşım başarısız.'), 'error');
   } finally {
     setShareLiftKey(null);
-  }
-};
-
-// Vücut ortalaması rozetini paylaş
-const captureBodyShare = async () => {
-  try {
-    const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) { showToast(t('Paylaşım bu cihazda desteklenmiyor.'), 'error'); return; }
-    await new Promise(r => setTimeout(r, 300)); // kartın render olmasını bekle
-    const uri = await (bodyShareRef.current as any)?.capture();
-    if (!uri) { showToast(t('Görsel oluşturulamadı.'), 'error'); return; }
-    const dest = FileSystem.documentDirectory + 'gymbodyai_vucut_rank.jpg';
-    const srcUri = uri.startsWith('file://') ? uri : `file://${uri}`;
-    await FileSystem.deleteAsync(dest, { idempotent: true });
-    await FileSystem.copyAsync({ from: srcUri, to: dest });
-    await Sharing.shareAsync(dest, { mimeType: 'image/jpeg', UTI: 'public.jpeg', dialogTitle: t('GymBodyAI Vücut Rozetim') });
-  } catch (err: any) {
-    showToast(err?.message || t('Paylaşım başarısız.'), 'error');
-  } finally {
-    setShareBodyRank(false);
   }
 };
 
@@ -4195,25 +4175,19 @@ const pickAndUploadProfilePhoto = async () => {
             const bwSort = user?.weight || 70;
             const bestA = user?.lifts?.[a.key]?.best || 0;
             const bestB = user?.lifts?.[b.key]?.best || 0;
-            const rA = computeRank(a.key, bestA, bwSort, user?.gender).rankIndex;
-            const rB = computeRank(b.key, bestB, bwSort, user?.gender).rankIndex;
+            const rA = computeRank(a.key, bestA, bwSort, user?.gender, user?.lifts?.[a.key]?.reps).rankIndex;
+            const rB = computeRank(b.key, bestB, bwSort, user?.gender, user?.lifts?.[b.key]?.reps).rankIndex;
             if (rB !== rA) return rB - rA; // rütbe yüksek önde
-            return (bestB / bwSort) - (bestA / bwSort); // eşit rütbede oran yüksek önde
+            return rankScore(b.key, bestB, user?.lifts?.[b.key]?.reps, user?.weight, user?.gender) - rankScore(a.key, bestA, user?.lifts?.[a.key]?.reps, user?.weight, user?.gender); // eşit rütbede oran yüksek önde
           }).map((lift) => {
             const liftData = user?.lifts?.[lift.key];
             const best = liftData?.best || 0;
             const reps = liftData?.reps || 1;
             const isRepBased = lift.unit === 'tekrar';
             const unitLabel = isRepBased ? t('tekrar') : 'kg';
-            const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
+            const { rankIndex, nextTargetWeight: nextThreshold, nextTargetReps, nextReps, progress, score } = computeRank(lift.key, best, user?.weight, user?.gender, reps);
             const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
             const nextRank = rankIndex < RANKS.length - 1 ? RANKS[rankIndex + 1] : null;
-            const bw = user?.weight || 80;
-            const nextThreshold = nextRank ? (STD[lift.key]?.[genderKey(user?.gender)]?.[rankIndex + 1] ?? 0) * (isRepBased ? 1 : bw) : null;
-            const progress = (nextThreshold && best > 0) ? Math.min(1, best / nextThreshold) : (best > 0 ? 1 : 0);
-            // Epley formülü ile tahmini 1RM (tek tekrar max) — sıkleti tekrar sayısından bağımsız kıyaslar
-            // Epley (÷30) yüksek tekrarlarda çok iyimser tahmin veriyor — daha muhafazakar ÷55 kullanıyoruz
-            const estimated1RM = best > 0 ? (reps > 1 && !isRepBased ? Math.round(best * (1 + reps / 55)) : best) : 0;
             const accentColor = rank ? rank.color : C.lime;
             const gifUrl = lift.libraryName ? gifByLiftName[lift.libraryName.toLowerCase().trim()] : null;
 
@@ -4272,14 +4246,14 @@ const pickAndUploadProfilePhoto = async () => {
 
                 {best > 0 && !isRepBased && (
                   <View style={{ marginTop: 12, paddingVertical: 16, paddingHorizontal: 12, alignItems: 'center' }}>
-                    <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 9.5, letterSpacing: 1 }}>{t('TAHMİNİ 1RM')}</Text>
+                    <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 9.5, letterSpacing: 1 }}>{t('RANK PUANI')}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, marginTop: 3 }}>
-                      <Text style={{ color: accentColor, fontFamily: LK.fontHeadlineXl, fontSize: 20, letterSpacing: -0.4 }}>{estimated1RM}</Text>
-                      <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 11 }}>kg</Text>
+                      <Text style={{ color: accentColor, fontFamily: LK.fontHeadlineXl, fontSize: 20, letterSpacing: -0.4 }}>{Math.round(score * 10) / 10}</Text>
+                      <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 11 }}>{t('puan')}</Text>
                     </View>
                     {reps > 1 && (
                       <Text style={{ color: C.textMuted, fontSize: 9, marginTop: 3, textAlign: 'center', paddingHorizontal: 10 }}>
-                        {t('Bunu direkt denemeye kalkma, kademeli çık ⚠️')}
+                        {t('Tekrar katkısı dahil')}
                       </Text>
                     )}
                   </View>
@@ -4289,7 +4263,7 @@ const pickAndUploadProfilePhoto = async () => {
                   <View style={{ marginTop: 12 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                       <Text style={{ color: C.textMuted, fontSize: 10 }}>{t('Sonraki: {{rank}}', { rank: t(nextRank.label) })}</Text>
-                      <Text style={{ color: C.textMuted, fontSize: 10 }}>{best} / {Math.round(nextThreshold)} {unitLabel}</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 10 }}>{isRepBased ? `${best} / ${nextThreshold} ${unitLabel}` : t('{{kg}} kg × {{reps}} tekrar', { kg: nextReps ? best : nextThreshold, reps: nextReps || nextTargetReps })}</Text>
                     </View>
                     <View style={{ height: 5, backgroundColor: C.surface2, borderRadius: 3, overflow: 'hidden' }}>
                       <View style={{ height: 5, width: `${Math.round(progress * 100)}%`, backgroundColor: rank ? rank.color : C.lime, borderRadius: 3 }} />
@@ -4337,17 +4311,17 @@ const pickAndUploadProfilePhoto = async () => {
               const bwSort = user?.weight || 70;
               const bestA = user?.lifts?.[a.key]?.best || 0;
               const bestB = user?.lifts?.[b.key]?.best || 0;
-              const rA = computeRank(a.key, bestA, bwSort, user?.gender).rankIndex;
-              const rB = computeRank(b.key, bestB, bwSort, user?.gender).rankIndex;
+              const rA = computeRank(a.key, bestA, bwSort, user?.gender, user?.lifts?.[a.key]?.reps).rankIndex;
+              const rB = computeRank(b.key, bestB, bwSort, user?.gender, user?.lifts?.[b.key]?.reps).rankIndex;
               if (rB !== rA) return rB - rA;
-              return (bestB / bwSort) - (bestA / bwSort);
+              return rankScore(b.key, bestB, user?.lifts?.[b.key]?.reps, user?.weight, user?.gender) - rankScore(a.key, bestA, user?.lifts?.[a.key]?.reps, user?.weight, user?.gender);
             }).map((lift) => {
               const liftData = user?.lifts?.[lift.key];
               const best = liftData?.best || 0;
               const repsL = liftData?.reps || 1;
               const isRepBased = lift.unit === 'tekrar';
               const unitLabel = isRepBased ? t('tekrar') : 'kg';
-              const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
+              const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender, user?.lifts?.[lift.key]?.reps);
               const rank = rankIndex >= 0 ? RANKS[rankIndex] : null;
               const accentColor = rank ? rank.color : C.lime;
               const gifUrl = lift.libraryName ? gifByLiftName[lift.libraryName.toLowerCase().trim()] : null;
@@ -4465,7 +4439,7 @@ const pickAndUploadProfilePhoto = async () => {
         const earnedLifts = LIFTS
           .map(lift => {
             const best = user?.lifts?.[lift.key]?.best || 0;
-            const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
+            const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender, user?.lifts?.[lift.key]?.reps);
             return { lift, rankIndex, rank: rankIndex >= 0 ? RANKS[rankIndex] : null };
           })
           .filter(l => l.rank !== null)
@@ -6192,7 +6166,7 @@ const pickAndUploadProfilePhoto = async () => {
               const best = user?.lifts?.[lift.key]?.best || 0;
               const isRepBased = lift.unit === 'tekrar';
               const unitLabel = isRepBased ? t('tekrar') : 'kg';
-              const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender);
+              const { rankIndex } = computeRank(lift.key, best, user?.weight, user?.gender, user?.lifts?.[lift.key]?.reps);
               const accent = rankIndex >= 0 ? RANKS[rankIndex].color : C.lime;
 
               // Tek kayıtta çizgi oluşmaz — noktayı ikiye çoğaltıp düz çizgi gösteriyoruz
@@ -6419,20 +6393,21 @@ const pickAndUploadProfilePhoto = async () => {
                 };
                 const bump = (delta: number) => {
                   const cur = parseFloat((liftInput || '0').replace(',', '.')) || 0;
-                  const next = Math.max(0, Math.min(isRepBased ? 50 : 1000, cur + delta));
+                  const next = Math.max(0, Math.min(isRepBased ? 200 : 1000, cur + delta));
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setLiftInput(fmt(next));
                 };
                 const bumpReps = (delta: number) => {
                   const cur = parseInt(liftRepsInput, 10) || 1;
-                  const next = Math.max(1, Math.min(30, cur + delta));
+                  const next = Math.max(1, Math.min(50, cur + delta));
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setLiftRepsInput(String(next));
                 };
-                // Epley: 1RM = ağırlık × (1 + tekrar/30) — tek tekrarda ağırlığın kendisi
+                // Kart ve kas haritasıyla aynı tekrar katkılı rank puanı
                 const wNum = parseFloat((liftInput || '').replace(',', '.')) || 0;
-                const rNum = Math.max(1, Math.min(30, parseInt(liftRepsInput, 10) || 1));
-                const oneRm = wNum > 0 ? (rNum > 1 ? wNum * (1 + rNum / 30) : wNum) : 0;
+                const rNum = Math.max(1, Math.min(50, parseInt(liftRepsInput, 10) || 1));
+                const entryScore = rankScore(liftModal!, wNum, rNum, user?.weight, user?.gender);
+                const entryRank = computeRank(liftModal!, wNum, user?.weight, user?.gender, rNum).rankIndex;
 
                 const stepperBtn = (icon: 'remove' | 'add', onPress: () => void) => (
                   <TouchableOpacity onPress={onPress} activeOpacity={0.7} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
@@ -6539,21 +6514,23 @@ const pickAndUploadProfilePhoto = async () => {
                       </View>
                     )}
 
-                    {/* Canlı 1RM tahmini — birden fazla tekrarda anlam kazanıyor */}
+                    {/* Canlı rank puanı ve sınıfı */}
                     {!isRepBased && wNum > 0 && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: LK.accentSoft, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 10 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
                           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: LK.accent }} />
-                          <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 11.5 }}>{t('Tahmini 1RM gücü:')}</Text>
+                          <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabel, fontSize: 11.5 }}>{t('Rank puanı:')}</Text>
                         </View>
                         <Text style={{ color: LK.accentFixed, fontFamily: LK.fontHeadlineSemi, fontSize: 13 }}>
-                          {rNum > 1 ? '~' : ''}{(Math.round(oneRm * 10) / 10).toString().replace('.', ',')} kg
+                          {(Math.round(entryScore * 10) / 10).toString().replace('.', ',')} · {entryRank >= 0 ? t(RANKS[entryRank].label) : t('Henüz Bronz değil')}
                         </Text>
                       </View>
                     )}
 
                     <Text style={{ color: LK.onSurfaceVariant, fontFamily: LK.fontLabelSm, fontSize: 10.5, textAlign: 'center', marginTop: 10, opacity: 0.75, lineHeight: 15 }}>
-                      {isRepBased ? t('Tek seferde (dinlenmeden) yapabildiğin en yüksek tekrar sayısını gir.') : t('Tek seferde kaldırdıysan "1" bırak. Birden fazla tekrar yaptıysan gerçek 1RM\'in daha doğru hesaplanır.')}
+                      {isRepBased ? t('Tek seferde (dinlenmeden) yapabildiğin en yüksek tekrar sayısını gir.') : REP_FOCUSED_LIFTS.has(lift.key)
+                        ? t('Elmas yükün {{kg}} kg. Bu yükte ek tekrar katkısı %4, en fazla %40. Efsane için kilo ve en az {{reps}} tekrar şartı birlikte aranır.', { kg: (Math.ceil(repBonusThreshold(lift.key, user?.weight, user?.gender) * 10) / 10).toLocaleString(currentLang()), reps: legendMinReps(lift.key, user?.weight) })
+                        : t('Ağırlık ana etkendir. Her ek tekrar rank puanına %2 katkı sağlar; katkı en fazla %20 olur.')}
                     </Text>
 
                     <TouchableOpacity onPress={saveLift} disabled={liftSaving} activeOpacity={0.85} style={{ marginTop: 12, borderRadius: 14, overflow: 'hidden',
@@ -7008,7 +6985,9 @@ const pickAndUploadProfilePhoto = async () => {
             const lift = LIFTS.find(l => l.key === shareLiftKey);
             if (!lift) return null;
             const best = user?.lifts?.[shareLiftKey]?.best || 0;
-            const { rankIndex, nextWeight, ratio } = computeRank(shareLiftKey, best, user?.weight, user?.gender);
+            const reps = user?.lifts?.[shareLiftKey]?.reps || 1;
+            const isRepBased = lift.unit === 'tekrar';
+            const { rankIndex, nextTargetWeight, nextTargetReps, nextReps, ratio } = computeRank(shareLiftKey, best, user?.weight, user?.gender, reps);
             const rank = rankIndex >= 0 ? RANKS[rankIndex] : RANKS[0];
             return (
               <>
@@ -7034,13 +7013,13 @@ const pickAndUploadProfilePhoto = async () => {
                       <Text style={{ color: C.textSec, fontSize: 15, fontWeight: '700', marginTop: 22, letterSpacing: 0.5 }}>{lift.label}</Text>
                       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 5, marginTop: 2 }}>
                         <Text style={{ color: '#fff', fontSize: 54, fontWeight: '900', lineHeight: 58 }}>{best}</Text>
-                        <Text style={{ color: rank.color, fontSize: 22, fontWeight: '900', marginBottom: 9 }}>kg</Text>
+                        <Text style={{ color: rank.color, fontSize: 22, fontWeight: '900', marginBottom: 9 }}>{isRepBased ? t('tekrar') : `kg × ${reps}`}</Text>
                       </View>
-                      <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 2 }}>{t('Vücut ağırlığının {{ratio}}× katı', { ratio: ratio.toFixed(2) })}</Text>
+                      <Text style={{ color: C.textMuted, fontSize: 13, marginTop: 2 }}>{!isRepBased && t('Tekrar katkılı güç oranı: {{ratio}}×', { ratio: ratio.toFixed(2) })}</Text>
                       {/* Alt bilgi */}
-                      {nextWeight ? (
+                      {nextTargetWeight !== null ? (
                         <View style={{ marginTop: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 16 }}>
-                          <Text style={{ color: C.textSec, fontSize: 12 }}>{t("Sonraki rank'a {{kg}} kg kaldı", { kg: nextWeight - best })}</Text>
+                          <Text style={{ color: C.textSec, fontSize: 12 }}>{isRepBased ? t('Sonraki rank için {{count}} tekrar daha', { count: nextTargetWeight - best }) : t('{{reps}} tekrarla hedef: {{kg}} kg', { reps: nextReps || nextTargetReps, kg: nextReps ? best : nextTargetWeight })}</Text>
                         </View>
                       ) : (
                         <View style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: rank.color + '22', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 16 }}>
@@ -7062,68 +7041,11 @@ const pickAndUploadProfilePhoto = async () => {
         </View>
       </Modal>
 
-      {/* VÜCUT ORTALAMASI ROZETİ PAYLAŞIMI */}
-      <Modal visible={shareBodyRank} transparent animationType="fade" onRequestClose={() => setShareBodyRank(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
-          <TouchableOpacity onPress={() => setShareBodyRank(false)} style={{ position: 'absolute', top: insets.top + 16, right: 20, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: 8 }}>
-            <Ionicons name="close" size={24} color="#fff" />
-          </TouchableOpacity>
-          {(() => {
-            const liftsData = user?.lifts || {};
-            const bw = user?.weight || 70;
-            const muscleRanksMap = buildMuscleRanksMap(liftsData, bw, user?.gender);
-            const bodyAvgIdx = computeBodyAverageRank(liftsData, bw, user?.gender);
-            const displayIdx = selectedMuscle ? computeMuscleRank(selectedMuscle, liftsData, bw, user?.gender) : bodyAvgIdx;
-            const rank = displayIdx >= 0 ? RANKS[displayIdx] : RANKS[0];
-            const shareLabel = selectedMuscle ? t('{{muscle}} ORTALAMASI', { muscle: t(MUSCLE_NAMES[selectedMuscle]).toUpperCase() }) : t('VÜCUT ORTALAMASI');
-            return (
-              <>
-                <ViewShot ref={bodyShareRef} options={{ format: 'jpg', quality: 0.95 }}>
-                  <View style={{ width: 320, borderRadius: 32, overflow: 'hidden', borderWidth: 1.5, borderColor: rank.color + '66' }}>
-                    <LinearGradient colors={[rank.color + '2E', '#0E1118', '#0B0D12']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ paddingVertical: 26, paddingHorizontal: 20, alignItems: 'center' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Ionicons name="barbell" size={15} color={rank.color} />
-                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', letterSpacing: 3 }}>GYMBODY<Text style={{ color: C.lime }}>AI</Text></Text>
-                      </View>
-                      <Text style={{ color: '#FFFFFF', fontSize: 23, fontWeight: '900', marginTop: 18 }}>{t('Gücümün haritası')}</Text>
-                      <View style={{ marginTop: 14, width: 270 }}>
-                        <View pointerEvents="none" style={{ position: 'absolute', left: 0, width: 135, height: 250 }}>
-                          <MuscleMapEffects width={135} height={250} theme={getTierTheme(rank.key)!} animate={false} />
-                        </View>
-                        <View pointerEvents="none" style={{ position: 'absolute', left: 135, width: 135, height: 250 }}>
-                          <MuscleMapEffects width={135} height={250} theme={getTierTheme(rank.key)!} animate={false} />
-                        </View>
-                        <MuscleBodyMap gender={user?.gender}
-                          width={270}
-                          view="both"
-                          ranks={muscleRanksMap}
-                          rankColors={{ bronz: RANKS[0].color, gumus: RANKS[1].color, altin: RANKS[2].color, platin: RANKS[3].color, elmas: RANKS[4].color, efsane: RANKS[5].color }}
-                          defaultColor="#2A2E40"
-                          baseColor="#2A2E40"
-                          outlineColor="#3A3F55"
-                          strokeColor="rgba(0,0,0,0.4)"
-                          detailColor="rgba(0,0,0,0.3)"
-                          showLabels={false}
-                        />
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, backgroundColor: rank.color + '22', borderColor: rank.color, borderWidth: 1, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 6 }}>
-                        <RankBadgeSvg rankKey={rank.key} color={rank.color} size={26} />
-                        <Text style={{ color: rank.color, fontSize: 18, fontWeight: '900', letterSpacing: 1.5 }}>{t(rank.label).toUpperCase()}</Text>
-                      </View>
-                      <Text style={{ color: C.textSec, fontSize: 12.5, fontWeight: '700', marginTop: 10, letterSpacing: 0.5 }}>{shareLabel}</Text>
-                    </LinearGradient>
-                  </View>
-                </ViewShot>
-                <TouchableOpacity onPress={captureBodyShare} activeOpacity={0.85}
-                  style={{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.orange, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 32 }}>
-                  <Ionicons name="share-social" size={18} color="#0B0D12" />
-                  <Text style={{ color: '#0B0D12', fontWeight: '800', fontSize: 15 }}>{t('Paylaş')}</Text>
-                </TouchableOpacity>
-              </>
-            );
-          })()}
-        </View>
-      </Modal>
+      {shareBodyRank && <StrengthShareModal
+        onClose={() => setShareBodyRank(false)}
+        gender={user?.gender} bodyweight={user?.weight || 70} lifts={user?.lifts || {}}
+        muscle={selectedMuscle} currentView={bodyMapView}
+      />}
 
       {/* KAS GELİŞİMİ — zaman içinde karşılaştırma */}
       <Modal visible={muscleTrendVisible} transparent animationType="fade" onRequestClose={() => setMuscleTrendVisible(false)}>

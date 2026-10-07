@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'expo.modules.rankvideo'
+version = '1.0.0'
+android {
+  namespace 'expo.modules.rankvideo'
+  defaultConfig { versionCode 1; versionName '1.0.0' }
+}
+dependencies {
+  // Same Media3 version as Expo Video (SDK 54).
+  implementation 'androidx.media3:media3-transformer:1.8.0'
+  implementation 'androidx.media3:media3-effect:1.8.0'
+}
